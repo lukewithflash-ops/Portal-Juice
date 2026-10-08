@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import GameTile, { type MoveFlag } from "@/components/GameTile";
+import { usePrefs } from "@/components/Prefs";
 import { LEAGUES, POPULAR_SIGNAL, rankGames, type Game, type LeagueId } from "@/lib/slate";
 
 const SEEN_KEY = "pj-seen-lines-v1";
@@ -32,6 +33,7 @@ export default function GamesBoard({
   missing: string[];
 }) {
   const router = useRouter();
+  const { team } = usePrefs();
   const [league, setLeague] = useState<LeagueId | "ALL">("ALL");
   const [ago, setAgo] = useState<number | null>(null);
   const [moves, setMoves] = useState<Record<string, MoveFlag>>({});
@@ -74,10 +76,15 @@ export default function GamesBoard({
     return () => cancelAnimationFrame(id);
   }, [games]);
 
-  const filtered = useMemo(
-    () => (league === "ALL" ? games : games.filter((g) => g.league === league)),
-    [games, league]
-  );
+  const filtered = useMemo(() => {
+    const base = league === "ALL" ? games : games.filter((g) => g.league === league);
+    if (!team) return base;
+    const yours = (g: Game) =>
+      g.league === team.league && (g.home.abbr === team.abbr || g.away.abbr === team.abbr);
+    return [...base].sort((a, b) => Number(yours(b)) - Number(yours(a)));
+  }, [games, league, team]);
+  const isYours = (g: Game) =>
+    !!team && g.league === team.league && (g.home.abbr === team.abbr || g.away.abbr === team.abbr);
   const popular = useMemo(() => rankGames(filtered).slice(0, 4), [filtered]);
   const withTotal = filtered.filter((g) => g.price?.total !== null);
 
@@ -121,7 +128,7 @@ export default function GamesBoard({
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {popular.map((g) => (
-              <GameTile key={g.id} game={g} move={moves[g.id]} />
+              <GameTile key={g.id} game={g} move={moves[g.id]} yours={isYours(g)} />
             ))}
           </div>
         )}
@@ -135,7 +142,7 @@ export default function GamesBoard({
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {withTotal.map((g) => (
-              <GameTile key={`ou-${g.id}`} game={g} move={moves[g.id]} />
+              <GameTile key={`ou-${g.id}`} game={g} move={moves[g.id]} yours={isYours(g)} />
             ))}
           </div>
         )}
@@ -150,7 +157,7 @@ export default function GamesBoard({
         ) : (
           <div className="grid gap-2">
             {filtered.map((g) => (
-              <GameTile key={`all-${g.id}`} game={g} move={moves[g.id]} rich={false} />
+              <GameTile key={`all-${g.id}`} game={g} move={moves[g.id]} rich={false} yours={isYours(g)} />
             ))}
           </div>
         )}

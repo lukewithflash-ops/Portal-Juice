@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import InstallCapture from "@/components/InstallCapture";
+import { PrefsProvider } from "@/components/Prefs";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { SITE_NAME, SITE_URL, TAGLINE } from "@/lib/site";
@@ -42,12 +43,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} portal-bg antialiased`}>
-        <InstallCapture />
+        <PrefsProvider>
+          <InstallCapture />
         <div className="flex min-h-screen flex-col">
           <SiteHeader />
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-[calc(6.6rem+env(safe-area-inset-top))]">{children}</main>
           <SiteFooter />
         </div>
+        </PrefsProvider>
       </body>
     </html>
   );

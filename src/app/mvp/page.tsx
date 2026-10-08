@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Mark from "@/components/Mark";
+import { OddsText } from "@/components/Prefs";
 import MvpMovers from "@/components/MvpMovers";
 import { IMPLIED_BASIS } from "@/lib/detail";
 import { getMvpBoard, type MvpRow } from "@/lib/espn";
@@ -30,7 +31,7 @@ function Row({ row, provider }: { row: MvpRow; provider: string }) {
         </div>
       </div>
       <div className="text-right">
-        <div className="tabular text-lg font-black text-[color:var(--flat)]">{row.odds}</div>
+        <div className="tabular text-lg font-black text-[color:var(--flat)]"><OddsText value={row.odds} /></div>
         <div className="tabular text-[10px] text-zinc-500">{pct(row.implied)}</div>
       </div>
     </article>

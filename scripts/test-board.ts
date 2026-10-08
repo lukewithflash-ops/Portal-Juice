@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { coldProps, hotProps, streakingPlayers, streakingTeams } from "../src/lib/board";
 import { HISTORY } from "../src/data/history";
 import { allowedHeadshot, licensedHosts } from "../src/lib/headshots";
 import { FIXTURE } from "./fixtures/history.fixture";
+import { formatPrice } from "../src/lib/odds";
 import { lastNAverage, parsePrice, rankGames, sportsDate } from "../src/lib/slate";
+import { parseTeamCookie, parseTeamList } from "../src/lib/team";
 import { impliedChance, parseMvpMarket, parsePropItems, parseWeather, rankByImplied } from "../src/lib/detail";
 
 let n = 0;
@@ -212,6 +214,7 @@ t("shipped copy has no forbidden product words", () => {
     }
   };
   for (const r of roots) {
+    if (!existsSync(r)) continue;
     if (statSync(r).isDirectory()) walk2(r);
     else files.push(r);
   }
@@ -220,6 +223,23 @@ t("shipped copy has no forbidden product words", () => {
     const text = readFileSync(f, "utf8");
     assert.ok(!banned.test(text), `${f} matches ${text.match(banned)?.[0]}`);
   }
+});
+
+t("implied chance converts prices only", () => {
+  assert.equal(formatPrice("-120", "pct"), "54.5%");
+  assert.equal(formatPrice("+150", "american"), "+150");
+  assert.equal(formatPrice("48.5", "pct"), "48.5");
+  assert.equal(formatPrice("-7.5", "pct"), "-7.5");
+});
+
+t("team cookie and team list stay strict", () => {
+  assert.equal(parseTeamCookie("nope"), null);
+  assert.equal(parseTeamCookie("nba:1:GSW:1D428A:FFC72C")?.abbr, "GSW");
+  const rows = parseTeamList({
+    sports: [{ leagues: [{ teams: [{ team: { id: "9", abbreviation: "GSW", displayName: "Warriors", color: "1d428a", alternateColor: "ffc72c", logos: [{ href: "https://a.espncdn.com/x.png" }] } }] }] }],
+  });
+  assert.equal(rows[0]?.abbr, "GSW");
+  assert.equal(rows[0]?.logo, "https://a.espncdn.com/x.png");
 });
 
 console.log(`\n${n} passed`);

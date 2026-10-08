@@ -247,3 +247,36 @@ body {
 
 details.fold > summary { list-style: none; }
 details.fold > summary::-webkit-details-marker { display: none; }
+
+html[data-team] .portal-bg {
+  background:
+    radial-gradient(ellipse at 8% 0%, color-mix(in srgb, var(--team) 32%, transparent) 0%, transparent 46%),
+    radial-gradient(ellipse at 92% 8%, color-mix(in srgb, var(--team-alt) 22%, transparent) 0%, transparent 42%),
+    radial-gradient(ellipse at 75% 85%, rgba(57, 255, 20, 0.05) 0%, transparent 48%),
+    #030306;
+}
+html[data-team] .site-chrome {
+  border-bottom-color: color-mix(in srgb, var(--team) 55%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--team) 38%, #030306), rgba(3, 3, 6, 0.94));
+}
+html[data-team] .portal-bg::after {
+  filter: blur(2px) saturate(1.4);
+  opacity: 0.14;
+}
+.brand-mask {
+  display: block;
+  background: linear-gradient(135deg, var(--team), var(--team-alt));
+  -webkit-mask: url("/brand/swirl-mark.png") center / contain no-repeat;
+  mask: url("/brand/swirl-mark.png") center / contain no-repeat;
+}
+@media (prefers-reduced-motion: reduce) {
+  .play-pop { animation: none !important; }
+}
+@keyframes play-pop {
+  from { transform: translateY(-6px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.play-pop { animation: play-pop 280ms ease-out; }
+.score-flash {
+  box-shadow: 0 0 22px color-mix(in srgb, var(--flash, var(--plus)) 70%, transparent);
+}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Mark from "@/components/Mark";
+import { OddsText } from "@/components/Prefs";
 import { getPropsBoard } from "@/lib/espn";
 import { ptTime } from "@/lib/time";
 
@@ -53,7 +54,7 @@ export default async function PropsPage() {
                       <div className="truncate text-[11px] text-zinc-500">{p.market}</div>
                     </div>
                     <div className="tabular text-right font-black text-[color:var(--flat)]">
-                      {p.line}
+                      <OddsText value={p.line} />
                       {p.openLine ? <div className="text-[10px] font-medium text-zinc-500">Opened {p.openLine}</div> : null}
                     </div>
                   </li>

@@ -15,6 +15,7 @@ does not take the other side.*
 
 | Nav    | Path                         | What it is |
 |--------|------------------------------|------------|
+| Best   | `/best`                      | Market favorites, line moves, hot trends, and the MVP board. Ranked by the numbers. |
 | Lines  | `/lines`                     | Today’s games, over/unders, and the read-only prop board. Juice is the largest type on a prop, line second, name third. Tap a line for its print history. |
 | Games  | `/games`                     | Same slate: popular games, totals, full schedule. Tap a game for the full page. |
 | Props  | `/props`                     | Player prop lines ESPN posted for today. |
@@ -67,3 +68,12 @@ npm run build
 ```
 
 Next.js 16 (App Router), React 19, TypeScript, Tailwind v4.
+
+
+## On this device
+
+The header switches American prices and implied chance. Totals, spreads, and prop numbers stay lines. The choice stays on this device.
+
+Favorite team comes from ESPN. The header, swirl, and home-screen icon take that team's colors. Green, gold, and red keep their meaning. iPhone saves the icon when you add it, so add Juice again after picking a team. That team's games sort first on Lines.
+
+Live games poll ESPN about every 12 seconds. Chat stores notes only when Redis is set. Until then it says chat opens soon.

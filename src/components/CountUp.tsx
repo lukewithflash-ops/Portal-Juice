@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fmtLine, fmtOdds } from "@/lib/odds";
+import { usePrefs } from "@/components/Prefs";
+import { fmtLine, fmtOdds, formatPrice, IMPLIED_TIP } from "@/lib/odds";
 
 export type NumFormat =
   | "line"
@@ -47,6 +48,8 @@ export default function CountUp({
 }) {
   const [shown, setShown] = useState(0);
   const fromRef = useRef(0);
+  const { odds } = usePrefs();
+  const asChance = kind === "odds" && odds === "pct";
   const decimals = decimalsFor(value, kind);
 
   useEffect(() => {
@@ -74,9 +77,10 @@ export default function CountUp({
     };
   }, [value, duration, decimals, kind]);
 
+  const label = asChance ? formatPrice(value, "pct") : format(value, kind, decimals);
   return (
-    <span className={`tabular ${className ?? ""}`} aria-label={format(value, kind, decimals)}>
-      <span aria-hidden>{format(shown, kind, decimals)}</span>
+    <span className={`tabular ${className ?? ""}`} aria-label={label} title={asChance ? IMPLIED_TIP : undefined}>
+      <span aria-hidden>{asChance ? label : format(shown, kind, decimals)}</span>
     </span>
   );
 }

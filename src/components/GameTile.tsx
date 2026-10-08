@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { OddsText } from "@/components/Prefs";
 import { useEffect, useState } from "react";
 import { TAGLINE } from "@/lib/site";
 import type { Game, Price } from "@/lib/slate";
@@ -94,8 +95,8 @@ function PriceBlock({ price, home, away }: { price: Price; home: string; away: s
             {price.homeSpreadJuice && (
               <span className="tabular">
                 {" "}
-                ({home} {price.homeSpreadJuice}
-                {price.awaySpreadJuice ? ` / ${away} ${price.awaySpreadJuice}` : ""})
+                ({home} <OddsText value={price.homeSpreadJuice} />
+                {price.awaySpreadJuice ? <> / {away} <OddsText value={price.awaySpreadJuice} /></> : ""})
               </span>
             )}
           </div>
@@ -104,7 +105,7 @@ function PriceBlock({ price, home, away }: { price: Price; home: string; away: s
           <div>
             Moneyline{" "}
             <span className="tabular text-zinc-200">
-              {away} {price.awayMl ?? "—"} · {home} {price.homeMl ?? "—"}
+              {away} <OddsText value={price.awayMl} /> · {home} <OddsText value={price.homeMl} />
             </span>
           </div>
         )}
@@ -118,10 +119,12 @@ export default function GameTile({
   game,
   move,
   rich = true,
+  yours = false,
 }: {
   game: Game;
   move?: MoveFlag | null;
   rich?: boolean;
+  yours?: boolean;
 }) {
   const moved = !!(move && (move.total || move.spread));
   const down =
@@ -143,6 +146,7 @@ export default function GameTile({
             {game.leagueLabel}
             {game.national ? " · National TV" : ""}
             {game.ranked ? " · Ranked" : ""}
+            {yours ? " · Your team" : ""}
           </div>
           <h3 className="mt-1 truncate text-sm font-bold text-[color:var(--flat)]">
             <TeamLink league={game.league} abbr={game.away.abbr} name={game.away.name} rank={game.away.rank} />

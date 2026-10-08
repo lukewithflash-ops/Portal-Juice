@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { OddsText } from "@/components/Prefs";
 import Mark from "@/components/Mark";
 import type { DetailBundle, HydratedProp } from "@/lib/espn";
 import { ptDayTime } from "@/lib/time";
@@ -90,12 +91,12 @@ export default function GameDetailView({ bundle }: { bundle: DetailBundle }) {
                 <div className="text-right text-xs text-zinc-300">
                   {move.overJuice ? (
                     <div>
-                      Over <span className="tabular font-bold">{move.overJuice}</span>
+                      Over <span className="tabular font-bold"><OddsText value={move.overJuice} /></span>
                     </div>
                   ) : null}
                   {move.underJuice ? (
                     <div>
-                      Under <span className="tabular font-bold">{move.underJuice}</span>
+                      Under <span className="tabular font-bold"><OddsText value={move.underJuice} /></span>
                     </div>
                   ) : null}
                 </div>
@@ -119,12 +120,12 @@ export default function GameDetailView({ bundle }: { bundle: DetailBundle }) {
                 <p>
                   Moneyline{" "}
                   <span className="tabular text-[color:var(--flat)]">
-                    {awayAbbr} {move.awayMl ?? "—"} · {homeAbbr} {move.homeMl ?? "—"}
+                    {awayAbbr} <OddsText value={move.awayMl} /> · {homeAbbr} <OddsText value={move.homeMl} />
                   </span>
                   {move.homeMlOpen || move.awayMlOpen ? (
                     <span className="text-zinc-500">
                       {" "}
-                      · opened {awayAbbr} {move.awayMlOpen ?? "—"} / {homeAbbr} {move.homeMlOpen ?? "—"}
+                      · opened {awayAbbr} <OddsText value={move.awayMlOpen} /> / {homeAbbr} <OddsText value={move.homeMlOpen} />
                     </span>
                   ) : null}
                 </p>

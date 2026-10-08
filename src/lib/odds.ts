@@ -22,3 +22,21 @@ export function implied(odds: number): number {
 export function validOdds(n: number): boolean {
   return Number.isFinite(n) && (n <= -100 || n >= 100);
 }
+
+export type OddsMode = "american" | "pct";
+
+/**
+ * American prices become implied chance. Lines (totals, spreads, prop numbers)
+ * stay as posted because they are not a price.
+ */
+export function formatPrice(raw: string | number | null | undefined, mode: OddsMode): string {
+  if (raw === null || raw === undefined || raw === "") return "—";
+  const text = String(raw).trim();
+  if (mode !== "pct") return text;
+  const n = Number(text.replace(/^\+/, ""));
+  if (!validOdds(n)) return text;
+  return `${(implied(n) * 100).toFixed(1)}%`;
+}
+
+export const IMPLIED_TIP =
+  "Implied chance. How often this price has to hit to break even. Not a pick.";

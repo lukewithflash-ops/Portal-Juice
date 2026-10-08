@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import GameChat from "@/components/GameChat";
 import GameDetailView from "@/components/GameDetailView";
+import LiveDesk from "@/components/LiveDesk";
 import GameTile from "@/components/GameTile";
 import { getGameDetail } from "@/lib/espn";
 import { leagueById } from "@/lib/slate";
@@ -47,7 +49,9 @@ export default async function GamePage({ params }: { params: Promise<Params> }) 
       </p>
       <div className="max-w-xl">
         <GameTile game={game} />
+        <LiveDesk league={league} id={id} />
         <GameDetailView bundle={bundle} />
+        <GameChat league={league} id={id} />
       </div>
     </>
   );

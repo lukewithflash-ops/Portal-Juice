@@ -22,6 +22,9 @@ export default function AppPage() {
             <li>Tap Add to Home Screen.</li>
             <li>Tap Add. The icon is Juice.</li>
           </ol>
+          <p className="mt-3 text-[11px] leading-relaxed text-zinc-500">
+            iPhone saves the icon when you add it. After you pick a favorite team, remove Juice and add it again so the home screen picks up the new mark.
+          </p>
         </section>
         <section className="foil-tile p-4">
           <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[color:var(--flat)]">Android</h2>

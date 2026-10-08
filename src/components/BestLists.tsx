@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { OddsText } from "@/components/Prefs";
 import Mark from "@/components/Mark";
 import type { Favorite, HotTrend, LineMove } from "@/lib/best";
 import type { MvpRow } from "@/lib/espn";
@@ -23,7 +24,7 @@ export function FavoriteList({ rows }: { rows: Favorite[] }) {
                 <span className="text-zinc-500"> · {r.label}</span>
               </span>
               <span className="text-right">
-                <span className="tabular font-black text-[color:var(--flat)]">{r.odds}</span>
+                <span className="tabular font-black text-[color:var(--flat)]"><OddsText value={r.odds} /></span>
                 <span className="mt-0.5 block text-[10px] text-zinc-500">{(r.implied * 100).toFixed(1)}% implied</span>
               </span>
             </Link>
@@ -106,7 +107,7 @@ export function MvpList({ rows, provider }: { rows: MvpRow[]; provider: string }
                 </span>
               </span>
               <span className="text-right">
-                <span className="tabular font-black text-[color:var(--flat)]">{r.odds}</span>
+                <span className="tabular font-black text-[color:var(--flat)]"><OddsText value={r.odds} /></span>
                 <span className="mt-0.5 block text-[10px] text-zinc-500">{(r.implied * 100).toFixed(1)}%</span>
               </span>
             </div>
