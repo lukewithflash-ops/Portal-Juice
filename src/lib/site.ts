@@ -10,6 +10,8 @@ export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://portaljuice
 export const NAV = [
   { href: "/lines", label: "Lines" },
   { href: "/games", label: "Games" },
+  { href: "/props", label: "Props" },
+  { href: "/mvp", label: "MVP" },
   { href: "/trends", label: "Trends" },
   { href: "/news", label: "News" },
   { href: "/lines/board", label: "Board" },

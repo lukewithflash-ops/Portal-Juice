@@ -6,6 +6,7 @@ import { HISTORY } from "../src/data/history";
 import { allowedHeadshot, licensedHosts } from "../src/lib/headshots";
 import { FIXTURE } from "./fixtures/history.fixture";
 import { lastNAverage, parsePrice, rankGames, sportsDate } from "../src/lib/slate";
+import { impliedChance, parseMvpMarket, parsePropItems, parseWeather, rankByImplied } from "../src/lib/detail";
 
 let n = 0;
 const t = (name: string, fn: () => void) => {
@@ -149,6 +150,50 @@ t("last-5 average skips missing stats and uses the newest games", () => {
   };
   assert.deepEqual(lastNAverage(log, "points", 2), { avg: 25, games: 2 });
   assert.equal(lastNAverage(log, "rebounds", 2), null);
+});
+
+
+t("weather uses only fields that were sent", () => {
+  assert.equal(parseWeather({ weather: { temperature: 85, precipitation: 0 } }), "85° · Precip 0");
+  assert.equal(parseWeather({}), null);
+});
+
+t("props keep player lines and drop team markets", () => {
+  const parsed = parsePropItems({
+    count: 4,
+    items: [
+      { type: { name: "Total Passing Yards" }, athlete: { $ref: "http://x/athletes/1" }, current: { target: { displayValue: "271.5" } }, open: { target: { displayValue: "258.5" } } },
+      { type: { name: "Total Passing Yards" }, athlete: { $ref: "http://x/athletes/1" }, current: { target: { displayValue: "271.5" } } },
+      { type: { name: "Team Total Points" }, athlete: { $ref: "http://x/athletes/2" }, current: { target: { displayValue: "24.5" } } },
+      { type: { name: "Total Rushing Yards" }, current: { target: { displayValue: "70.5" } } },
+    ],
+  });
+  assert.equal(parsed.total, 4);
+  assert.equal(parsed.drafts.length, 1);
+  assert.equal(parsed.drafts[0].line, "271.5");
+  assert.equal(parsed.drafts[0].openLine, "258.5");
+});
+
+t("mvp board ranks by implied chance", () => {
+  const market = parseMvpMarket({
+    items: [{
+      name: "Regular Season MVP",
+      displayName: "Regular Season MVP",
+      futures: [{
+        provider: { name: "DraftKings" },
+        books: [
+          { athlete: { $ref: "http://x/athletes/9" }, value: "+280" },
+          { athlete: { $ref: "http://x/athletes/3" }, value: "-150" },
+          { athlete: { $ref: "http://x/athletes/9" }, value: "+900" },
+        ],
+      }],
+    }],
+  });
+  assert.ok(market);
+  assert.equal(market.provider, "DraftKings");
+  assert.deepEqual(market.books.map((b) => b.athleteId), ["3", "9"]);
+  assert.ok(Math.abs(impliedChance(-150) - 0.6) < 1e-9);
+  assert.deepEqual(rankByImplied([{ oddsNum: 280 }, { oddsNum: -150 }]).map((r) => r.oddsNum), [-150, 280]);
 });
 
 t("shipped copy has no forbidden product words", () => {

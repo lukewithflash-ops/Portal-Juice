@@ -232,3 +232,6 @@ body {
   color: transparent;
   filter: drop-shadow(0 0 12px rgba(192, 38, 255, 0.35));
 }
+
+details.fold > summary { list-style: none; }
+details.fold > summary::-webkit-details-marker { display: none; }

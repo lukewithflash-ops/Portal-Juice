@@ -48,7 +48,7 @@ function Countdown({ start, state }: { start: string; state: Game["state"] }) {
 
 function TeamLink({ league, abbr, name, rank }: { league: string; abbr: string; name: string; rank: number | null }) {
   return (
-    <Link href={`/teams/${league}/${abbr.toLowerCase()}`} className="truncate hover:text-white">
+    <Link href={`/teams/${league}/${abbr.toLowerCase()}`} className="relative z-10 truncate hover:text-white">
       {rank ? <span className="mr-1 text-[10px] text-zinc-500">{rank}</span> : null}
       <span className="font-bold">{abbr}</span>
       <span className="ml-1 hidden text-zinc-400 sm:inline">{name.replace(/^[A-Z][a-z]+ /, "")}</span>
@@ -130,8 +130,13 @@ export default function GameTile({
   const showScore = game.state === "in" || game.state === "post";
   return (
     <article
-      className={`foil-tile p-4 ${moved ? `line-moved ${down ? "against" : ""}` : ""}`}
+      className={`foil-tile relative p-4 ${moved ? `line-moved ${down ? "against" : ""}` : ""}`}
     >
+      <Link
+        href={`/games/${game.league}/${game.id}`}
+        aria-label={`${game.away.abbr} at ${game.home.abbr}`}
+        className="absolute inset-0 z-0 rounded-2xl"
+      />
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-purple-200/80">
@@ -196,7 +201,7 @@ export default function GameTile({
       )}
 
       <div className="mt-3 flex items-center justify-between text-[11px]">
-        <Link href={`/games/${game.league}/${game.id}`} className="font-semibold text-purple-200/90 hover:text-white">
+        <Link href={`/games/${game.league}/${game.id}`} className="relative z-10 font-semibold text-purple-200/90 hover:text-white">
           Game
         </Link>
         {(game.home.record || game.away.record) && (

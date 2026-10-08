@@ -1,6 +1,16 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { allowedHeadshot } from "@/lib/headshots";
+import { implied } from "@/lib/odds";
+import {
+  parseMvpMarket,
+  parsePropItems,
+  parseSummaryDetail,
+  providerFromOddsList,
+  seasonStatLine,
+  type GameDetail,
+  type PropDraft,
+} from "@/lib/detail";
 import {
   LEAGUES,
   dayLabel,
@@ -308,3 +318,288 @@ export async function getTeam(leagueId: string, abbrRaw: string): Promise<TeamPa
   return load();
 }
 
+
+
+export type HydratedProp = PropDraft & {
+  name: string;
+  team: string;
+  headshot: string | null;
+  provider: string;
+};
+
+export type DetailBundle = {
+  game: Game;
+  detail: GameDetail;
+  props: HydratedProp[];
+  propTotal: number;
+  propProvider: string | null;
+};
+
+export type MvpRow = {
+  id: string;
+  name: string;
+  team: string;
+  headshot: string | null;
+  odds: string;
+  oddsNum: number;
+  implied: number;
+  stats: string;
+};
+
+export type MvpGroup = {
+  league: LeagueId;
+  leagueLabel: string;
+  market: string;
+  provider: string;
+  rows: MvpRow[];
+};
+
+export type PropsGroup = {
+  game: Game;
+  provider: string | null;
+  total: number;
+  props: HydratedProp[];
+};
+
+async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let i = 0;
+  const size = Math.min(n, items.length);
+  await Promise.all(
+    Array.from({ length: size }, async () => {
+      while (i < items.length) {
+        const idx = i++;
+        await fn(items[idx]!);
+      }
+    })
+  );
+}
+
+function teamIdFromRef(ref: unknown): string | null {
+  if (typeof ref !== "string") return null;
+  const m = ref.match(/teams\/(\d+)/);
+  return m?.[1] ?? null;
+}
+
+async function readCoreAthlete(league: League, id: string): Promise<{
+  name: string | null;
+  headshot: string | null;
+  teamId: string | null;
+}> {
+  const data = (await getJson(
+    `https://sports.core.api.espn.com/v2/sports/${league.sport}/leagues/${league.slug}/athletes/${id}`
+  )) as Record<string, unknown>;
+  const head = data.headshot as { href?: string } | undefined;
+  const team = data.team as { $ref?: string } | undefined;
+  return {
+    name: typeof data.displayName === "string" ? data.displayName : null,
+    headshot: allowedHeadshot(typeof head?.href === "string" ? head.href : null),
+    teamId: teamIdFromRef(team?.$ref),
+  };
+}
+
+async function hydrate(
+  league: League,
+  drafts: PropDraft[],
+  provider: string,
+  teams: Record<string, string>
+): Promise<HydratedProp[]> {
+  const ids = [...new Set(drafts.map((d) => d.athleteId))];
+  const people = new Map<string, { name: string; team: string; headshot: string | null }>();
+  await pool(ids, 10, async (id) => {
+    try {
+      const a = await readCoreAthlete(league, id);
+      if (!a.name) return;
+      people.set(id, {
+        name: a.name,
+        team: (a.teamId && teams[a.teamId]) || "",
+        headshot: a.headshot,
+      });
+    } catch {
+      /* skip a player the feed did not resolve */
+    }
+  });
+  return drafts.flatMap((d) => {
+    const p = people.get(d.athleteId);
+    if (!p) return [];
+    return [{ ...d, name: p.name, team: p.team, headshot: p.headshot, provider }];
+  });
+}
+
+async function teamDirectory(league: League): Promise<Record<string, string>> {
+  try {
+    const data = await getJson(
+      `https://site.api.espn.com/apis/site/v2/sports/${league.sport}/${league.slug}/teams?limit=400`
+    );
+    const out: Record<string, string> = {};
+    const walk = (v: unknown) => {
+      if (Array.isArray(v)) {
+        v.forEach(walk);
+        return;
+      }
+      if (!v || typeof v !== "object") return;
+      const d = v as Record<string, unknown>;
+      if (typeof d.id === "string" && typeof d.abbreviation === "string" && d.abbreviation.length <= 6) {
+        out[d.id] = d.abbreviation;
+      }
+      for (const child of Object.values(d)) {
+        if (child && typeof child === "object") walk(child);
+      }
+    };
+    walk(data);
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+async function loadPropDrafts(league: League, eventId: string, limit: number): Promise<{
+  provider: string | null;
+  total: number;
+  drafts: PropDraft[];
+}> {
+  const base = `https://sports.core.api.espn.com/v2/sports/${league.sport}/leagues/${league.slug}/events/${eventId}/competitions/${eventId}/odds`;
+  let providerId = "100";
+  let provider: string | null = null;
+  try {
+    const listed = providerFromOddsList(await getJson(base));
+    if (listed) {
+      providerId = listed.id;
+      provider = listed.name;
+    }
+  } catch {
+    return { provider: null, total: 0, drafts: [] };
+  }
+  try {
+    const data = await getJson(`${base}/${providerId}/propBets?limit=${limit}`);
+    const parsed = parsePropItems(data);
+    return { provider, total: parsed.total, drafts: parsed.drafts };
+  } catch {
+    return { provider, total: 0, drafts: [] };
+  }
+}
+
+async function loadDetail(leagueId: string, id: string): Promise<DetailBundle | null> {
+  const league = leagueById(leagueId);
+  if (!league || !/^\d+$/.test(id)) return null;
+  let summary: unknown;
+  try {
+    summary = await getJson(
+      `https://site.api.espn.com/apis/site/v2/sports/${league.sport}/${league.slug}/summary?event=${id}`
+    );
+  } catch {
+    return null;
+  }
+  const d = summary as { header?: Record<string, unknown>; pickcenter?: unknown[] };
+  const header = (d.header ?? {}) as Record<string, unknown>;
+  const comp = (Array.isArray(header.competitions) ? header.competitions[0] : {}) as Record<string, unknown>;
+  const odds = Array.isArray(comp.odds) && comp.odds.length ? comp.odds[0] : d.pickcenter?.[0];
+  const game = parseGame(
+    league,
+    { id, date: (comp.date as string) || "", competitions: [comp] },
+    0,
+    odds
+  );
+  if (!game) return null;
+  const detail = parseSummaryDetail(summary, league.label);
+  const teams: Record<string, string> = { [game.home.id]: game.home.abbr, [game.away.id]: game.away.abbr };
+  const propsRaw = await loadPropDrafts(league, id, 80);
+  const props = await hydrate(league, propsRaw.drafts, propsRaw.provider || "ESPN", teams);
+  return {
+    game,
+    detail,
+    props,
+    propTotal: propsRaw.total,
+    propProvider: propsRaw.provider,
+  };
+}
+
+export function getGameDetail(leagueId: string, id: string): Promise<DetailBundle | null> {
+  const league = leagueById(leagueId);
+  if (!league || !/^\d+$/.test(id)) return Promise.resolve(null);
+  return unstable_cache(() => loadDetail(leagueId, id), ["pj-detail", league.id, id], {
+    revalidate: REVALIDATE,
+  })();
+}
+
+async function loadPropsBoard(day: string): Promise<{ groups: PropsGroup[]; fetchedAt: string }> {
+  const slate = await loadSlate(day);
+  const games = rankGames(slate.games).slice(0, 8);
+  const groups: PropsGroup[] = [];
+  for (const game of games) {
+    const league = leagueById(game.league);
+    if (!league) continue;
+    const raw = await loadPropDrafts(league, game.id, 40);
+    const teams: Record<string, string> = { [game.home.id]: game.home.abbr, [game.away.id]: game.away.abbr };
+    const props = await hydrate(league, raw.drafts.slice(0, 6), raw.provider || "ESPN", teams);
+    groups.push({ game, provider: raw.provider, total: raw.total, props });
+  }
+  return { groups: groups.filter((g) => g.props.length > 0), fetchedAt: new Date().toISOString() };
+}
+
+export function getPropsBoard(): Promise<{ groups: PropsGroup[]; fetchedAt: string }> {
+  const day = sportsDate();
+  return unstable_cache(() => loadPropsBoard(day), ["pj-props", day], { revalidate: REVALIDATE })();
+}
+
+async function loadMvp(year: number): Promise<{ groups: MvpGroup[]; fetchedAt: string }> {
+  const wanted = LEAGUES.filter((l) => l.id === "nfl" || l.id === "nba");
+  const groups: MvpGroup[] = [];
+  for (const league of wanted) {
+    let data: unknown;
+    try {
+      data = await getJson(
+        `https://sports.core.api.espn.com/v2/sports/${league.sport}/leagues/${league.slug}/seasons/${year}/futures?limit=50`
+      );
+    } catch {
+      continue;
+    }
+    const market = parseMvpMarket(data);
+    if (!market) continue;
+    const teams = await teamDirectory(league);
+    const rows: MvpRow[] = [];
+    const top = new Set(market.books.slice(0, 12).map((b) => b.athleteId));
+    await pool(market.books, 10, async (book) => {
+      try {
+        const a = await readCoreAthlete(league, book.athleteId);
+        if (!a.name) return;
+        let stats = "";
+        if (top.has(book.athleteId)) {
+          try {
+            const statJson = await getJson(
+              `https://sports.core.api.espn.com/v2/sports/${league.sport}/leagues/${league.slug}/seasons/${year}/types/2/athletes/${book.athleteId}/statistics`
+            );
+            stats = seasonStatLine(statJson);
+          } catch {
+            stats = "";
+          }
+        }
+        rows.push({
+          id: `${league.id}-${book.athleteId}`,
+          name: a.name,
+          team: (a.teamId && teams[a.teamId]) || "",
+          headshot: a.headshot,
+          odds: book.odds,
+          oddsNum: book.oddsNum,
+          implied: implied(book.oddsNum),
+          stats,
+        });
+      } catch {
+        /* skip */
+      }
+    });
+    rows.sort((a, b) => b.implied - a.implied);
+    groups.push({
+      league: league.id,
+      leagueLabel: league.label,
+      market: market.market,
+      provider: market.provider,
+      rows,
+    });
+  }
+  return { groups, fetchedAt: new Date().toISOString() };
+}
+
+export function getMvpBoard(): Promise<{ groups: MvpGroup[]; fetchedAt: string }> {
+  const year = Number(sportsDate().slice(0, 4));
+  return unstable_cache(() => loadMvp(year), ["pj-mvp", String(year)], { revalidate: REVALIDATE })();
+}

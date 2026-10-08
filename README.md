@@ -16,7 +16,9 @@ does not take the other side.*
 | Nav    | Path                         | What it is |
 |--------|------------------------------|------------|
 | Lines  | `/lines`                     | Today’s games, over/unders, and the read-only prop board. Juice is the largest type on a prop, line second, name third. Tap a line for its print history. |
-| Games  | `/games`                     | Same slate: popular games, totals, full schedule. |
+| Games  | `/games`                     | Same slate: popular games, totals, full schedule. Tap a game for the full page. |
+| Props  | `/props`                     | Player prop lines ESPN posted for today. |
+| MVP    | `/mvp`                       | MVP futures. Best of the board is the shortest prices by implied chance, not a pick. |
 | Trends | `/trends`                    | Last-5 stat averages from ESPN gamelogs. Past results are not a pick. |
 | News   | `/news`                      | ESPN headlines, linked out. |
 | Board  | `/lines/board`               | Players on a run, teams on a run, hot props, cold props. Hit rate and sample size only. |
@@ -39,6 +41,8 @@ No odds are invented.
   Not a view count.
 - **Line move:** the last total and home spread you saw are stored on this
   device only. A later visit flags the change. Green is up, red is down.
+- **Player props:** ESPN core `propBets` for the provider on that game (often DraftKings). The line and the open line are shown only when sent. No juice is invented.
+- **MVP:** ESPN season futures (`Regular Season MVP`). Implied chance is computed from the American price. Season stats are the figures ESPN returns for the shortest prices.
 - **Trends:** ESPN team leader lists, then that player’s gamelog. The average
   is the mean of up to the last 5 games that actually exist.
 - **News:** ESPN news JSON. The headline is theirs; the link leaves this site.

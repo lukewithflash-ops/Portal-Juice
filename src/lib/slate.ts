@@ -176,8 +176,8 @@ export type TeamPage = {
   standing: string | null;
   logo: string | null;
   color: string | null;
-  next: { label: string; start: string } | null;
-  recent: { label: string; start: string; score: string }[];
+  next: { id: string | null; label: string; start: string } | null;
+  recent: { id: string; label: string; start: string; score: string }[];
   stories: Story[];
 };
 
@@ -466,8 +466,8 @@ export function parseStories(data: unknown, leagueLabel: string): Story[] {
   return out;
 }
 
-export function parseRecent(schedule: unknown): { label: string; start: string; score: string }[] {
-  const rows: { label: string; start: string; score: string }[] = [];
+export function parseRecent(schedule: unknown): { id: string; label: string; start: string; score: string }[] {
+  const rows: { id: string; label: string; start: string; score: string }[] = [];
   for (const raw of asList(asDict(schedule).events)) {
     const e = asDict(raw);
     const comp = asDict(asList(e.competitions)[0]);
@@ -483,6 +483,7 @@ export function parseRecent(schedule: unknown): { label: string; start: string; 
     const start = str(e.date) ?? "";
     if (!start || !ha || !aa || hs === null || as === null) continue;
     rows.push({
+      id: str(e.id) || str(comp.id) || "",
       label: str(e.shortName) || `${aa} @ ${ha}`,
       start,
       score: `${aa} ${as} @ ${ha} ${hs}`,
@@ -492,12 +493,12 @@ export function parseRecent(schedule: unknown): { label: string; start: string; 
   return rows.slice(0, 5);
 }
 
-export function parseNextEvent(team: Dict): { label: string; start: string } | null {
+export function parseNextEvent(team: Dict): { id: string | null; label: string; start: string } | null {
   const ev = asDict(asList(team.nextEvent)[0]);
   const start = str(ev.date);
   const label = str(ev.shortName) || str(ev.name);
   if (!start || !label) return null;
-  return { label, start };
+  return { id: str(ev.id), label, start };
 }
 
 export function httpsHostOk(url: string | null | undefined, host: string): string | null {
