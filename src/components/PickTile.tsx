@@ -10,9 +10,9 @@ import type { Pick, PickStatus } from "@/lib/types";
 const STATUSES: PickStatus[] = ["open", "win", "loss", "push"];
 
 /** Same ticket as /lines: odds largest → line → name. Status is the user's own record. */
-export default function PickCard({ pick }: { pick: Pick }) {
+export default function PickTile({ pick }: { pick: Pick }) {
   return (
-    <article className="foil-card p-4">
+    <article className="foil-tile p-4">
       <div className="flex items-start gap-3">
         <Mark team="" label={pick.subject} size={44} />
         <div className="min-w-0 flex-1">

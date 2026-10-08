@@ -19,7 +19,8 @@ export default function SiteHeader() {
 
   return (
     <header className="site-chrome sticky top-0 z-40">
-      <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
+      <div className="mx-auto max-w-6xl px-4 pt-2.5">
+        <div className="flex items-center gap-4">
         <Link href="/lines" className="flex items-center gap-2.5" aria-label={`${SITE_NAME} — Lines`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -39,15 +40,17 @@ export default function SiteHeader() {
             )}
           </span>
         </Link>
-        <nav aria-label="Portal Juice" className="ml-auto flex items-center gap-1">
+        </div>
+        <nav aria-label="Portal Juice" className="-mx-4 mt-1 flex items-center gap-1 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {NAV.map((n) => {
-            const active = path === n.href;
+            const active =
+              n.href === "/lines" ? path === "/lines" : path === n.href || path.startsWith(`${n.href}/`);
             return (
               <Link
                 key={n.href}
                 href={n.href}
                 aria-current={active ? "page" : undefined}
-                className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+                className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold transition-colors ${
                   active
                     ? "bg-purple-500/20 text-white shadow-[inset_0_-2px_0_var(--plus)]"
                     : "text-zinc-400 hover:bg-purple-500/10 hover:text-zinc-100"

@@ -4,63 +4,61 @@
 
 Lines, juice, streaks. Not a book.
 
-Portal Juice is its own product and its own site. It is **not** Rip Portal
-(ripsportal.com) and is not linked from it — no shared routes, nav, links, or
-wordmark. It borrows the Portal *look* only: near-black `#030306` ground, a
-low-contrast swirl behind the cards, purple foil panels, green for a move for
-that side, red against, off-white unchanged.
+Portal Juice is its own site (portaljuice.app). Near-black `#030306` ground, a
+low-contrast swirl, purple foil panels, green when a number moves up, red when
+it moves down, off-white when it is unchanged.
 
 Footer on every route: *Lines and prices only. Portal Juice is not a book and
 does not take the other side.*
 
 ## Routes
 
-| Nav   | Path               | What it is |
-|-------|--------------------|------------|
-| Lines | `/lines`           | Read-only board. Sport rail (NFL → NBA → MLB → NHL → Soccer, chip only when a sport has real rows), then **Moved**, **Props**, **Sides**. Juice is the largest type, line second, name third. Tap a card → print history only. Juice pulses once on change; stale rows are labelled and never pulse. Polls `/api/lines` every 30 s. |
-| Board | `/lines/board`     | Players on a run, Teams on a run, Hot props, Cold props. Hit rate + sample size only — no money. Cold hides anyone under 8 lines (section hidden if nobody qualifies). Each section ends "Past hits are not a pick." |
-| Log   | `/lines/portfolio` | "Log a pick." for picks already made at a book: sport, player/side, line, odds, stake, book, date, status (open / win / loss / push). Open, Settled, and a sticky Tally of **counts only**. `localStorage` on the device; nothing leaves the browser. |
+| Nav    | Path                         | What it is |
+|--------|------------------------------|------------|
+| Lines  | `/lines`                     | Today’s games, over/unders, and the read-only prop board. Juice is the largest type on a prop, line second, name third. Tap a line for its print history. |
+| Games  | `/games`                     | Same slate: popular games, totals, full schedule. |
+| Trends | `/trends`                    | Last-5 stat averages from ESPN gamelogs. Past results are not a pick. |
+| News   | `/news`                      | ESPN headlines, linked out. |
+| Board  | `/lines/board`               | Players on a run, teams on a run, hot props, cold props. Hit rate and sample size only. |
+| Log    | `/lines/portfolio`           | A device-only log of picks already made somewhere else. Counts only in the tally. |
+| App    | `/app`                       | Add to Home Screen. No store wrapper. |
+|        | `/games/[league]/[id]`       | One game, plus a share image with the matchup and total when ESPN posted one. |
+|        | `/teams/[league]/[team]`     | Record, next game, recent finals, ESPN headlines. |
 
-`/` redirects to `/lines`. `GET /api/lines` is the only API route; there is no write route.
+`/` redirects to `/lines`.
 
-## Data: empty until real rows
+## Where the numbers come from
 
-No odds are seeded, invented, or sampled. The odds vendor is not chosen yet.
+No odds are invented.
 
-- `LINES_FEED_URL` (+ optional `LINES_FEED_TOKEN`) → JSON matching
-  `LinesSnapshot` in `src/lib/types.ts`. Rows that break the contract are
-  dropped, not patched. No feed / failed pull → empty board ("No rows." /
-  "Waiting on a real print.").
-- Headshots render only from hosts in `LICENSED_HEADSHOT_HOSTS` (licensed feed
-  or league-approved). Instagram, Google, Pinterest, Twitter CDNs are always
-  blocked. Otherwise: team mark, then initials. No scraped or hotlinked faces.
-- `/lines/board` reads `src/data/history.ts` — graded lines (closing line +
-  final result). It ships empty; streaks appear only from real stored lines.
+- **Schedule, score, totals, spreads, moneylines:** ESPN public scoreboard
+  (`site.api.espn.com`), refreshed about every 60 seconds. The provider name
+  ESPN sends (often DraftKings) is shown next to the number. If a game has no
+  odds in that payload, the tile says so.
+- **Popular:** national TV first, then a ranked team, then ESPN’s own order.
+  Not a view count.
+- **Line move:** the last total and home spread you saw are stored on this
+  device only. A later visit flags the change. Green is up, red is down.
+- **Trends:** ESPN team leader lists, then that player’s gamelog. The average
+  is the mean of up to the last 5 games that actually exist.
+- **News:** ESPN news JSON. The headline is theirs; the link leaves this site.
+- **Props board:** `LINES_FEED_URL` (+ optional `LINES_FEED_TOKEN`), shaped
+  like `LinesSnapshot` in `src/lib/types.ts`. No feed means an empty prop board.
+- **Headshots:** `a.espncdn.com` plus any host in `LICENSED_HEADSHOT_HOSTS`.
+  Instagram, Google, Pinterest, and Twitter hosts are blocked. Otherwise the
+  team mark, then initials.
 
-## Not built (on purpose)
+## Not built
 
-No bet button, coins, balance, payout, cash out, parlay, money won. No mascot,
-wizard, cartoon. No App Store, account sync, payments, VIP checkout, bet
-placement, odds invention.
-
-## Instagram (ops, not code)
-
-Second account **@portaljuice** — not @ripsportal. Bio: *Lines, juice,
-streaks. Not a book.* Bio link → `/lines` on the Portal Juice domain (never the
-Pokémon/pack site). Grid is the prop card and the line move; no pack rips.
-
-## Domain
-
-`portaljuice.com` is registered to a third party (since 2024, not on our Vercel
-account) and `portaljuice.io` is not ours either. Set `NEXT_PUBLIC_SITE_URL`
-once a Portal Juice domain is secured. Never `ripsportal.com/betting`.
+No button that places a wager, no coins, balance, payout, cash out, parlay, or
+money won. No store wrapper, account sync, payments, or checkout.
 
 ## Dev
 
 ```bash
 npm install
-npm run dev      # http://localhost:3000/lines
-npm test         # board math, headshot policy, forbidden-copy + no-seed checks
+npm run dev
+npm test
 npm run build
 ```
 

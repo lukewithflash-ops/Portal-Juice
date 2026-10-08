@@ -1,7 +1,10 @@
+"use client";
+
+import { useState } from "react";
 import { teamAccent } from "@/lib/teams";
 
 /**
- * Circle on the left of every card. Licensed headshot when the row carries an
+ * Circle on the left of every line. Licensed headshot when the row carries an
  * allowed headshotUrl (already filtered server-side), otherwise the team mark.
  */
 export default function Mark({
@@ -16,7 +19,8 @@ export default function Mark({
   size?: number;
 }) {
   const accent = teamAccent(team);
-  if (headshotUrl) {
+  const [broken, setBroken] = useState(false);
+  if (headshotUrl && !broken) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
@@ -27,6 +31,7 @@ export default function Mark({
         className="shrink-0 rounded-full object-cover"
         style={{ width: size, height: size, border: `1.5px solid ${accent}` }}
         referrerPolicy="no-referrer"
+        onError={() => setBroken(true)}
       />
     );
   }
@@ -36,7 +41,6 @@ export default function Mark({
     .slice(0, 2)
     .map((w) => w[0]!.toUpperCase())
     .join("");
-  // Team mark first; initials only when there is no team on the row.
   const text = (team || initials || "?").slice(0, 4);
   return (
     <span

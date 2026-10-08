@@ -3,8 +3,8 @@
  * allowlist (licensed feed CDN or a league-approved headshot host).
  * No Instagram, no Google Images, no random CDN, no scraped faces.
  *
- * Configure with LICENSED_HEADSHOT_HOSTS="cdn.feed.example,img.league.example".
- * Empty by default → every card shows the team mark.
+ * a.espncdn.com is ESPN's own headshot host and is always allowed.
+ * Add more with LICENSED_HEADSHOT_HOSTS="cdn.feed.example,img.league.example".
  */
 const BLOCKED = [
   "instagram.com",
@@ -18,12 +18,15 @@ const BLOCKED = [
   "twimg.com",
 ];
 
+const BUILTIN = ["a.espncdn.com"];
+
 export function licensedHosts(): string[] {
   const raw = process.env.LICENSED_HEADSHOT_HOSTS ?? "";
-  return raw
+  const extra = raw
     .split(",")
     .map((h) => h.trim().toLowerCase())
     .filter(Boolean);
+  return [...new Set([...BUILTIN, ...extra])];
 }
 
 export function allowedHeadshot(

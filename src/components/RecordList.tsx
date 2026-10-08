@@ -45,7 +45,7 @@ export default function RecordList({
       ) : (
         <ol className="mt-4 space-y-2">
           {items.map((it, i) => (
-            <li key={it.key} className="foil-card flex items-center gap-3 px-3 py-2.5">
+            <li key={it.key} className="foil-tile flex items-center gap-3 px-3 py-2.5">
               <span className="tabular w-5 text-right text-xs font-bold text-zinc-500">{i + 1}</span>
               <Mark team={it.team} headshotUrl={it.headshotUrl} label={it.subject} size={38} />
               <div className="min-w-0 flex-1">

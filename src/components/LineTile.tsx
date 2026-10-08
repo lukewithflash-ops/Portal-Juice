@@ -9,9 +9,9 @@ import type { LineRow } from "@/lib/types";
 
 /**
  * One prop / side as a ticket. Hierarchy: juice (largest) → line → name.
- * Tapping opens the print history only. Nothing on the card places a wager.
+ * Tapping opens the print history only. Nothing here places a wager.
  */
-export default function LineCard({
+export default function LineTile({
   row,
   pulseToken,
   stale,
@@ -34,7 +34,7 @@ export default function LineCard({
     <button
       type="button"
       onClick={() => onOpen(row)}
-      className={`foil-card block w-full p-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-400/70 ${
+      className={`foil-tile block w-full p-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-400/70 ${
         movedDir !== 0 && !stale ? `line-moved ${movedDir < 0 ? "against" : ""}` : ""
       } ${stale ? "stale" : ""}`}
       aria-label={`${row.subject}, ${row.market} ${row.selection ?? ""} ${fmtLine(

@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import CountUp from "@/components/CountUp";
-import PickCard from "@/components/PickCard";
+import PickTile from "@/components/PickTile";
 import { validOdds } from "@/lib/odds";
 import { addPick, getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
 import { SPORT_LABEL, SPORT_ORDER, type PickStatus, type Sport } from "@/lib/types";
@@ -129,12 +129,12 @@ export default function PortfolioClient() {
 
       <Group title="Open" empty="No open picks.">
         {open.map((p) => (
-          <PickCard key={p.id} pick={p} />
+          <PickTile key={p.id} pick={p} />
         ))}
       </Group>
       <Group title="Settled" empty="No settled picks.">
         {settled.map((p) => (
-          <PickCard key={p.id} pick={p} />
+          <PickTile key={p.id} pick={p} />
         ))}
       </Group>
 

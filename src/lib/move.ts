@@ -2,7 +2,7 @@ import { implied } from "./odds";
 import type { LineRow } from "./types";
 
 /**
- * Direction of a move relative to the side shown on the card.
+ * Direction of a move relative to the side shown.
  *  +1 = the market moved FOR this side (green)
  *  -1 = the market moved AGAINST this side (red)
  *   0 = unchanged (off-white)

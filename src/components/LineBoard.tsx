@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import LineCard from "@/components/LineCard";
+import LineTile from "@/components/LineTile";
 import PrintHistory from "@/components/PrintHistory";
 import { isStale, moved } from "@/lib/move";
 import { ptTime } from "@/lib/time";
@@ -43,7 +43,7 @@ function Section({
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((r) => (
-            <LineCard
+            <LineTile
               key={r.id}
               row={r}
               pulseToken={tokens[r.id] ?? 0}

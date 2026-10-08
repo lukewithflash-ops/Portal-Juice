@@ -45,7 +45,7 @@ export type LineRow = {
   startsAt: string;
   /**
    * Licensed feed or league-allowed headshot only. Anything else is dropped
-   * by sanitizeRow() and the card shows the team mark.
+   * by sanitizeRow() and the row shows the team mark.
    */
   headshotUrl: string | null;
   /** ISO time this row last printed from the feed. Old prints render as stale. */

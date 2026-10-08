@@ -5,7 +5,7 @@ import { fmtLine, fmtOdds } from "@/lib/odds";
 import { ptDayTime } from "@/lib/time";
 import type { LineRow } from "@/lib/types";
 
-/** Tap target for a line card: the print history and nothing else. */
+/** Tap target for a line: the print history and nothing else. */
 export default function PrintHistory({
   row,
   onClose,
