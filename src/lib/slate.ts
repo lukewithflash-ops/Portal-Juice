@@ -113,6 +113,9 @@ export type Price = {
   awayMl: string | null;
   /** Home spread as a number, for move tracking. Null when ESPN did not send one. */
   spreadHome: number | null;
+  /** Open total / home spread when ESPN sent an open. Null if absent. */
+  totalOpen: number | null;
+  spreadHomeOpen: number | null;
 };
 
 export type GameState = "pre" | "in" | "post";
@@ -154,6 +157,9 @@ export type Trend = {
   statLabel: string;
   avg: number;
   games: number;
+  /** Season-to-date average from the same gamelog, when more games exist than the window. */
+  seasonAvg: number | null;
+  seasonGames: number | null;
 };
 
 export type Story = {
@@ -252,6 +258,13 @@ export function parsePrice(raw: unknown): Price | null {
     american(asDict(o.awayTeamOdds).moneyLine);
 
   const spreadDetail = str(o.details);
+  const openNum = (node: unknown): number | null => {
+    const line = str(asDict(asDict(node).open).line) ?? "";
+    const m = line.match(/-?\d+(?:\.\d+)?/);
+    return m ? Number(m[0]) : finiteNumber(asDict(asDict(node).open).line);
+  };
+  const totalOpen = openNum(asDict(o.total).over);
+  const spreadHomeOpen = openNum(asDict(o.pointSpread).home);
 
   const price: Price = {
     provider,
@@ -266,6 +279,8 @@ export function parsePrice(raw: unknown): Price | null {
     homeMl,
     awayMl,
     spreadHome,
+    totalOpen,
+    spreadHomeOpen,
   };
   const any =
     price.total !== null ||
@@ -384,7 +399,7 @@ export function lastNAverage(
   log: unknown,
   statKey: string,
   n = 5
-): { avg: number; games: number } | null {
+): { avg: number; games: number; seasonAvg: number; seasonGames: number } | null {
   const d = asDict(log);
   const names = asList(d.names).map((x) => (typeof x === "string" ? x : ""));
   const idx = names.indexOf(statKey);
@@ -412,7 +427,13 @@ export function lastNAverage(
   const slice = rows.slice(0, n);
   if (!slice.length) return null;
   const avg = slice.reduce((s, r) => s + r.val, 0) / slice.length;
-  return { avg: Math.round(avg * 10) / 10, games: slice.length };
+  const seasonAvg = rows.reduce((s, r) => s + r.val, 0) / rows.length;
+  return {
+    avg: Math.round(avg * 10) / 10,
+    games: slice.length,
+    seasonAvg: Math.round(seasonAvg * 10) / 10,
+    seasonGames: rows.length,
+  };
 }
 
 export function athleteIdFromRef(ref: unknown): string | null {

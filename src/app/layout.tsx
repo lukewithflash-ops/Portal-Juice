@@ -45,7 +45,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <InstallCapture />
         <div className="flex min-h-screen flex-col">
           <SiteHeader />
-          <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-6">{children}</main>
+          <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-[calc(6.6rem+env(safe-area-inset-top))]">{children}</main>
           <SiteFooter />
         </div>
       </body>

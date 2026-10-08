@@ -2,6 +2,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { allowedHeadshot } from "@/lib/headshots";
 import { implied } from "@/lib/odds";
+import { parseLive, type LiveSnap } from "@/lib/live";
 import {
   parseMvpMarket,
   parsePropItems,
@@ -174,6 +175,8 @@ async function loadTrends(day: string): Promise<{ trends: Trend[]; fetchedAt: st
         statLabel: slot.label,
         avg: avg.avg,
         games: avg.games,
+        seasonAvg: avg.seasonGames > avg.games ? avg.seasonAvg : null,
+        seasonGames: avg.seasonGames,
       });
     })
   );
@@ -602,4 +605,23 @@ async function loadMvp(year: number): Promise<{ groups: MvpGroup[]; fetchedAt: s
 export function getMvpBoard(): Promise<{ groups: MvpGroup[]; fetchedAt: string }> {
   const year = Number(sportsDate().slice(0, 4));
   return unstable_cache(() => loadMvp(year), ["pj-mvp", String(year)], { revalidate: REVALIDATE })();
+}
+
+export function getLive(leagueId: string, id: string): Promise<LiveSnap | null> {
+  const league = leagueById(leagueId);
+  if (!league || !/^\d+$/.test(id)) return Promise.resolve(null);
+  return unstable_cache(
+    async () => {
+      try {
+        const data = await getJson(
+          `https://site.api.espn.com/apis/site/v2/sports/${league.sport}/${league.slug}/summary?event=${id}`
+        );
+        return parseLive(data);
+      } catch {
+        return null;
+      }
+    },
+    ["pj-live", league.id, id],
+    { revalidate: 10 }
+  )();
 }

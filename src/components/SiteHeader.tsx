@@ -18,7 +18,7 @@ export default function SiteHeader() {
   }, [path]);
 
   return (
-    <header className="site-chrome sticky top-0 z-40">
+    <header className="site-chrome">
       <div className="mx-auto max-w-6xl px-4 pt-2.5">
         <div className="flex items-center gap-4">
         <Link href="/lines" className="flex items-center gap-2.5" aria-label={`${SITE_NAME} — Lines`}>

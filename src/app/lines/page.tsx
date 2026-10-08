@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { FavoriteList, BEST_NOTE } from "@/components/BestLists";
 import GamesBoard from "@/components/GamesBoard";
+import Link from "next/link";
+import { marketFavorites } from "@/lib/best";
 import LineBoard from "@/components/LineBoard";
 import { getSlate } from "@/lib/espn";
 import { getSnapshot } from "@/lib/feed";
@@ -23,6 +26,14 @@ export default async function LinesPage() {
       <p className="mt-1 mb-5 text-sm text-zinc-400">
         Today’s games and totals up top. Juice first on props. Tap a line for its print history.
       </p>
+      <section className="mb-6">
+        <div className="mb-2 flex items-baseline justify-between">
+          <h2 className="text-xs font-bold uppercase tracking-[0.22em] text-purple-200/80">Best</h2>
+          <Link href="/best" className="text-[11px] font-semibold text-[color:var(--gold)]">All lists</Link>
+        </div>
+        <p className="mb-2 text-[11px] text-zinc-500">{BEST_NOTE}</p>
+        <FavoriteList rows={marketFavorites(slate.games).slice(0, 3)} />
+      </section>
       <GamesBoard games={slate.games} fetchedAt={slate.fetchedAt} dayLabel={slate.dayLabel} missing={slate.missing} />
       <div className="mt-10 border-t border-purple-500/15 pt-2">
         <h2 className="text-xs font-bold uppercase tracking-[0.22em] text-purple-200/80">Props and sides</h2>

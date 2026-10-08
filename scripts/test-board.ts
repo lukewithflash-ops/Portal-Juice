@@ -148,7 +148,11 @@ t("last-5 average skips missing stats and uses the newest games", () => {
       { eventId: "3", stats: ["30"] },
     ] }] }],
   };
-  assert.deepEqual(lastNAverage(log, "points", 2), { avg: 25, games: 2 });
+  const recent = lastNAverage(log, "points", 2);
+  assert.equal(recent && recent.avg, 25);
+  assert.equal(recent && recent.games, 2);
+  assert.equal(recent && recent.seasonGames, 3);
+  assert.equal(recent && recent.seasonAvg, 20);
   assert.equal(lastNAverage(log, "rebounds", 2), null);
 });
 
