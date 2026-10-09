@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import MatchRow from "@/components/MatchRow";
+import GolfBoardView from "@/components/GolfBoardView";
+import { SPORT_LEAGUES, todayOnly, type SportSlate } from "@/lib/sports";
 import { useRouter } from "next/navigation";
 import GameTile, { type MoveFlag } from "@/components/GameTile";
 import { usePrefs } from "@/components/Prefs";
@@ -47,7 +50,24 @@ export default function GamesBoard({
 }) {
   const router = useRouter();
   const { team } = usePrefs();
-  const [league, setLeague] = useState<LeagueId | "ALL">("ALL");
+  const [league, setLeague] = useState<string>("ALL");
+  const [sports, setSports] = useState<Record<string, SportSlate>>({});
+  const bar = useRef<HTMLDivElement>(null);
+
+  usePoll(async (signal) => {
+    const res = await fetch("/api/sports", { signal });
+    if (!res.ok) return POLL_ERROR_MS;
+    const data = (await res.json()) as { slates: SportSlate[] };
+    const map: Record<string, SportSlate> = {};
+    for (const sl of data.slates) map[sl.league.id] = sl;
+    setSports(map);
+    return data.slates.some((sl) => sl.matches.some((m) => m.state === "in") || sl.golf.some((g) => g.state === "in")) ? 15_000 : 60_000;
+  }, "sports");
+
+  useEffect(() => {
+    const el = bar.current?.querySelector<HTMLElement>('[aria-pressed="true"]');
+    el?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+  }, [league]);
   const [ago, setAgo] = useState<number | null>(null);
   const [moves, setMoves] = useState<Record<string, MoveFlag>>({});
   const [live, setLive] = useState<{ at: string; rows: Record<string, ScoreRow> } | null>(null);
@@ -106,7 +126,7 @@ export default function GamesBoard({
   }, [served]);
 
   const filtered = useMemo(() => {
-    const base = league === "ALL" ? games : games.filter((g) => g.league === league);
+    const base = league === "ALL" ? games : games.filter((g) => g.league === (league as LeagueId));
     if (!team) return base;
     const yours = (g: Game) =>
       g.league === team.league && (g.home.abbr === team.abbr || g.away.abbr === team.abbr);
@@ -114,6 +134,7 @@ export default function GamesBoard({
   }, [games, league, team]);
   const isYours = (g: Game) =>
     !!team && g.league === team.league && (g.home.abbr === team.abbr || g.away.abbr === team.abbr);
+  const sportPick = SPORT_LEAGUES.find((l) => l.id === league) ?? null;
   const popular = useMemo(() => rankGames(filtered).slice(0, 4), [filtered]);
   const withTotal = filtered.filter((g) => g.price?.total !== null);
 
@@ -136,12 +157,20 @@ export default function GamesBoard({
         </button>
       </div>
 
-      <div className="sticky top-[calc(6.6rem+env(safe-area-inset-top)+var(--live-h,0px))] z-30 -mx-4 mb-4 border-b border-purple-500/15 bg-[#030306]/90 px-4 py-2 backdrop-blur">
-        <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="sticky top-[calc(var(--chrome-h,calc(6.6rem+env(safe-area-inset-top)))+var(--live-h,0px)-1px)] z-30 -mx-4 mb-4 border-b border-purple-500/20 bg-[#030306] px-4 py-2" data-testid="league-bar">
+        <div ref={bar} className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Chip active={league === "ALL"} onClick={() => setLeague("ALL")}>
             All
           </Chip>
-          {LEAGUES.map((l) => (
+          {LEAGUES.map((l) => {
+            const n = games.filter((g) => g.league === l.id).length;
+            return (
+              <Chip key={l.id} active={league === l.id} dim={n === 0} onClick={() => setLeague(l.id)}>
+                {l.label}
+              </Chip>
+            );
+          })}
+          {SPORT_LEAGUES.filter((l) => (sportCount(sports[l.id]) > 0) || league === l.id).map((l) => (
             <Chip key={l.id} active={league === l.id} onClick={() => setLeague(l.id)}>
               {l.label}
             </Chip>
@@ -149,6 +178,10 @@ export default function GamesBoard({
         </div>
       </div>
 
+      {sportPick ? (
+        <SportList slate={sports[sportPick.id] ?? null} name={sportPick.name} />
+      ) : (
+      <>
       <section aria-label="Popular games">
         <h2 className="text-xs font-bold uppercase tracking-[0.22em] text-purple-200/80">Popular</h2>
         <p className="mt-1 mb-3 text-[11px] leading-relaxed text-zinc-500">{POPULAR_SIGNAL}</p>
@@ -191,16 +224,89 @@ export default function GamesBoard({
           </div>
         )}
       </section>
+      {league === "ALL" ? <MoreToday sports={sports} /> : null}
+      </>
+      )}
     </div>
+  );
+}
+
+function sportCount(sl: SportSlate | undefined): number {
+  return sl ? sl.matches.length + sl.golf.length : 0;
+}
+
+function SportList({ slate, name }: { slate: SportSlate | null; name: string }) {
+  if (!slate) return <p className="panel rounded-xl px-4 py-5 text-sm text-zinc-400">Loading {name} from ESPN…</p>;
+  if (!sportCount(slate)) return <p className="panel rounded-xl px-4 py-5 text-sm text-zinc-400">Nothing on ESPN&apos;s {name} board right now.</p>;
+  return (
+    <section aria-label={name}>
+      <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-purple-200/80">
+        {name} <span className="tabular text-zinc-500">{sportCount(slate)}</span>
+      </h2>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {slate.golf.map((b) => (
+          <div key={b.id} className="sm:col-span-2">
+            <GolfBoardView b={b} />
+          </div>
+        ))}
+        {slate.matches.map((m) => (
+          <MatchRow key={m.id} m={m} href={`/sports/${slate.league.id}/${m.id}`} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Under "All": the extra leagues with something live or on today, grouped by sport. */
+function MoreToday({ sports }: { sports: Record<string, SportSlate> }) {
+  const groups = [...new Set(SPORT_LEAGUES.map((l) => l.group))];
+  const blocks = groups
+    .map((g) => ({
+      g,
+      rows: SPORT_LEAGUES.filter((l) => l.group === g)
+        .map((l) => sports[l.id])
+        .filter((sl): sl is SportSlate => !!sl)
+        .map((sl) => ({ sl, matches: todayOnly(sl.matches), golf: sl.golf.filter((b) => b.state !== "post") }))
+        .filter((x) => x.matches.length || x.golf.length),
+    }))
+    .filter((b) => b.rows.length);
+  if (!blocks.length) return null;
+  return (
+    <>
+      {blocks.map((b) => (
+        <section key={b.g} className="mt-8" aria-label={b.g}>
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-purple-200/80">{b.g} today</h2>
+          <div className="space-y-4">
+            {b.rows.map(({ sl, matches, golf }) => (
+              <div key={sl.league.id}>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-zinc-500">{sl.league.name}</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {golf.map((g) => (
+                    <div key={g.id} className="sm:col-span-2">
+                      <GolfBoardView b={g} />
+                    </div>
+                  ))}
+                  {matches.slice(0, 8).map((m) => (
+                    <MatchRow key={m.id} m={m} href={`/sports/${sl.league.id}/${m.id}`} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </>
   );
 }
 
 function Chip({
   active,
+  dim = false,
   onClick,
   children,
 }: {
   active: boolean;
+  dim?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -210,7 +316,7 @@ function Chip({
       onClick={onClick}
       aria-pressed={active}
       className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
-        active ? "bg-purple-500/25 text-white" : "text-zinc-400"
+        active ? "bg-purple-500/25 text-white" : dim ? "text-zinc-600" : "text-zinc-400"
       }`}
     >
       {children}

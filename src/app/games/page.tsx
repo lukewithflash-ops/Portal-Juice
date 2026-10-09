@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import GamesBoard from "@/components/GamesBoard";
-import SportsBoard from "@/components/SportsBoard";
 import { getSlate } from "@/lib/espn";
 
 export const revalidate = 15;
@@ -19,7 +18,6 @@ export default async function GamesPage() {
         Schedule, score, and the number when ESPN has one. Times are on your phone.
       </p>
       <GamesBoard games={slate.games} fetchedAt={slate.fetchedAt} dayLabel={slate.dayLabel} missing={slate.missing} />
-      <SportsBoard />
     </>
   );
 }

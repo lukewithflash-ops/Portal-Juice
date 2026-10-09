@@ -5,6 +5,7 @@ import { PrefsProvider } from "@/components/Prefs";
 import NotifyBanner from "@/components/NotifyBanner";
 import SiteHeader from "@/components/SiteHeader";
 import LiveBanner from "@/components/LiveBanner";
+import ChromeVars from "@/components/ChromeVars";
 import { LiveHubProvider } from "@/components/LiveHub";
 import SiteFooter from "@/components/SiteFooter";
 import { SITE_NAME, SITE_URL, TAGLINE } from "@/lib/site";
@@ -51,8 +52,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <InstallCapture />
             <div className="flex min-h-screen flex-col">
               <SiteHeader />
+              <ChromeVars />
               <LiveBanner />
-              <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-[calc(6.6rem+env(safe-area-inset-top)+var(--live-h,0px))]">
+              <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-[calc(var(--chrome-h,calc(6.6rem+env(safe-area-inset-top)))+var(--live-h,0px)+0.75rem)]">
                 <NotifyBanner />
                 {children}
               </main>

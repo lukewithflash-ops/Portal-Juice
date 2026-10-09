@@ -79,7 +79,7 @@ body {
   right: 0;
   z-index: 50;
   border-bottom: 1px solid rgba(192, 38, 255, 0.2);
-  background: rgba(3, 3, 6, 0.92);
+  background: #030306;
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 1px 0 rgba(192, 38, 255, 0.08);
@@ -257,7 +257,7 @@ html[data-team] .portal-bg {
 }
 html[data-team] .site-chrome {
   border-bottom-color: color-mix(in srgb, var(--team) 55%, transparent);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--team) 38%, #030306), rgba(3, 3, 6, 0.94));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--team) 38%, #030306), #030306);
 }
 html[data-team] .portal-bg::after {
   filter: blur(2px) saturate(1.4);

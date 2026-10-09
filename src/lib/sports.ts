@@ -3,22 +3,22 @@ import { american, finiteNumber, parsePrice, spreadText, type GameState } from "
 import { winPct, type WinPct } from "@/lib/winPct";
 
 export type SportKind = "team" | "soccer" | "tennis" | "fight" | "golf";
-export type SportLeague = { id: string; label: string; group: string; path: string; kind: SportKind };
+export type SportLeague = { id: string; label: string; name: string; group: string; path: string; kind: SportKind };
 
 export const SPORT_LEAGUES: SportLeague[] = [
-  { id: "epl", label: "Premier League", group: "Soccer", path: "soccer/eng.1", kind: "soccer" },
-  { id: "ucl", label: "Champions League", group: "Soccer", path: "soccer/uefa.champions", kind: "soccer" },
-  { id: "laliga", label: "La Liga", group: "Soccer", path: "soccer/esp.1", kind: "soccer" },
-  { id: "seriea", label: "Serie A", group: "Soccer", path: "soccer/ita.1", kind: "soccer" },
-  { id: "bundesliga", label: "Bundesliga", group: "Soccer", path: "soccer/ger.1", kind: "soccer" },
-  { id: "mls", label: "MLS", group: "Soccer", path: "soccer/usa.1", kind: "soccer" },
-  { id: "atp", label: "ATP", group: "Tennis", path: "tennis/atp", kind: "tennis" },
-  { id: "wta", label: "WTA", group: "Tennis", path: "tennis/wta", kind: "tennis" },
-  { id: "pga", label: "PGA Tour", group: "Golf", path: "golf/pga", kind: "golf" },
-  { id: "ufc", label: "UFC", group: "MMA", path: "mma/ufc", kind: "fight" },
-  { id: "wnba", label: "WNBA", group: "Basketball", path: "basketball/wnba", kind: "team" },
-  { id: "ncaam", label: "NCAA Men", group: "Basketball", path: "basketball/mens-college-basketball", kind: "team" },
-  { id: "ncaaw", label: "NCAA Women", group: "Basketball", path: "basketball/womens-college-basketball", kind: "team" },
+  { id: "wnba", label: "WNBA", name: "WNBA", group: "Basketball", path: "basketball/wnba", kind: "team" },
+  { id: "ncaam", label: "NCAAM", name: "NCAA Men's Basketball", group: "Basketball", path: "basketball/mens-college-basketball", kind: "team" },
+  { id: "ncaaw", label: "NCAAW", name: "NCAA Women's Basketball", group: "Basketball", path: "basketball/womens-college-basketball", kind: "team" },
+  { id: "epl", label: "EPL", name: "Premier League", group: "Soccer", path: "soccer/eng.1", kind: "soccer" },
+  { id: "ucl", label: "UCL", name: "Champions League", group: "Soccer", path: "soccer/uefa.champions", kind: "soccer" },
+  { id: "laliga", label: "La Liga", name: "La Liga", group: "Soccer", path: "soccer/esp.1", kind: "soccer" },
+  { id: "seriea", label: "Serie A", name: "Serie A", group: "Soccer", path: "soccer/ita.1", kind: "soccer" },
+  { id: "bundesliga", label: "Bundesliga", name: "Bundesliga", group: "Soccer", path: "soccer/ger.1", kind: "soccer" },
+  { id: "mls", label: "MLS", name: "MLS", group: "Soccer", path: "soccer/usa.1", kind: "soccer" },
+  { id: "atp", label: "ATP", name: "ATP Tennis", group: "Tennis", path: "tennis/atp", kind: "tennis" },
+  { id: "wta", label: "WTA", name: "WTA Tennis", group: "Tennis", path: "tennis/wta", kind: "tennis" },
+  { id: "pga", label: "PGA", name: "PGA Tour", group: "Golf", path: "golf/pga", kind: "golf" },
+  { id: "ufc", label: "UFC", name: "UFC", group: "MMA", path: "mma/ufc", kind: "fight" },
 ];
 
 export function sportLeague(id: string): SportLeague | null {
@@ -276,4 +276,12 @@ export function summaryProjection(summary: unknown): { home: number; away: numbe
   const h = finiteNumber(asDict(pred.homeTeam).gameProjection);
   const a = finiteNumber(asDict(pred.awayTeam).gameProjection);
   return h !== null && a !== null ? { home: h, away: a } : null;
+}
+
+
+/** Events worth listing under "All" today: live, or starting/finished within the PT day. Golf: any board that is live or today. */
+export function todayOnly<T extends { state: GameState; start: string }>(rows: T[], now = Date.now()): T[] {
+  const day = (ms: number) => new Date(ms).toLocaleDateString("en-US", { timeZone: "America/Los_Angeles" });
+  const today = day(now);
+  return rows.filter((r) => r.state === "in" || day(Date.parse(r.start)) === today);
 }

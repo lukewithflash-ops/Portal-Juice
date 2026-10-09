@@ -57,7 +57,7 @@ export default function GameChat({
   const shown = [...notes].sort((a, b) => (sort === "top" ? b.likes - a.likes : b.ts - a.ts));
 
   return (
-    <section className="mt-0 lg:sticky lg:top-[calc(6.8rem+env(safe-area-inset-top))]" aria-label="Chat">
+    <section className="mt-0 lg:sticky lg:top-[calc(var(--chrome-h,calc(6.6rem+env(safe-area-inset-top))))]" aria-label="Chat">
       <div className="mb-2 flex items-baseline justify-between">
         <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-purple-200/80">Chat</h2>
         {enabled ? (

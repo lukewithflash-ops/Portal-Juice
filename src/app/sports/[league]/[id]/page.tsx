@@ -27,14 +27,14 @@ export default async function MatchPage({ params }: { params: Promise<Params> })
     <>
       <p className="mb-3 text-[11px]">
         <Link href="/games" className="font-bold uppercase tracking-[0.16em] text-purple-200/80 hover:text-white">
-          Games · {l.label}
+          Games · {l.name}
         </Link>
       </p>
       <h1 className="big-num text-[2rem] font-black leading-tight tracking-tight text-[color:var(--flat)]">
         {m.away.short} <span className="text-zinc-500">{l.kind === "team" || l.kind === "soccer" ? "@" : "vs"}</span> {m.home.short}
       </h1>
       <p className="mt-1 mb-4 text-sm text-zinc-400">
-        {l.label}
+        {l.name}
         {m.state === "in" ? " · Live" : m.state === "post" ? " · Final" : ""}
       </p>
       {m.state === "in" ? <AutoRefresh ms={5000} /> : null}

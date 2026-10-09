@@ -149,7 +149,7 @@ export function BetsDock({ variant }: { variant: "bar" | "side" }) {
       className={
         side
           ? "foil-tile mb-3 p-3"
-          : "sticky top-[calc(6.6rem+env(safe-area-inset-top)+var(--live-h,0px))] z-20 -mx-4 border-y border-[color:var(--gold)]/30 bg-[#05040a]/95 px-3 py-1.5 backdrop-blur lg:hidden"
+          : "sticky top-[calc(var(--chrome-h,calc(6.6rem+env(safe-area-inset-top)))+var(--live-h,0px))] z-20 -mx-4 border-y border-[color:var(--gold)]/30 bg-[#05040a]/95 px-3 py-1.5 backdrop-blur lg:hidden"
       }
     >
       <div className="flex items-center gap-2">
