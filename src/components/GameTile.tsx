@@ -71,12 +71,12 @@ function PriceBlock({ price, home, away }: { price: Price; home: string; away: s
           <div className="text-right text-xs text-zinc-300">
             {price.overJuice && (
               <div>
-                Over <span className="tabular font-bold">{price.overJuice}</span>
+                Over <span className="tabular font-bold"><OddsText value={price.overJuice} /></span>
               </div>
             )}
             {price.underJuice && (
               <div>
-                Under <span className="tabular font-bold">{price.underJuice}</span>
+                Under <span className="tabular font-bold"><OddsText value={price.underJuice} /></span>
               </div>
             )}
           </div>
