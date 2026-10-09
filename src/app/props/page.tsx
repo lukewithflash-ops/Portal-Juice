@@ -4,6 +4,12 @@ import Mark from "@/components/Mark";
 import { OddsText } from "@/components/Prefs";
 import { getPropsBoard } from "@/lib/espn";
 import { ptTime } from "@/lib/time";
+import { checkHref, statFromMarket } from "@/lib/breakdown";
+
+const num = (s: string | null) => {
+  const m = /-?\d+(?:\.\d+)?/.exec(s ?? "");
+  return m ? Number(m[0]) : null;
+};
 
 export const revalidate = 60;
 
@@ -57,6 +63,27 @@ export default async function PropsPage() {
                       <OddsText value={p.line} />
                       {p.openLine ? <div className="text-[10px] font-medium text-zinc-500">Opened {p.openLine}</div> : null}
                     </div>
+                    {statFromMarket(g.game.league, p.market) ? (
+                      <Link
+                        href={checkHref([
+                          {
+                            league: g.game.league,
+                            gameId: g.game.id,
+                            kind: "prop",
+                            athleteId: p.athleteId,
+                            athleteName: p.name,
+                            stat: statFromMarket(g.game.league, p.market) ?? undefined,
+                            line: num(p.line),
+                            openLine: num(p.openLine),
+                            pick: "over",
+                          },
+                        ])}
+                        className="shrink-0 rounded-lg border border-purple-400/50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-purple-100 hover:bg-purple-500/20"
+                        aria-label={`Analyze ${p.name} ${p.market}`}
+                      >
+                        Analyze
+                      </Link>
+                    ) : null}
                   </li>
                 ))}
               </ul>

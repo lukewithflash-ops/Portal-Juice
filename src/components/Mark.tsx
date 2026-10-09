@@ -12,11 +12,14 @@ export default function Mark({
   headshotUrl,
   label,
   size = 52,
+  contain = false,
 }: {
   team: string;
   headshotUrl?: string | null;
   label?: string;
   size?: number;
+  /** Team logos sit inside the circle instead of filling it. */
+  contain?: boolean;
 }) {
   const accent = teamAccent(team);
   const [broken, setBroken] = useState(false);
@@ -28,7 +31,7 @@ export default function Mark({
         alt={label ?? team}
         width={size}
         height={size}
-        className="shrink-0 rounded-full object-cover"
+        className={`shrink-0 rounded-full ${contain ? "bg-white/5 object-contain p-1" : "object-cover"}`}
         style={{ width: size, height: size, border: `1.5px solid ${accent}` }}
         referrerPolicy="no-referrer"
         onError={() => setBroken(true)}

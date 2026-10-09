@@ -42,7 +42,7 @@ export default function LiveSlips() {
                   <LegMeter key={l.pickId} leg={l} />
                 ))}
               </ul>
-              {snap?.state === "pre" ? <p className="mt-2 text-[11px] text-zinc-500">Tracking starts at tip.</p> : null}
+              {snap?.state === "pre" ? <p className="mt-2 text-[11px] text-zinc-500">Tracking starts when the game does.</p> : null}
             </div>
           );
         })}

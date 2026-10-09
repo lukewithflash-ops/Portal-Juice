@@ -13,6 +13,9 @@ import { parseSlipText, safeSlipUrl } from "../src/lib/slip";
 import { choosePortalPick, gradePortalPick, portalRecord } from "../src/lib/portalPick";
 import { rankLeaders, cleanLeg, cleanLeaderHandle } from "../src/lib/leaderRank";
 import { unitHint } from "../src/lib/units";
+import { analyzeLeg, checkHref, hitCount, legFromLogged, legsFromParam, median, parlayMath, recentEra, statFromMarket, windMph, type GameResearch, type LegReport, type PlayerResearch, type TeamResearch } from "../src/lib/breakdown";
+import { logValue, parseGameLog, parseStandings, rankAll } from "../src/lib/researchParse";
+import { baseUnit, pickKind, pickNet, suggestUnits, summarize, winAmount } from "../src/lib/ledger";
 import { marketFavorites, biggestMoves, hotTrends, mvpHomework } from "../src/lib/best";
 import { playKind, playerFromText, isShotAttempt } from "../src/lib/tracker";
 import { clockSpan, isBigPlay, paceOf, parseLine, scoringRun, statNumber, trackProps } from "../src/lib/tracker";
@@ -89,7 +92,7 @@ const walk = (d: string): string[] =>
 const src = walk("src").filter((f) => /\.(tsx?|css)$/.test(f));
 
 t("no forbidden UI words in shipped JSX text", () => {
-  const banned = /\b(place (a )?bet|bet now|bet button|coins?|balance|payout|cash ?out|parlay|money won|mascot|wizard|cartoon)\b/i;
+  const banned = /\b(place (a )?bet|bet now|bet button|coins?|balance|payout|cash ?out|money won|mascot|wizard|cartoon)\b/i;
   for (const f of src) {
     const text = readFileSync(f, "utf8")
       .split("\n")
@@ -686,6 +689,186 @@ t("live motivation has no money or card wording", () => {
     const src = readFileSync(join(process.cwd(), f), "utf8");
     assert.ok(!/cash(ed)?\b|payout|paid out|\$\d|pok[eé]mon|\bpack\b|\brips?\b/i.test(src.replace(/no money wording|never paid/gi, "")), f);
   }
+});
+
+// ---------- Breakdown ----------
+const team = (abbr: string, o: Partial<TeamResearch> = {}): TeamResearch => ({
+  id: abbr, abbr, name: abbr, record: null, form: [], ats: null, ppg: null, papg: null, passAllowed: null, rushAllowed: null, batting: null, injuries: [], ...o,
+});
+const gameR = (o: Partial<GameResearch> = {}): GameResearch => ({
+  league: "nba", id: "1", label: "BOS @ NY", start: "2026-10-09T23:00Z", state: "pre", venue: null, weather: null, indoor: null, odds: null,
+  home: team("NY"), away: team("BOS"), pitchers: null, ...o,
+});
+const player = (vals: number[], o: Partial<PlayerResearch> = {}): PlayerResearch => ({
+  id: "9", name: "Jalen Brunson", team: "NY", teamId: "NY", position: "PG", statLabel: "points",
+  games: vals.map((v, i) => ({ date: `2026-09-${String(30 - i).padStart(2, "0")}`, value: v, home: i % 2 === 0, opp: "X" })), ...o,
+});
+
+t("breakdown basics: hit count, median, wind, market map", () => {
+  assert.deepEqual(hitCount([30, 20, 24.5, 26], 24.5, "over"), { hit: 2, push: 1, n: 4 });
+  assert.equal(median([3, 1, 2]), 2);
+  assert.equal(median([4, 1, 2, 3]), 2.5);
+  assert.equal(median([]), null);
+  assert.equal(windMph("70° · Precip 4 · Gust 16"), 16);
+  assert.equal(windMph("Wind 8 mph NW"), 8);
+  assert.equal(windMph("Clear"), null);
+  assert.equal(statFromMarket("nba", "Total Points"), "points");
+  assert.equal(statFromMarket("nba", "Points + Rebounds + Assists"), "pra");
+  assert.equal(statFromMarket("nfl", "Passing Yards"), "passingYards");
+  assert.equal(statFromMarket("mlb", "Total Strikeouts"), "strikeouts");
+  assert.equal(statFromMarket("mlb", "Total Bases"), null);
+});
+
+t("prop pros: hit over in 8 of last 10 with avg and median quoted", () => {
+  const r = analyzeLeg({ league: "nba", gameId: "1", kind: "prop", athleteId: "9", stat: "points", line: 24.5, pick: "over", odds: -115 }, gameR(), player([30, 28, 27, 22, 31, 26, 25, 20, 29, 33, 26, 27]));
+  const top = r.pros.find((p) => /in 8 of last 10/.test(p.text));
+  assert.ok(top, JSON.stringify(r.pros));
+  assert.match(top!.text, /Over 24\.5 in 8 of last 10 \(avg 27\.1, median 27\.5\)/);
+  assert.ok(r.lean === "strong" || r.lean === "good");
+  assert.equal(r.cons.length, 0);
+  // Every pro quotes a number.
+  for (const p of [...r.pros, ...r.cons]) assert.match(p.text, /\d/);
+});
+
+t("prop cons: same log read as an under is bad; opponent defense rank", () => {
+  const g = gameR({ league: "nfl", home: team("DAL", { rushAllowed: { value: 88.2, rank: 4, of: 32 } }), away: team("TB") });
+  const p = player([60, 72, 55, 80, 66], { teamId: "TB", team: "TB", name: "Bucky Irving" });
+  const r = analyzeLeg({ league: "nfl", gameId: "1", kind: "prop", athleteId: "9", stat: "rushingYards", line: 64.5, pick: "over" }, g, p);
+  assert.ok(r.cons.some((c) => c.text === "DAL allows the 4th-fewest rush yds (88.2 per game)"), JSON.stringify(r.cons));
+  assert.ok(r.facts.some((f) => f.label === "DAL defense" && /4th fewest of 32/.test(f.value)));
+});
+
+t("prop with too few games says not enough data", () => {
+  const r = analyzeLeg({ league: "nba", gameId: "1", kind: "prop", athleteId: "9", stat: "points", line: 20.5, pick: "over" }, gameR(), player([22, 18]));
+  assert.equal(r.lean, "none");
+  assert.ok(r.facts.some((f) => /Not enough data/.test(f.value)));
+  const none = analyzeLeg({ league: "nba", gameId: "1", kind: "prop", stat: "points", line: 20.5 }, gameR(), null);
+  assert.equal(none.lean, "none");
+});
+
+t("MLB starter edge and line move drive a moneyline", () => {
+  const pit = (name: string, era: number) => ({ id: name, name, hand: "Left", era, eraRank: null, whip: 1.1, k: 150, record: "10-5", recent: [{ date: "2026-10-01", ip: 6, er: 1, k: 7, opp: "X" }, { date: "2026-09-25", ip: 5.1, er: 3, k: 5, opp: "Y" }] });
+  const g = gameR({
+    league: "mlb", home: team("CLE"), away: team("CHW"),
+    pitchers: { home: pit("Ace", 2.5), away: pit("Arm", 4.4) },
+    odds: { provider: "DK", spreadHome: -1.5, spreadHomeOpen: -1.5, total: 7.5, totalOpen: 8, homeMl: -150, awayMl: 130, homeMlOpen: -135, awayMlOpen: 115, overJuice: -110, underJuice: -110, homeSpreadJuice: 120, awaySpreadJuice: -140 },
+  });
+  const r = analyzeLeg({ league: "mlb", gameId: "1", kind: "moneyline", side: "home" }, g);
+  assert.ok(r.pros.some((p) => p.text === "Starter edge: Ace 2.50 ERA vs Arm 4.40"));
+  assert.ok(r.pros.some((p) => /Price shortened: -135 → -150/.test(p.text)));
+  assert.equal(r.odds, -150);
+  assert.ok(Math.abs((r.implied ?? 0) - 0.6) < 1e-9);
+  const away = analyzeLeg({ league: "mlb", gameId: "1", kind: "moneyline", side: "away" }, g);
+  assert.ok(away.cons.some((c) => /Starter gap/.test(c.text)));
+  assert.equal(away.lean, "bad");
+  const rec = recentEra(pit("Ace", 2.5));
+  assert.deepEqual(rec, { era: 3.18, ip: "11.1", k: 12, starts: 2 });
+  // Total under: the posted move down is a pro for the under.
+  const u = analyzeLeg({ league: "mlb", gameId: "1", kind: "total", pick: "under" }, g);
+  assert.ok(u.pros.some((p) => /Total moved down 0\.5 since open \(8 → 7\.5\)/.test(p.text)));
+});
+
+t("parlay math: product of implied, weakest red and strongest gold, same-game caveat", () => {
+  const rep = (score: number, implied: number | null, key = "nba/1"): LegReport => ({ title: `L${score}`, sub: "", league: "nba", gameId: "1", sameGameKey: key, facts: [], pros: [], cons: [], score, lean: "good", implied, odds: null });
+  const p = parlayMath([rep(3, 0.6), rep(-2, 0.5, "nba/2"), rep(1, 0.5, "nba/3")]);
+  assert.ok(Math.abs((p.combined ?? 0) - 0.15) < 1e-9);
+  assert.equal(p.strongest, 0);
+  assert.equal(p.weakest, 1);
+  assert.equal(p.sameGame, false);
+  assert.match(p.summary, /15\.0% implied/);
+  const sg = parlayMath([rep(1, 0.5), rep(0, null)]);
+  assert.equal(sg.sameGame, true);
+  assert.equal(sg.priced, 1);
+  assert.match(sg.summary, /1 of 2 legs have a price/);
+  assert.match(sg.summary, /Same-game legs are linked/);
+  assert.equal(parlayMath([rep(1, null)]).combined, null);
+  assert.equal(parlayMath([rep(1, 0.5), rep(1, 0.5, "x")]).weakest, null);
+});
+
+t("breakdown copy has no bet placement, money or invented words", () => {
+  for (const f of ["src/lib/breakdown.ts", "src/components/CheckClient.tsx", "src/app/check/page.tsx", "src/app/api/check/route.ts"]) {
+    const text = readFileSync(f, "utf8");
+    assert.ok(!/place (a )?bet|bet now|\$\d|payout|cash|lock of|guaranteed win|sure thing/i.test(text), f);
+  }
+  assert.match(readFileSync("src/lib/breakdown.ts", "utf8"), /Ranked by the numbers\. Not a guarantee\./);
+});
+
+t("check links round-trip; logged picks map to legs", () => {
+  const legs = [{ league: "nba", gameId: "1", kind: "spread" as const, side: "home" as const, line: -3.5 }];
+  const href = checkHref(legs);
+  assert.deepEqual(legsFromParam(decodeURIComponent(href.split("?l=")[1])), legs);
+  assert.deepEqual(legsFromParam("not json"), []);
+  assert.deepEqual(legsFromParam(JSON.stringify([{ league: "nba", gameId: "1", kind: "hack" }])), []);
+  const base = { league: "nba", gameId: "5", subject: "Jalen Brunson", line: 24.5, odds: -110 };
+  assert.equal(legFromLogged({ ...base, market: "Points", selection: "Over" })?.kind, "prop");
+  assert.equal(legFromLogged({ ...base, subject: "NY", market: "Spread", line: -3.5 })?.kind, "spread");
+  assert.equal(legFromLogged({ ...base, subject: "NY", market: "Moneyline" })?.kind, "moneyline");
+  assert.equal(legFromLogged({ ...base, subject: "BOS @ NY", market: "Total", selection: "Under", line: 221.5 })?.pick, "under");
+  assert.equal(legFromLogged({ subject: "x", line: 1, odds: -110 }), null);
+});
+
+t("research parsers: ranks, standings, game log values", () => {
+  const r = rankAll([{ id: "a", value: 20 }, { id: "b", value: 25 }, { id: "c", value: 20 }], false);
+  assert.deepEqual(r.get("a"), { value: 20, rank: 1, of: 3 });
+  assert.deepEqual(r.get("c"), { value: 20, rank: 1, of: 3 });
+  assert.equal(r.get("b")?.rank, 3);
+  const st = parseStandings({ children: [{ standings: { entries: [
+    { team: { id: "1" }, stats: [{ name: "avgPointsFor", value: 110.2 }, { name: "avgPointsAgainst", value: 105 }, { name: "gamesPlayed", value: 10 }, { name: "overall", displayValue: "6-4" }] },
+    { team: { id: "2" }, stats: [{ name: "pointsFor", value: 400 }, { name: "pointsAgainst", value: 300 }, { name: "wins", value: 3 }, { name: "losses", value: 2 }] },
+    { team: { id: "3" }, stats: [] },
+  ] } }] });
+  assert.deepEqual(st.map((x) => [x.id, x.ppg, x.papg]), [["1", 110.2, 105], ["2", 80, 60]]);
+  assert.equal(logValue(["points", "threePointFieldGoalsMade-threePointFieldGoalsAttempted"], ["31", "4-9"], "threePointFieldGoalsMade"), 4);
+  assert.equal(logValue(["points", "totalRebounds", "assists"], ["20", "5", "7"], "pra"), 32);
+  const log = parseGameLog({
+    names: ["points"],
+    events: { a: { gameDate: "2026-10-01T00:00Z", atVs: "vs", opponent: { abbreviation: "BOS" } }, b: { gameDate: "2026-10-03T00:00Z", atVs: "@", opponent: { abbreviation: "MIA" } }, c: { gameDate: "2026-09-20T00:00Z" } },
+    seasonTypes: [
+      { displayName: "2026 Regular Season", categories: [{ events: [{ eventId: "a", stats: ["30"] }, { eventId: "b", stats: ["22"] }] }] },
+      { displayName: "2026 Preseason", categories: [{ events: [{ eventId: "c", stats: ["50"] }] }] },
+    ],
+  }, "points");
+  assert.deepEqual(log.map((g) => [g.value, g.home, g.opp]), [[22, false, "MIA"], [30, true, "BOS"]]);
+});
+
+// ---------- Log ----------
+t("log math: net from stakes and odds, units, hit rate", () => {
+  const mk = (stake: number, odds: number, status: "open" | "win" | "loss" | "push", market = "Points") =>
+    ({ id: `${stake}${odds}${status}`, sport: "NBA", subject: "x", line: 1, odds, stake, book: "b", date: "2026-10-08", status, createdAt: "", market }) as Parameters<typeof pickNet>[0];
+  assert.equal(winAmount(110, -110), 100);
+  assert.equal(winAmount(50, 150), 75);
+  assert.equal(winAmount(10, 50), 0);
+  const picks = [mk(110, -110, "win"), mk(50, 150, "loss"), mk(20, -120, "push"), mk(100, 200, "open", "Spread")];
+  assert.deepEqual(picks.map(pickNet), [100, -50, 0, 0]);
+  const unit = baseUnit(picks, null);
+  assert.equal(unit, 75);
+  assert.equal(baseUnit(picks, 25), 25);
+  const s = summarize(picks, 25);
+  assert.deepEqual([s.won, s.lost, s.push, s.open], [1, 1, 1, 1]);
+  assert.equal(s.hitRate, 0.5);
+  assert.equal(s.net, 50);
+  assert.equal(s.netUnits, 2);
+  assert.equal(s.avgStake, 70);
+  assert.equal(s.avgUnits, 2.8);
+  assert.equal(summarize([], null).hitRate, null);
+  assert.equal(pickKind(picks[3]), "team");
+  assert.equal(pickKind(picks[0]), "prop");
+});
+
+t("suggested units scale modestly with the lean and cap at 1.5u", () => {
+  assert.equal(suggestUnits(null, "strong"), null);
+  assert.deepEqual(suggestUnits(20, "strong"), { units: 1.5, amount: 30, why: "1.5u: Breakdown strongest lean (capped at 1.5u)" });
+  assert.equal(suggestUnits(20, "good")?.units, 1.25);
+  assert.equal(suggestUnits(20, "bad")?.units, 0.5);
+  assert.equal(suggestUnits(20, null)?.units, 1);
+  for (const l of ["strong", "good", "neutral", "bad", "none"] as const) assert.ok((suggestUnits(10, l)?.units ?? 0) <= 1.5);
+});
+
+t("log money stays on the device: leaderboard code never reads net or stake", () => {
+  const leaders = readFileSync("src/lib/leaders.ts", "utf8");
+  assert.ok(!/ledger|pickNet|summarize|baseUnit/.test(leaders));
+  const share = readFileSync("src/components/SharePanel.tsx", "utf8");
+  assert.ok(!/ledger|pickNet|netUnits/.test(share));
 });
 
 console.log(`\n${n} passed`);

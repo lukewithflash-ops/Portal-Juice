@@ -38,7 +38,7 @@ import {
 
 const REVALIDATE = 60;
 
-async function getJson(url: string): Promise<unknown> {
+export async function getJson(url: string): Promise<unknown> {
   const res = await fetch(url, {
     cache: "no-store",
     headers: { accept: "application/json", "user-agent": "PortalJuice/1.0" },
@@ -70,6 +70,12 @@ async function loadSlate(day: string): Promise<Slate> {
     games,
     missing,
   };
+}
+
+/** Slate for any ESPN day (YYYYMMDD). Same 15s window. */
+export function getSlateFor(day: string): Promise<Slate> {
+  if (!/^\d{8}$/.test(day)) return Promise.resolve({ day, dayLabel: day, fetchedAt: new Date().toISOString(), games: [], missing: [] });
+  return unstable_cache(() => loadSlate(day), ["pj-slate", day], { revalidate: 15 })();
 }
 
 export function getSlate(): Promise<Slate> {

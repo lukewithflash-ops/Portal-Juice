@@ -3,6 +3,7 @@ import { OddsText } from "@/components/Prefs";
 import Mark from "@/components/Mark";
 import { mvpHomework, pct, type Favorite, type HotTrend, type LineMove } from "@/lib/best";
 import type { MvpRow } from "@/lib/espn";
+import { checkHref, type LegInput } from "@/lib/breakdown";
 
 export const BEST_NOTE = "Ranked by the numbers. Not a guarantee.";
 
@@ -17,6 +18,7 @@ function Row({
   metric,
   metricTone,
   metricSub,
+  analyze,
 }: {
   rank: number;
   href: string;
@@ -27,6 +29,7 @@ function Row({
   metric: React.ReactNode;
   metricTone?: "plus" | "minus" | "flat";
   metricSub?: string;
+  analyze?: LegInput | null;
 }) {
   const first = rank === 1;
   const tone =
@@ -46,8 +49,25 @@ function Row({
           {metricSub ? <span className="block text-[10px] uppercase tracking-wider text-zinc-500">{metricSub}</span> : null}
         </span>
       </Link>
+      {analyze ? (
+        <Link href={checkHref([analyze])} className="mt-1 mr-2 block text-right text-[11px] font-bold text-purple-200/80 hover:text-white">
+          Analyze →
+        </Link>
+      ) : null}
     </li>
   );
+}
+
+function favLeg(r: Favorite): LegInput | null {
+  const m = /^\/games\/([a-z]+)\/(\d+)/.exec(r.href);
+  const n = Number(String(r.odds).replace(/[^\d+-]/g, ""));
+  return m ? { league: m[1], gameId: m[2], kind: "moneyline", team: r.side, odds: Number.isFinite(n) && Math.abs(n) >= 100 ? n : null } : null;
+}
+
+/** Trend ids are league-athlete-stat. No line on a trend; the check asks for one. */
+function trendLeg(r: HotTrend): LegInput | null {
+  const [, athleteId, stat] = r.id.split("-");
+  return athleteId && stat ? { league: r.league, gameId: r.gameId, kind: "prop", athleteId, athleteName: r.name, stat, pick: "over" } : null;
 }
 
 export function FavoriteList({ rows }: { rows: Favorite[] }) {
@@ -64,6 +84,7 @@ export function FavoriteList({ rows }: { rows: Favorite[] }) {
           homework={r.homework}
           metric={pct(r.implied)}
           metricSub="implied"
+          analyze={favLeg(r)}
         />
       ))}
     </ol>
@@ -107,6 +128,7 @@ export function TrendList({ rows }: { rows: HotTrend[] }) {
           metric={`+${r.delta}`}
           metricTone="plus"
           metricSub={r.statLabel}
+          analyze={trendLeg(r)}
         />
       ))}
     </ol>
