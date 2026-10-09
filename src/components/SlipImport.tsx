@@ -228,11 +228,18 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                     ))}
                   </select>
                   {x.row.kind === "prop" ? (
-                    <input className="field col-span-3" value={x.row.market} placeholder="Stat" aria-label="Stat" onChange={(e) => edit(i, { market: e.target.value })} />
+                    <input className="field col-span-6" value={x.row.market} placeholder="Stat" aria-label="Stat" onChange={(e) => edit(i, { market: e.target.value })} />
+                  ) : null}
+                  {x.row.kind === "prop" || x.row.kind === "total" ? (
+                    <select className="field col-span-2 min-w-0" value={x.row.selection ?? ""} aria-label="Side" onChange={(e) => edit(i, { selection: e.target.value === "Over" || e.target.value === "Under" ? e.target.value : null })}>
+                      <option value="">—</option>
+                      <option value="Over">Over</option>
+                      <option value="Under">Under</option>
+                    </select>
                   ) : null}
                   {x.row.kind !== "moneyline" ? (
                     <input
-                      className="field col-span-1 min-w-0"
+                      className={"field min-w-0 " + (x.row.kind === "prop" || x.row.kind === "total" ? "col-span-2" : "col-span-3")}
                       value={x.row.line ?? ""}
                       placeholder="Line"
                       inputMode="decimal"
@@ -240,15 +247,8 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                       onChange={(e) => edit(i, { line: e.target.value === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) })}
                     />
                   ) : null}
-                  {x.row.kind === "prop" || x.row.kind === "total" ? (
-                    <select className="field col-span-1 min-w-0" value={x.row.selection ?? ""} aria-label="Side" onChange={(e) => edit(i, { selection: e.target.value === "Over" || e.target.value === "Under" ? e.target.value : null })}>
-                      <option value="">—</option>
-                      <option value="Over">O</option>
-                      <option value="Under">U</option>
-                    </select>
-                  ) : null}
                   <input
-                    className="field col-span-1 min-w-0"
+                    className={"field min-w-0 " + (x.row.kind === "spread" ? "col-span-3" : x.row.kind === "moneyline" ? "col-span-6" : "col-span-2")}
                     value={x.row.odds ?? ""}
                     placeholder="Price"
                     aria-label="Price"
