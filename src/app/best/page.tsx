@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { FavoriteList, MoveList, MvpList, TrendList, BEST_NOTE } from "@/components/BestLists";
 import { biggestMoves, hotTrends, marketFavorites } from "@/lib/best";
 import { getMvpBoard, getSlate, getTrends } from "@/lib/espn";
+import { PortalPickPanel, VipPanel } from "@/components/PortalPickPanel";
+import { portalPickToday } from "@/lib/portalPickStore";
+import { sportsDate } from "@/lib/slate";
 
 export const revalidate = 60;
 
@@ -25,6 +28,7 @@ export default async function BestPage() {
   const favs = marketFavorites(slate.games);
   const moves = biggestMoves(slate.games);
   const hot = hotTrends(trends.trends);
+  const portal = await portalPickToday(slate.games, sportsDate());
   return (
     <div className="mx-auto max-w-xl">
       <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)] sm:text-3xl">Best</h1>
@@ -33,6 +37,11 @@ export default async function BestPage() {
         Every row shows its homework: the posted price, the line move, or the game log behind the rank. Gold is #1 of each list.
         Green is up, red is down. Tap a row for the game.
       </p>
+
+      <div className="mb-8">
+        <PortalPickPanel pick={portal.pick} record={portal.record} tracked={portal.tracked} />
+        <VipPanel />
+      </div>
 
       <Group title="Market favorites" how="Shorter moneyline turned into implied chance. Line move added when ESPN sent an open.">
         <FavoriteList rows={favs} />

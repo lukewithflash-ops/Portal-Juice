@@ -10,6 +10,7 @@ import { lastNAverage, parsePrice, rankGames, sportsDate } from "../src/lib/slat
 import { parseTeamCookie, parseTeamList } from "../src/lib/team";
 import { impliedChance, parseMvpMarket, parsePropItems, parseWeather, rankByImplied } from "../src/lib/detail";
 import { parseSlipText, safeSlipUrl } from "../src/lib/slip";
+import { choosePortalPick, gradePortalPick, portalRecord } from "../src/lib/portalPick";
 import { rankLeaders, cleanLeg, cleanLeaderHandle } from "../src/lib/leaderRank";
 import { unitHint } from "../src/lib/units";
 import { marketFavorites, biggestMoves, hotTrends, mvpHomework } from "../src/lib/best";
@@ -402,6 +403,30 @@ t("leaders rank by hit rate with a minimum sample and carry no money fields", ()
   assert.ok(!/stake|odds|book|500/.test(one));
   assert.equal(cleanLeaderHandle("@ok_name"), "ok_name");
   assert.equal(cleanLeaderHandle("no spaces"), null);
+});
+
+
+t("portal pick follows the biggest posted move and grades on the final", () => {
+  const price = (o: Record<string, unknown>) => ({ provider: "DraftKings", total: null, overJuice: null, underJuice: null, spreadDetail: null, homeSpread: null, awaySpread: null, homeSpreadJuice: null, awaySpreadJuice: null, homeMl: null, awayMl: null, spreadHome: null, totalOpen: null, spreadHomeOpen: null, ...o });
+  const game = (id: string, state: string, p: Record<string, unknown>) => ({ id, league: "nba", state, start: "2026-10-09T02:00Z", away: { abbr: "SAC" }, home: { abbr: "LAL" }, price: price(p) }) as unknown as Parameters<typeof choosePortalPick>[0][number];
+  assert.equal(choosePortalPick([game("1", "pre", {})], "2026-10-08"), null);
+  const live = game("2", "in", { total: 230, totalOpen: 220 });
+  const total = game("3", "pre", { total: 229.5, totalOpen: 228.5 });
+  const spread = game("4", "pre", { spreadHome: -10.5, spreadHomeOpen: -6.5 });
+  const pick = choosePortalPick([live, total, spread], "2026-10-08");
+  assert.ok(pick);
+  assert.equal(pick.gameId, "4");
+  assert.equal(pick.side, "LAL");
+  assert.equal(pick.line, -10.5);
+  assert.equal(gradePortalPick(pick, 100, 112), "hit");
+  assert.equal(gradePortalPick(pick, 100, 110), "miss");
+  assert.equal(gradePortalPick(pick, null, 110), null);
+  const over = choosePortalPick([total], "2026-10-08");
+  assert.ok(over);
+  assert.equal(over.side, "Over");
+  assert.equal(gradePortalPick(over, 115, 115), "hit");
+  assert.equal(gradePortalPick(over, 110, 110), "miss");
+  assert.deepEqual(portalRecord([]), { hits: 0, misses: 0, pushes: 0, graded: 0, rate: null });
 });
 
 console.log(`\n${n} passed`);
