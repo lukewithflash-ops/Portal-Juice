@@ -136,6 +136,30 @@ export type Game = {
   price: Price | null;
 };
 
+/** Slim live score for one game. Polled by the games list. */
+export type ScoreRow = {
+  id: string;
+  league: LeagueId;
+  state: GameState;
+  detail: string;
+  clock: string | null;
+  awayScore: string | null;
+  homeScore: string | null;
+};
+
+/** Lay fresher scoreboard values over a game from the server render. */
+export function applyScore(g: Game, row: ScoreRow | undefined): Game {
+  if (!row) return g;
+  return {
+    ...g,
+    state: row.state,
+    detail: row.detail,
+    clock: row.clock,
+    away: { ...g.away, score: row.awayScore },
+    home: { ...g.home, score: row.homeScore },
+  };
+}
+
 export type Slate = {
   day: string;
   dayLabel: string;

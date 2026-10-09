@@ -2,7 +2,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { allowedHeadshot } from "@/lib/headshots";
 import { implied } from "@/lib/odds";
-import { parseLive, type LiveSnap } from "@/lib/live";
+import { freshestStatus, parseLive, statusFromScoreboard, type LiveSnap } from "@/lib/live";
 import {
   parseMvpMarket,
   parsePropItems,
@@ -32,6 +32,7 @@ import {
   type Slate,
   type Story,
   type TeamPage,
+  type ScoreRow,
   type Trend,
 } from "@/lib/slate";
 
@@ -73,7 +74,8 @@ async function loadSlate(day: string): Promise<Slate> {
 
 export function getSlate(): Promise<Slate> {
   const day = sportsDate();
-  return unstable_cache(() => loadSlate(day), ["pj-slate", day], { revalidate: REVALIDATE })();
+  // Short window: scores on first paint should be close to live. Prices ride along.
+  return unstable_cache(() => loadSlate(day), ["pj-slate", day], { revalidate: 15 })();
 }
 
 const TREND_CAP = 12;
@@ -607,21 +609,89 @@ export function getMvpBoard(): Promise<{ groups: MvpGroup[]; fetchedAt: string }
   return unstable_cache(() => loadMvp(year), ["pj-mvp", String(year)], { revalidate: REVALIDATE })();
 }
 
-export function getLive(leagueId: string, id: string): Promise<LiveSnap | null> {
+/**
+ * Tiny per-instance memo so a burst of viewers on one game shares one ESPN call.
+ * No shared data cache here: live reads must never be served from a stale copy.
+ */
+const liveMemo = new Map<string, { at: number; value: Promise<unknown> }>();
+const LIVE_TTL_MS = 2_000;
+
+function memoJson(url: string): Promise<unknown> {
+  const now = Date.now();
+  const hit = liveMemo.get(url);
+  if (hit && now - hit.at < LIVE_TTL_MS) return hit.value;
+  const value = getJson(url);
+  liveMemo.set(url, { at: now, value });
+  value.catch(() => liveMemo.delete(url));
+  if (liveMemo.size > 400) {
+    for (const [k, v] of liveMemo) if (now - v.at >= LIVE_TTL_MS) liveMemo.delete(k);
+  }
+  return value;
+}
+
+/** ESPN's scoreboard date (US Eastern) for a game start. */
+function easternDay(iso: string | null): string | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(t));
+  const get = (k: string) => parts.find((p) => p.type === k)?.value ?? "";
+  return `${get("year")}${get("month")}${get("day")}`;
+}
+
+export async function getLive(leagueId: string, id: string): Promise<LiveSnap | null> {
   const league = leagueById(leagueId);
-  if (!league || !/^\d+$/.test(id)) return Promise.resolve(null);
-  return unstable_cache(
-    async () => {
+  if (!league || !/^\d+$/.test(id)) return null;
+  const base = `https://site.api.espn.com/apis/site/v2/sports/${league.sport}/${league.slug}`;
+  let data: unknown;
+  try {
+    data = await memoJson(`${base}/summary?event=${id}`);
+  } catch {
+    return null;
+  }
+  const snap = parseLive(data);
+  if (!snap || snap.state === "post") return snap;
+  // The scoreboard often posts the score and clock before the game summary does.
+  const comp = (data as { header?: { competitions?: { date?: string }[] } })?.header?.competitions?.[0];
+  const day = easternDay(typeof comp?.date === "string" ? comp.date : null);
+  if (!day) return snap;
+  try {
+    const board = await memoJson(`${base}/scoreboard?dates=${day}&limit=300`);
+    return freshestStatus(snap, statusFromScoreboard(board, id));
+  } catch {
+    return snap;
+  }
+}
+
+
+export async function getScores(): Promise<{ fetchedAt: string; scores: ScoreRow[] }> {
+  const day = sportsDate();
+  const rows = await Promise.all(
+    LEAGUES.map(async (league) => {
       try {
-        const data = await getJson(
-          `https://site.api.espn.com/apis/site/v2/sports/${league.sport}/${league.slug}/summary?event=${id}`
+        const data = await memoJson(
+          `https://site.api.espn.com/apis/site/v2/sports/${league.sport}/${league.slug}/scoreboard?dates=${day}&limit=100`
         );
-        return parseLive(data);
+        return parseScoreboard(league, data).games.map(
+          (g): ScoreRow => ({
+            id: g.id,
+            league: g.league,
+            state: g.state,
+            detail: g.detail,
+            clock: g.clock,
+            awayScore: g.away.score,
+            homeScore: g.home.score,
+          })
+        );
       } catch {
-        return null;
+        return [] as ScoreRow[];
       }
-    },
-    ["pj-live", league.id, id],
-    { revalidate: 10 }
-  )();
+    })
+  );
+  return { fetchedAt: new Date().toISOString(), scores: rows.flat() };
 }

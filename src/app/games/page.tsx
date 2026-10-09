@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import GamesBoard from "@/components/GamesBoard";
 import { getSlate } from "@/lib/espn";
 
-export const revalidate = 60;
+export const revalidate = 15;
 
 export const metadata: Metadata = {
   title: "Games",

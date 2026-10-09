@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import GameChat from "@/components/GameChat";
 import Mark from "@/components/Mark";
 import MyProps from "@/components/MyProps";
-import type { LivePlay, LiveSnap } from "@/lib/live";
+import { isBehind, type LivePlay, type LiveSnap } from "@/lib/live";
+import { POLL_ERROR_MS, pollDelay, usePoll } from "@/components/usePoll";
 import {
   currentDrive,
   isBigPlay,
@@ -88,46 +89,43 @@ export default function GameLive({
   const seen = useRef<Set<string> | null>(null);
   const scores = useRef<{ away: string | null; home: string | null }>({ away: null, home: null });
 
-  useEffect(() => {
-    let stop = false;
-    let cinemaTimer: ReturnType<typeof setTimeout> | null = null;
-    const pull = async () => {
-      try {
-        const res = await fetch("/api/live/" + league + "/" + id);
-        if (!res.ok) return;
-        const data = (await res.json()) as LiveSnap;
-        if (stop) return;
-        const first = seen.current === null;
-        const prior = seen.current ?? new Set<string>();
-        const added = first ? [] : data.plays.filter((p) => !prior.has(p.id));
-        seen.current = new Set(data.plays.map((p) => p.id));
-        setFreshIds(added.map((p) => p.id));
-        const big = [...added].reverse().find(isBigPlay);
-        if (big) {
-          setCinema(big);
-          if (cinemaTimer) clearTimeout(cinemaTimer);
-          cinemaTimer = setTimeout(() => setCinema(null), 4300);
-        }
-        if (!first) {
-          setBump((b) => ({
-            away: data.awayScore !== scores.current.away ? b.away + 1 : b.away,
-            home: data.homeScore !== scores.current.home ? b.home + 1 : b.home,
-          }));
-        }
-        scores.current = { away: data.awayScore, home: data.homeScore };
-        setSnap(data);
-      } catch {
-        /* keep the last snap */
-      }
-    };
-    pull();
-    const timer = setInterval(pull, 12000);
-    return () => {
-      stop = true;
-      clearInterval(timer);
-      if (cinemaTimer) clearTimeout(cinemaTimer);
-    };
-  }, [league, id]);
+  const cinemaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSnap = useRef<LiveSnap | null>(null);
+  useEffect(
+    () => () => {
+      if (cinemaTimer.current) clearTimeout(cinemaTimer.current);
+    },
+    []
+  );
+
+  usePoll(async (signal) => {
+    const res = await fetch("/api/live/" + league + "/" + id, { cache: "no-store", signal });
+    if (!res.ok) return POLL_ERROR_MS;
+    const data = (await res.json()) as LiveSnap;
+    // An older copy can come back from a different edge. Never step the game backwards.
+    if (isBehind(data, lastSnap.current)) return pollDelay(lastSnap.current?.state);
+    lastSnap.current = data;
+    const first = seen.current === null;
+    const prior = seen.current ?? new Set<string>();
+    const added = first ? [] : data.plays.filter((p) => !prior.has(p.id));
+    seen.current = new Set([...prior, ...data.plays.map((p) => p.id)]);
+    setFreshIds(added.map((p) => p.id));
+    const big = [...added].reverse().find(isBigPlay);
+    if (big) {
+      setCinema(big);
+      if (cinemaTimer.current) clearTimeout(cinemaTimer.current);
+      cinemaTimer.current = setTimeout(() => setCinema(null), 4300);
+    }
+    if (!first) {
+      setBump((b) => ({
+        away: data.awayScore !== scores.current.away ? b.away + 1 : b.away,
+        home: data.homeScore !== scores.current.home ? b.home + 1 : b.home,
+      }));
+    }
+    scores.current = { away: data.awayScore, home: data.homeScore };
+    setSnap(data);
+    return pollDelay(data.state);
+  }, league + "/" + id);
 
   const rows = useMemo(() => trackProps(props, snap, league), [props, snap, league]);
   const top = rows.slice(0, 8);

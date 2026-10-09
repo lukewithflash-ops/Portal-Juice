@@ -17,6 +17,7 @@ import { marketFavorites, biggestMoves, hotTrends, mvpHomework } from "../src/li
 import { playKind, playerFromText, isShotAttempt } from "../src/lib/tracker";
 import { clockSpan, isBigPlay, paceOf, parseLine, scoringRun, statNumber, trackProps } from "../src/lib/tracker";
 import type { LivePlay, LiveSnap } from "../src/lib/live";
+import { freshestStatus, isBehind, parseLive, statusFromScoreboard, type LiveStatus } from "../src/lib/live";
 
 let n = 0;
 const t = (name: string, fn: () => void) => {
@@ -427,6 +428,90 @@ t("portal pick follows the biggest posted move and grades on the final", () => {
   assert.equal(gradePortalPick(over, 115, 115), "hit");
   assert.equal(gradePortalPick(over, 110, 110), "miss");
   assert.deepEqual(portalRecord([]), { hits: 0, misses: 0, pushes: 0, graded: 0, rate: null });
+});
+
+const summaryFixture = (over: Record<string, unknown> = {}) => ({
+  header: {
+    competitions: [
+      {
+        status: { displayClock: "5:07", period: 2, type: { state: "in", shortDetail: "5:07 - 2nd" } },
+        competitors: [
+          { homeAway: "home", score: "7", team: { id: "6", abbreviation: "DAL" } },
+          { homeAway: "away", score: "7", team: { id: "27", abbreviation: "TB" } },
+        ],
+      },
+    ],
+  },
+  drives: {
+    previous: [
+      { id: "d1", team: { id: "27" }, plays: [{ id: "p1", text: "Kickoff" }, { id: "p2", text: "Rush for 4" }] },
+      { id: "d2", team: { id: "6" }, plays: [{ id: "p3", text: "Pass complete", period: { number: 2 } }] },
+    ],
+    current: { id: "d2", plays: [{ id: "p3", text: "Pass complete" }] },
+  },
+  ...over,
+});
+
+const boardFixture = (clock: string, detail: string, period: number, away: string, home: string, state = "in") => ({
+  events: [
+    {
+      id: "401",
+      competitions: [
+        {
+          status: { displayClock: clock, period, type: { state, shortDetail: detail } },
+          competitors: [
+            { homeAway: "home", score: home },
+            { homeAway: "away", score: away },
+          ],
+        },
+      ],
+    },
+  ],
+});
+
+t("football plays read from drives, oldest first, no dupes", () => {
+  const snap = parseLive(summaryFixture());
+  assert.ok(snap);
+  assert.deepEqual(snap.plays.map((p) => p.id), ["p1", "p2", "p3"]);
+  assert.equal(snap.plays[2].period, "2nd");
+});
+
+t("scoreboard ahead of summary wins score and clock", () => {
+  const snap = parseLive(summaryFixture());
+  assert.ok(snap);
+  const board = statusFromScoreboard(boardFixture("3:40", "3:40 - 2nd", 2, "7", "14"), "401");
+  const out = freshestStatus(snap, board);
+  assert.equal(out.detail, "3:40 - 2nd");
+  assert.equal(out.homeScore, "14");
+  assert.equal(out.plays.length, 3);
+});
+
+t("summary ahead of scoreboard keeps the summary", () => {
+  const snap = parseLive(summaryFixture());
+  assert.ok(snap);
+  const board = statusFromScoreboard(boardFixture("9:00", "9:00 - 2nd", 2, "7", "7"), "401");
+  assert.equal(freshestStatus(snap, board).detail, "5:07 - 2nd");
+  const earlierPeriod = statusFromScoreboard(boardFixture("0:30", "0:30 - 1st", 1, "7", "7"), "401");
+  assert.equal(freshestStatus(snap, earlierPeriod).detail, "5:07 - 2nd");
+  assert.equal(freshestStatus(snap, null).detail, "5:07 - 2nd");
+});
+
+t("baseball half innings order Top < Mid < Bot < End", () => {
+  const s = (detail: string, period: number): LiveStatus => ({ state: "in", clock: null, detail, period, awayScore: "0", homeScore: "2" });
+  assert.ok(isBehind(s("Bot 3rd", 3), s("End 3rd", 3)));
+  assert.ok(isBehind(s("End 3rd", 3), s("Top 4th", 4)));
+  assert.ok(isBehind(s("Top 4th", 4), s("Mid 4th", 4)));
+  assert.ok(!isBehind(s("End 3rd", 3), s("Bot 3rd", 3)));
+});
+
+t("final beats live; a stale copy is behind", () => {
+  const live: LiveStatus = { state: "in", clock: "0:12", detail: "0:12 - 4th", period: 4, awayScore: "100", homeScore: "98" };
+  const fin: LiveStatus = { state: "post", clock: null, detail: "Final", period: 4, awayScore: "101", homeScore: "98" };
+  assert.ok(isBehind(live, fin));
+  assert.ok(!isBehind(fin, live));
+  assert.ok(!isBehind(live, null));
+  const half: LiveStatus = { state: "in", clock: "0:00", detail: "Halftime", period: 2, awayScore: "50", homeScore: "48" };
+  assert.ok(isBehind({ ...half, clock: "0:40", detail: "0:40 - 2nd" }, half));
 });
 
 console.log(`\n${n} passed`);

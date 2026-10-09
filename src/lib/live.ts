@@ -77,6 +77,12 @@ function colorOf(raw: unknown): string {
   return /^[0-9a-fA-F]{6}$/.test(s) ? `#${s}` : "#7c3aed";
 }
 
+function ordinal(n: number | null): string {
+  if (n === null || n <= 0) return "";
+  const tail = n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th";
+  return `${n}${tail}`;
+}
+
 function onCourt(v: unknown): number | null {
   const n = num(v);
   if (n === null || n < -120 || n > 120) return null;
@@ -176,7 +182,7 @@ export function parseLive(data: unknown): LiveSnap | null {
       id,
       text,
       clock: str(asDict(p.clock).displayValue) || "",
-      period: str(asDict(p.period).displayValue) || "",
+      period: str(asDict(p.period).displayValue) || ordinal(num(asDict(p.period).number)),
       scoring: p.scoringPlay === true,
       points: num(p.scoreValue) ?? 0,
       awayScore: num(p.awayScore),
@@ -230,4 +236,100 @@ export function parseLive(data: unknown): LiveSnap | null {
     boxes,
     plays,
   };
+}
+
+/** Score and clock for one game, read from a scoreboard event or a summary header. */
+export type LiveStatus = {
+  state: LiveSnap["state"];
+  clock: string | null;
+  detail: string;
+  period: number | null;
+  awayScore: string | null;
+  homeScore: string | null;
+};
+
+function clockSeconds(v: string | null): number | null {
+  if (!v) return null;
+  const m = /^(\d+):(\d{1,2})(?:\.\d+)?$/.exec(v.trim());
+  if (m) return Number(m[1]) * 60 + Number(m[2]);
+  const s = /^(\d+(?:\.\d+)?)$/.exec(v.trim());
+  return s ? Number(s[1]) : null;
+}
+
+/** Baseball half-inning order inside one inning. */
+function halfRank(detail: string): number {
+  const d = detail.toLowerCase();
+  if (/^(top)\b/.test(d)) return 0;
+  if (/^(mid|middle)\b/.test(d)) return 1;
+  if (/^(bot|bottom)\b/.test(d)) return 2;
+  if (/^end\b/.test(d)) return 3;
+  return -1;
+}
+
+/**
+ * Sortable game progress. Higher is later in the game.
+ * Clock sports count down, so less time left ranks higher. Baseball uses the half inning.
+ */
+export function progressOf(s: LiveStatus): number[] {
+  const stateRank = s.state === "post" ? 2 : s.state === "in" ? 1 : 0;
+  const period = s.period ?? 0;
+  const half = halfRank(s.detail);
+  const left = clockSeconds(s.clock);
+  const within = half >= 0 ? half : left !== null ? -left : /half|end of/i.test(s.detail) ? 0 : -1e6;
+  const pts = (Number(s.awayScore) || 0) + (Number(s.homeScore) || 0);
+  return [stateRank, period, within, pts];
+}
+
+function compareProgress(a: LiveStatus, b: LiveStatus): number {
+  const x = progressOf(a);
+  const y = progressOf(b);
+  for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i];
+  return 0;
+}
+
+/** Read status and score for one event out of an ESPN scoreboard payload. */
+export function statusFromScoreboard(data: unknown, eventId: string): LiveStatus | null {
+  const ev = asList(asDict(data).events).map(asDict).find((e) => str(e.id) === eventId);
+  if (!ev) return null;
+  const comp = asDict(asList(ev.competitions)[0]);
+  const sides = asList(comp.competitors).map(asDict);
+  const home = sides.find((s) => s.homeAway === "home");
+  const away = sides.find((s) => s.homeAway === "away");
+  if (!home || !away) return null;
+  const st = asDict(comp.status);
+  const type = asDict(st.type);
+  const raw = str(type.state);
+  const state: LiveSnap["state"] = raw === "in" || raw === "post" ? raw : "pre";
+  return {
+    state,
+    clock: state === "in" ? str(st.displayClock) : null,
+    detail: str(type.shortDetail) || str(type.detail) || "",
+    period: num(st.period),
+    awayScore: str(away.score),
+    homeScore: str(home.score),
+  };
+}
+
+/**
+ * ESPN's scoreboard and game summary update on different timers, and either one can be
+ * a few plays behind. Keep whichever source is further along in the game.
+ */
+export function freshestStatus(snap: LiveSnap, board: LiveStatus | null): LiveSnap {
+  if (!board) return snap;
+  const own: LiveStatus = {
+    state: snap.state,
+    clock: snap.clock,
+    detail: snap.detail,
+    period: snap.period,
+    awayScore: snap.awayScore,
+    homeScore: snap.homeScore,
+  };
+  if (compareProgress(board, own) < 0) return snap;
+  return { ...snap, ...board };
+}
+
+/** True when `next` is earlier in the game than `prev` (an older copy came back). */
+export function isBehind(next: LiveStatus, prev: LiveStatus | null): boolean {
+  if (!prev) return false;
+  return compareProgress(next, prev) < 0;
 }

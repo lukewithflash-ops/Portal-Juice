@@ -4,7 +4,20 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import GameTile, { type MoveFlag } from "@/components/GameTile";
 import { usePrefs } from "@/components/Prefs";
-import { LEAGUES, POPULAR_SIGNAL, rankGames, type Game, type LeagueId } from "@/lib/slate";
+import { LEAGUES, POPULAR_SIGNAL, applyScore, rankGames, type Game, type LeagueId, type ScoreRow } from "@/lib/slate";
+import { POLL_ERROR_MS, usePoll } from "@/components/usePoll";
+
+/** Scores list: 15s while anything is live or about to start, 60s otherwise. */
+const LIST_LIVE_MS = 15_000;
+const LIST_IDLE_MS = 60_000;
+
+function listDelay(games: Game[]): number {
+  const now = Date.now();
+  const busy = games.some(
+    (g) => g.state === "in" || (g.state === "pre" && Date.parse(g.start) - now < 15 * 60_000)
+  );
+  return busy ? LIST_LIVE_MS : LIST_IDLE_MS;
+}
 
 const SEEN_KEY = "pj-seen-lines-v1";
 
@@ -22,8 +35,8 @@ function readSeen(): Seen {
 }
 
 export default function GamesBoard({
-  games,
-  fetchedAt,
+  games: served,
+  fetchedAt: servedAt,
   dayLabel,
   missing,
 }: {
@@ -37,6 +50,22 @@ export default function GamesBoard({
   const [league, setLeague] = useState<LeagueId | "ALL">("ALL");
   const [ago, setAgo] = useState<number | null>(null);
   const [moves, setMoves] = useState<Record<string, MoveFlag>>({});
+  const [live, setLive] = useState<{ at: string; rows: Record<string, ScoreRow> } | null>(null);
+  const games = useMemo(
+    () => (live ? served.map((g) => applyScore(g, live.rows[g.id])) : served),
+    [served, live]
+  );
+  const fetchedAt = live && Date.parse(live.at) > Date.parse(servedAt) ? live.at : servedAt;
+
+  usePoll(async (signal) => {
+    const res = await fetch("/api/scores", { cache: "no-store", signal });
+    if (!res.ok) return POLL_ERROR_MS;
+    const data = (await res.json()) as { fetchedAt: string; scores: ScoreRow[] };
+    const rows: Record<string, ScoreRow> = {};
+    for (const r of data.scores) rows[r.id] = r;
+    setLive({ at: data.fetchedAt, rows });
+    return listDelay(served.map((g) => applyScore(g, rows[g.id])));
+  }, "scores");
 
   useEffect(() => {
     const tick = () => {
@@ -52,7 +81,7 @@ export default function GamesBoard({
     const seen = readSeen();
     const next: Seen = { ...seen };
     const flags: Record<string, MoveFlag> = {};
-    for (const g of games) {
+    for (const g of served) {
       const total = g.price?.total ?? null;
       const spread = g.price?.spreadHome ?? null;
       if (total === null && spread === null) continue;
@@ -74,7 +103,7 @@ export default function GamesBoard({
     }
     const id = requestAnimationFrame(() => setMoves(flags));
     return () => cancelAnimationFrame(id);
-  }, [games]);
+  }, [served]);
 
   const filtered = useMemo(() => {
     const base = league === "ALL" ? games : games.filter((g) => g.league === league);

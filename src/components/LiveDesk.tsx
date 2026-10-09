@@ -1,38 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { OddsText } from "@/components/Prefs";
-import type { LiveBox, LiveSnap } from "@/lib/live";
+import { isBehind, type LiveBox, type LiveSnap } from "@/lib/live";
+import { POLL_ERROR_MS, pollDelay, usePoll } from "@/components/usePoll";
 
 export default function LiveDesk({ league, id }: { league: string; id: string }) {
   const [snap, setSnap] = useState<LiveSnap | null>(null);
   const [fresh, setFresh] = useState<string | null>(null);
   const [sort, setSort] = useState(0);
   const last = useRef<string | null>(null);
+  const snapRef = useRef<LiveSnap | null>(null);
 
-  useEffect(() => {
-    let stop = false;
-    const pull = async () => {
-      try {
-        const res = await fetch("/api/live/" + league + "/" + id);
-        if (!res.ok) return;
-        const data = (await res.json()) as LiveSnap;
-        if (stop) return;
-        const newest = data.plays.length ? data.plays[data.plays.length - 1].id : null;
-        if (last.current && newest && newest !== last.current) setFresh(newest);
-        last.current = newest;
-        setSnap(data);
-      } catch {
-        /* keep the last snap */
-      }
-    };
-    pull();
-    const timer = setInterval(pull, 12000);
-    return () => {
-      stop = true;
-      clearInterval(timer);
-    };
-  }, [league, id]);
+  usePoll(async (signal) => {
+    const res = await fetch("/api/live/" + league + "/" + id, { cache: "no-store", signal });
+    if (!res.ok) return POLL_ERROR_MS;
+    const data = (await res.json()) as LiveSnap;
+    if (isBehind(data, snapRef.current)) return pollDelay(snapRef.current?.state);
+    snapRef.current = data;
+    const newest = data.plays.length ? data.plays[data.plays.length - 1].id : null;
+    if (last.current && newest && newest !== last.current) setFresh(newest);
+    last.current = newest;
+    setSnap(data);
+    return pollDelay(data.state);
+  }, league + "/" + id);
 
   if (!snap || (snap.state === "pre" && snap.plays.length === 0 && snap.boxes.length === 0)) return null;
 
