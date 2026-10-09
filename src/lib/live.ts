@@ -14,6 +14,8 @@ export type LivePlayer = {
   starter: boolean;
   played: boolean;
   stats: string[];
+  /** Stable ESPN stat name or label → cell. Used to match a prop. */
+  statMap: Record<string, string>;
 };
 
 export type LiveBox = {
@@ -39,6 +41,7 @@ export type LivePlay = {
   distance: number | null;
   yardsToEndzone: number | null;
   spot: string | null;
+  typeText: string;
 };
 
 export type LiveSnap = {
@@ -62,6 +65,9 @@ export type LiveSnap = {
   awayMl: string | null;
   homeMl: string | null;
   homeWin: number | null;
+  /** Home win chance, 0–100, in play order. Only points ESPN sent. */
+  win: number[];
+  period: number | null;
   boxes: LiveBox[];
   plays: LivePlay[];
 };
@@ -69,6 +75,12 @@ export type LiveSnap = {
 function colorOf(raw: unknown): string {
   const s = typeof raw === "string" ? raw.replace("#", "") : "";
   return /^[0-9a-fA-F]{6}$/.test(s) ? `#${s}` : "#7c3aed";
+}
+
+function onCourt(v: unknown): number | null {
+  const n = num(v);
+  if (n === null || n < -120 || n > 120) return null;
+  return n;
 }
 
 export function parseLive(data: unknown): LiveSnap | null {
@@ -90,7 +102,8 @@ export function parseLive(data: unknown): LiveSnap | null {
   for (const raw of asList(asDict(d.boxscore).players)) {
     const block = asDict(raw);
     const team = asDict(block.team);
-    const group = asDict(asList(block.statistics)[0]);
+    const groups = asList(block.statistics).map(asDict);
+    const group = groups[0] ?? {};
     const columns = asList(group.labels).map((x) => str(x) || "").filter(Boolean);
     const names = asList(group.names).map((x) => str(x) || "");
     const headers = columns.length ? columns : names;
@@ -102,12 +115,26 @@ export function parseLive(data: unknown): LiveSnap | null {
       const id = str(athlete.id);
       if (!name || !id) continue;
       const stats = asList(a.stats).map((x) => (typeof x === "string" ? x : x == null ? "" : String(x)));
+      const statMap: Record<string, string> = {};
+      for (const g of groups) {
+        const gNames = asList(g.names).map((x) => str(x) || "");
+        const gLabels = asList(g.labels).map((x) => str(x) || "");
+        const row = asList(g.athletes).map(asDict).find((row) => str(asDict(row.athlete).id) === id);
+        const cells = asList(row?.stats).map((x) => (typeof x === "string" ? x : x == null ? "" : String(x)));
+        gNames.forEach((key, i) => {
+          if (key && cells[i] != null && cells[i] !== "") statMap[key] = cells[i];
+        });
+        gLabels.forEach((key, i) => {
+          if (key && cells[i] != null && cells[i] !== "" && statMap[key] == null) statMap[key] = cells[i];
+        });
+      }
       players.push({
         id,
         name,
         starter: a.starter === true,
         played: a.didNotPlay !== true,
         stats,
+        statMap,
       });
     }
     if (!players.length) continue;
@@ -137,20 +164,27 @@ export function parseLive(data: unknown): LiveSnap | null {
       awayScore: num(p.awayScore),
       homeScore: num(p.homeScore),
       teamId: str(asDict(p.team).id),
-      x: num(coord.x),
-      y: num(coord.y),
+      x: onCourt(coord.x),
+      y: onCourt(coord.y),
       down: num(start.down),
       distance: num(start.distance),
       yardsToEndzone: num(start.yardsToEndzone),
       spot: str(start.shortDownDistanceText) || str(start.possessionText),
+      typeText: str(asDict(p.type).text) || "",
     });
   }
 
+  const winByPlay = new Map<string, number>();
   let homeWin: number | null = null;
   for (const raw of asList(d.winprobability)) {
-    const n = num(asDict(raw).homeWinPercentage);
-    if (n !== null) homeWin = n;
+    const row = asDict(raw);
+    const n = num(row.homeWinPercentage);
+    if (n === null) continue;
+    homeWin = n;
+    const pid = str(row.playId);
+    if (pid) winByPlay.set(pid, Math.round(n * 1000) / 10);
   }
+  const win = plays.map((p) => winByPlay.get(p.id)).filter((n): n is number => n != null);
 
   return {
     state,
@@ -172,7 +206,9 @@ export function parseLive(data: unknown): LiveSnap | null {
     spreadOpen: move?.spreadHomeOpen ?? null,
     awayMl: move?.awayMl ?? null,
     homeMl: move?.homeMl ?? null,
-    homeWin,
+    homeWin: homeWin === null ? null : Math.round(homeWin * 1000) / 10,
+    win,
+    period: num(asDict(comp.status).period),
     boxes,
     plays,
   };

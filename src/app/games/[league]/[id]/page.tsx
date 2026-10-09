@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import GameChat from "@/components/GameChat";
 import GameDetailView from "@/components/GameDetailView";
-import LiveDesk from "@/components/LiveDesk";
-import GameTile from "@/components/GameTile";
+import GameLive from "@/components/GameLive";
 import { getGameDetail } from "@/lib/espn";
 import { leagueById } from "@/lib/slate";
 
@@ -47,11 +45,22 @@ export default async function GamePage({ params }: { params: Promise<Params> }) 
         {game.leagueLabel}
         {game.state === "in" ? " · Live" : game.state === "post" ? " · Final" : ""}
       </p>
-      <div className="max-w-xl">
-        <GameTile game={game} />
-        <LiveDesk league={league} id={id} />
+      <GameLive
+        league={league}
+        id={id}
+        away={game.away.abbr}
+        home={game.home.abbr}
+        props={bundle.props.map((p) => ({
+          athleteId: p.athleteId,
+          name: p.name,
+          team: p.team,
+          headshot: p.headshot,
+          market: p.market,
+          line: p.line,
+        }))}
+      />
+      <div className="mt-6 max-w-xl">
         <GameDetailView bundle={bundle} />
-        <GameChat league={league} id={id} />
       </div>
     </>
   );

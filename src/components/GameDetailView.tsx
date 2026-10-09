@@ -143,7 +143,7 @@ export default function GameDetailView({ bundle }: { bundle: DetailBundle }) {
         ) : null}
       </Fold>
 
-      <Fold title={`Player props${props.length ? ` · ${props.length}` : ""}`} open>
+      <Fold title="Show all lines">
         <PropGroups props={props} provider={propProvider} total={propTotal} />
       </Fold>
 

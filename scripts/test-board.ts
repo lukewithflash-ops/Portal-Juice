@@ -9,6 +9,8 @@ import { formatPrice } from "../src/lib/odds";
 import { lastNAverage, parsePrice, rankGames, sportsDate } from "../src/lib/slate";
 import { parseTeamCookie, parseTeamList } from "../src/lib/team";
 import { impliedChance, parseMvpMarket, parsePropItems, parseWeather, rankByImplied } from "../src/lib/detail";
+import { clockSpan, isBigPlay, paceOf, parseLine, scoringRun, statNumber, trackProps } from "../src/lib/tracker";
+import type { LivePlay, LiveSnap } from "../src/lib/live";
 
 let n = 0;
 const t = (name: string, fn: () => void) => {
@@ -240,6 +242,83 @@ t("team cookie and team list stay strict", () => {
   });
   assert.equal(rows[0]?.abbr, "GSW");
   assert.equal(rows[0]?.logo, "https://a.espncdn.com/x.png");
+});
+
+
+t("live versus line uses only a real box cell", () => {
+  assert.equal(parseLine("15+"), 15);
+  assert.equal(statNumber("2-6"), 2);
+  const span = clockSpan("nba", 2, "6:00", "in");
+  assert.ok(span);
+  assert.equal(span && span.elapsed, 18 * 60);
+  assert.equal(paceOf(10, span, "in"), 26.7);
+  assert.equal(clockSpan("mlb", 5, null, "in"), null);
+  const base = {
+    state: "in" as const,
+    clock: "6:00",
+    detail: "",
+    awayAbbr: "BOS",
+    homeAbbr: "CLE",
+    awayScore: "40",
+    homeScore: "38",
+    awayColor: "#000",
+    homeColor: "#fff",
+    awayId: "2",
+    homeId: "5",
+    provider: null,
+    total: null,
+    totalOpen: null,
+    spreadDetail: null,
+    spreadHome: null,
+    spreadOpen: null,
+    awayMl: null,
+    homeMl: null,
+    homeWin: null,
+    win: [],
+    period: 2,
+    plays: [] as LivePlay[],
+  };
+  const snap: LiveSnap = {
+    ...base,
+    boxes: [
+      {
+        abbr: "BOS",
+        color: "#000",
+        columns: ["PTS"],
+        players: [
+          { id: "1", name: "A", starter: true, played: true, stats: ["20"], statMap: { PTS: "20" } },
+        ],
+      },
+    ],
+  };
+  const hit = trackProps(
+    [{ athleteId: "1", name: "A", team: "BOS", headshot: null, market: "Points Milestones", line: "15+" }],
+    snap,
+    "nba"
+  );
+  assert.equal(hit[0]?.tone, "gold");
+  assert.equal(hit[0]?.value, 20);
+  const missing = trackProps(
+    [{ athleteId: "9", name: "B", team: "BOS", headshot: null, market: "Points Milestones", line: "15+" }],
+    snap,
+    "nba"
+  );
+  assert.equal(missing.length, 0);
+  const behind = trackProps(
+    [{ athleteId: "1", name: "A", team: "BOS", headshot: null, market: "Points Milestones", line: "80+" }],
+    snap,
+    "nba"
+  );
+  assert.equal(behind[0]?.tone, "red");
+  assert.equal(behind[0]?.pace, 53.3);
+  const play = { id: "p", text: "makes three", clock: "", period: "2", scoring: true, points: 3, awayScore: 1, homeScore: 0, teamId: "2", x: null, y: null, down: null, distance: null, yardsToEndzone: null, spot: null, typeText: "Jump Shot" };
+  assert.equal(isBigPlay(play), true);
+  const run = scoringRun([
+    { ...play, id: "a", points: 3, teamId: "2" },
+    { ...play, id: "b", points: 3, teamId: "2" },
+  ]);
+  assert.equal(run && run.us, 6);
+  assert.equal(run && run.them, 0);
 });
 
 console.log(`\n${n} passed`);

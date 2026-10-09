@@ -22,8 +22,15 @@ const BANNED = [
   "slut",
 ];
 
+function redisEnv(): { url: string; token: string } | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  if (!url || !token) return null;
+  return { url, token };
+}
+
 export function chatEnabled(): boolean {
-  return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+  return redisEnv() !== null;
 }
 
 export function cleanHandle(raw: unknown): string | null {
@@ -47,9 +54,10 @@ export function cleanText(raw: unknown): { ok: true; text: string } | { ok: fals
 type RedisResult = { result?: unknown };
 
 async function redis(command: (string | number)[]): Promise<unknown> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) throw new Error("no-store");
+  const env = redisEnv();
+  if (!env) throw new Error("no-store");
+  const url = env.url;
+  const token = env.token;
   const res = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
