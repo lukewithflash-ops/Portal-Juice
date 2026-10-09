@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import AddSlip from "@/components/AddSlip";
 import CountUp from "@/components/CountUp";
 import PickTile from "@/components/PickTile";
+import SharePanel from "@/components/SharePanel";
 import { validOdds } from "@/lib/odds";
 import { addPick, getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
 import { UNIT_NOTE, unitHint } from "@/lib/units";
@@ -159,6 +160,8 @@ export default function PortfolioClient() {
           </div>
         </form>
       )}
+
+      <SharePanel picks={picks} />
 
       <Group title="Open" empty="No open picks.">
         {open.map((p) => (

@@ -21,5 +21,6 @@ export const MORE_NAV = [
   { href: "/trends", label: "Trends" },
   { href: "/news", label: "News" },
   { href: "/lines/board", label: "Board" },
+  { href: "/leaders", label: "Leaders" },
   { href: "/app", label: "App" },
 ] as const;

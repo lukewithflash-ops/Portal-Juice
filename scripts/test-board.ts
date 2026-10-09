@@ -10,6 +10,7 @@ import { lastNAverage, parsePrice, rankGames, sportsDate } from "../src/lib/slat
 import { parseTeamCookie, parseTeamList } from "../src/lib/team";
 import { impliedChance, parseMvpMarket, parsePropItems, parseWeather, rankByImplied } from "../src/lib/detail";
 import { parseSlipText, safeSlipUrl } from "../src/lib/slip";
+import { rankLeaders, cleanLeg, cleanLeaderHandle } from "../src/lib/leaderRank";
 import { unitHint } from "../src/lib/units";
 import { marketFavorites, biggestMoves, hotTrends, mvpHomework } from "../src/lib/best";
 import { playKind, playerFromText, isShotAttempt } from "../src/lib/tracker";
@@ -383,6 +384,24 @@ t("suggested unit comes only from logged stakes", () => {
   assert.equal(h.total, 60);
   assert.equal(h.totalUnits, 3);
   assert.equal(h.openUnits, 1);
+});
+
+
+t("leaders rank by hit rate with a minimum sample and carry no money fields", () => {
+  const leg = (status: string) => cleanLeg({ sport: "NBA", subject: "A B", market: "points", line: 20.5, selection: "Over", status, date: "2026-10-08", stake: 500, odds: -110, book: "DK" });
+  const legs = (w: number, l: number, open = 0) => [...Array(w).fill("win"), ...Array(l).fill("loss"), ...Array(open).fill("open")].map(leg).filter((x) => x !== null);
+  assert.equal(rankLeaders([]).length, 0);
+  const rows = rankLeaders([
+    { handle: "small", legs: legs(5, 0), updatedAt: "" },
+    { handle: "sixty", legs: legs(6, 4, 2), updatedAt: "" },
+    { handle: "seventy", legs: legs(7, 3), updatedAt: "" },
+  ]);
+  assert.deepEqual(rows.map((r) => r.handle), ["seventy", "sixty"]);
+  assert.equal(rows[1].open.length, 2);
+  const one = JSON.stringify(rows);
+  assert.ok(!/stake|odds|book|500/.test(one));
+  assert.equal(cleanLeaderHandle("@ok_name"), "ok_name");
+  assert.equal(cleanLeaderHandle("no spaces"), null);
 });
 
 console.log(`\n${n} passed`);
