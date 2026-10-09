@@ -11,6 +11,8 @@ import { isBehind, type LiveSnap } from "@/lib/live";
 import { groupSlips, legFromPick, type Leg, type SlipLive } from "@/lib/motivation";
 import { getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
 import { syncPush } from "@/lib/pushClient";
+import { addToInbox } from "@/lib/inbox";
+import { headshotFor } from "@/lib/faces";
 import type { ScoreRow } from "@/lib/slate";
 
 /** Banner, slips, and updates: 15s while one of your games is live, 60s otherwise. */
@@ -19,6 +21,8 @@ const HUB_IDLE_MS = 60_000;
 const MAX_GAMES = 8;
 /** Basketball scores move every few seconds. One score update a minute per game. */
 const SCORE_GAP_MS = 60_000;
+const PLAYER_GAP_MS = 90_000;
+const TICK_MS = 60_000;
 
 export type HubReason = "props" | "follow" | "team";
 
@@ -35,7 +39,11 @@ export type HubGame = {
 
 type Toast = GameAlert & { at: number };
 
+export type PlayerMoment = NonNullable<GameAlert["player"]> & { at: number; body: string };
+
 type Hub = {
+  /** Latest "Your player" moment per game key (league/id). */
+  moments: Record<string, PlayerMoment>;
   /** Live games that matter to you: your props first, then your team, then games you follow. */
   live: HubGame[];
   legs: Leg[];
@@ -43,7 +51,7 @@ type Hub = {
   snaps: Record<string, LiveSnap>;
 };
 
-const Ctx = createContext<Hub>({ live: [], legs: [], slips: [], snaps: {} });
+const Ctx = createContext<Hub>({ moments: {}, live: [], legs: [], slips: [], snaps: {} });
 export const useLiveHub = () => useContext(Ctx);
 
 const keyOf = (league: string, id: string) => `${league}/${id}`;
@@ -59,8 +67,10 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
   const [prevSnaps, setPrevSnaps] = useState<Record<string, LiveSnap>>({});
   const [party, setParty] = useState<{ id: string; leg: Leg } | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [moments, setMoments] = useState<Record<string, PlayerMoment>>({});
   const fired = useRef<Set<string>>(new Set());
   const lastScore = useRef<Record<string, number>>({});
+  const lastPlayer = useRef<Record<string, number>>({});
 
   const open = useMemo(
     () => picks.filter((p) => p.status === "open" && p.gameId && p.league && p.market),
@@ -93,6 +103,11 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
       fired.current.add(a.key);
       // The game page already shows its own scores and big plays.
       if ((a.kind === "score" || a.kind === "big") && here === a.url) continue;
+      if (a.kind === "player" && a.player) {
+        const last = lastPlayer.current[a.player.pickId] ?? 0;
+        if (now - last < PLAYER_GAP_MS) continue;
+        lastPlayer.current[a.player.pickId] = now;
+      }
       if (a.kind === "score") {
         const last = lastScore.current[a.url] ?? 0;
         if (/\/(nba|wnba|ncaab)\//.test(a.url) && now - last < SCORE_GAP_MS) continue;
@@ -100,7 +115,21 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
       }
       out.push({ ...a, at: now });
     }
-    if (out.length) setToasts((t) => [...out, ...t].slice(0, 3));
+    if (out.length) {
+      const moments = out.filter((a) => a.kind === "player" && a.player);
+      if (moments.length) {
+        setMoments((m) => {
+          const next = { ...m };
+          for (const a of moments) {
+            const k = a.url.replace(/^\/games\//, "");
+            next[k] = { ...(a.player as NonNullable<GameAlert["player"]>), at: a.at, body: a.body };
+          }
+          return next;
+        });
+      }
+      setToasts((t) => [...out, ...t].slice(0, 3));
+      addToInbox(out.map((a) => ({ key: a.key, kind: a.kind, title: a.title, body: a.body, url: a.url, at: a.at })));
+    }
   });
 
   const pickKey = open.map((p) => keyOf(p.league as string, p.gameId as string)).sort().join(",");
@@ -193,7 +222,11 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
     const raf = requestAnimationFrame(() => {
       if (cleared && on.cleared) setParty({ id: cleared.pickId + Date.now(), leg: cleared });
       if (alerts.length) push.current(alerts.filter((a) => a.kind !== "cleared"));
-      for (const a of alerts) if (a.kind === "cleared") fired.current.add(a.key);
+      for (const a of alerts)
+        if (a.kind === "cleared" && !fired.current.has(a.key)) {
+          fired.current.add(a.key);
+          addToInbox([{ key: a.key, kind: a.kind, title: a.title, body: a.body, url: a.url, at: Date.now() }]);
+        }
     });
     return () => cancelAnimationFrame(raf);
   }, [legs]);
@@ -242,7 +275,21 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
   }, [favRow, legs, rows, snaps, follows]);
 
   const slips = useMemo(() => groupSlips(legs), [legs]);
-  const value = useMemo<Hub>(() => ({ live, legs, slips, snaps }), [live, legs, slips, snaps]);
+  const value = useMemo<Hub>(() => ({ moments, live, legs, slips, snaps }), [moments, live, legs, slips, snaps]);
+
+  // Closed-app push needs a server check. While the app is open, nudge it (the server throttles to one a minute).
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      fetch("/api/push/tick", { method: "POST", keepalive: true }).catch(() => {});
+    };
+    const first = setTimeout(tick, 5000);
+    const id = setInterval(tick, TICK_MS);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, []);
 
   return (
     <Ctx.Provider value={value}>
@@ -250,7 +297,10 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
       {party ? <ClearedParty key={party.id} leg={party.leg} /> : null}
       {toasts.length ? (
         <div className="pointer-events-none fixed inset-x-3 bottom-4 z-[55] mx-auto max-w-md space-y-2" aria-live="polite">
-          {toasts.map((t) => (
+          {toasts.map((t) =>
+            t.kind === "player" && t.player ? (
+              <PlayerToast key={t.key} t={t} />
+            ) : (
             <a
               key={t.key}
               href={t.url}
@@ -265,14 +315,44 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
               </span>
               <span className="ml-1 text-zinc-300">{t.body}</span>
             </a>
-          ))}
+            )
+          )}
         </div>
       ) : null}
     </Ctx.Provider>
   );
 }
 
-const ICON: Record<GameAlert["kind"], string> = { score: "🔢", lead: "🔁", big: "💥", close: "🔥", cleared: "🏆", final: "🏁" };
+const ICON: Record<GameAlert["kind"], string> = { score: "🔢", lead: "🔁", big: "💥", close: "🔥", cleared: "🏆", final: "🏁", player: "⭐" };
+
+/** "Your player" moment: gold ring around the face, the gain, and how close to the line. */
+function PlayerToast({ t }: { t: Toast }) {
+  const p = t.player!;
+  const face = headshotFor(p.league, p.athleteId);
+  return (
+    <a
+      href={t.url}
+      className="your-player play-in pointer-events-auto flex items-center gap-3 rounded-2xl border px-3 py-2 text-sm text-[color:var(--flat)] shadow-lg"
+      style={{ background: "rgba(14,10,4,0.97)", borderColor: "var(--gold)" }}
+    >
+      <span className="your-player-ring relative flex-none">
+        {face ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={face} alt={p.name} width={44} height={44} className="h-11 w-11 rounded-full object-cover" referrerPolicy="no-referrer" />
+        ) : (
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black text-lg">⭐</span>
+        )}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[10px] font-black uppercase tracking-[0.2em] tone-gold">Your player</span>
+        <span className="block truncate font-black">
+          {p.name} <span className="tone-gold">+{p.gain}</span>
+        </span>
+        <span className="block truncate text-[12px] text-zinc-300">{t.body}</span>
+      </span>
+    </a>
+  );
+}
 
 const SPARKS = Array.from({ length: 14 }, (_, i) => {
   const a = (i / 14) * Math.PI * 2;

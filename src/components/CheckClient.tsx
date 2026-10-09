@@ -17,6 +17,7 @@ import {
 import { americanNumber } from "@/lib/detail";
 import { ptTime } from "@/lib/time";
 import Mark from "@/components/Mark";
+import SlipImport from "@/components/SlipImport";
 
 type GameOpt = {
   id: string;
@@ -88,6 +89,7 @@ export default function CheckClient() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const autoRan = useRef(false);
+  const [importOpen, setImportOpen] = useState(() => params.get("import") === "1");
 
   useEffect(() => {
     fetch("/api/check/games")
@@ -251,6 +253,24 @@ export default function CheckClient() {
 
   return (
     <div className="space-y-5">
+      <section className="foil-tile p-4" aria-label="Import a slip">
+        <button type="button" className="flex w-full items-center justify-between text-left" aria-expanded={importOpen} onClick={() => setImportOpen((v) => !v)}>
+          <span className="text-sm font-black text-white">📷 Import your slip</span>
+          <span className="text-xs text-zinc-400">{importOpen ? "Hide" : "Photo, link, or text"}</span>
+        </button>
+        {importOpen ? (
+          <div className="mt-3">
+            <SlipImport
+              compact
+              onBreakDown={(ls) => {
+                setLegs(ls);
+                setResult(null);
+                void analyze(ls);
+              }}
+            />
+          </div>
+        ) : null}
+      </section>
       <section className="foil-tile space-y-3 p-4" aria-label="Build a leg">
         <label className="block">
           <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Game</span>

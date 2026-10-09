@@ -34,6 +34,8 @@ export type Leg = {
   /** Short line from real events, or null. */
   hype: string | null;
   final: boolean;
+  /** ESPN athlete id from the box, once matched. */
+  athleteId?: string | null;
 };
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -84,12 +86,14 @@ export function legFromPick(pick: Pick, snap: LiveSnap | null, prevValue: number
     market,
     line,
     side,
+    athleteId: null as string | null,
   };
   const state = snap?.state ?? "pre";
   if (!snap || state === "pre") {
     return { ...base, value: null, pace: null, toGo: null, fill: 0, tone: "flat", status: "waiting", progress: `${side} ${line} ${market}`, hype: null, final: false };
   }
   const player = playerByName(snap.boxes, pick.subject);
+  base.athleteId = player?.id ?? null;
   const value = player ? liveStat(player.statMap, pick.market) : null;
   const final = state === "post";
   if (value === null) {

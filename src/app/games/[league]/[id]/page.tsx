@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import GameDetailView from "@/components/GameDetailView";
 import GameLive from "@/components/GameLive";
 import FollowStar from "@/components/FollowStar";
+import TopPicks from "@/components/TopPicks";
 import { getGameDetail } from "@/lib/espn";
 import { leagueById } from "@/lib/slate";
 
@@ -40,15 +41,23 @@ export default async function GamePage({ params }: { params: Promise<Params> }) 
         </Link>
       </p>
       <div className="flex items-start justify-between gap-3">
-        <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)]">
-          {game.away.name} at {game.home.name}
-        </h1>
+        <div className="min-w-0">
+          <h1 className="big-num text-[2.6rem] font-black leading-none tracking-tight text-[color:var(--flat)]">
+            {game.away.abbr} <span className="text-zinc-500">@</span> {game.home.abbr}
+          </h1>
+          <p className="mt-1 text-[15px] font-bold text-zinc-200">
+            {game.away.name} at {game.home.name}
+          </p>
+        </div>
         <FollowStar league={league} id={id} label={`${game.away.abbr} @ ${game.home.abbr}`} big />
       </div>
       <p className="mt-1 mb-4 text-sm text-zinc-400">
         {game.leagueLabel}
         {game.state === "in" ? " · Live" : game.state === "post" ? " · Final" : ""}
       </p>
+      {game.state !== "post" ? (
+        <TopPicks league={league} id={id} home={game.home.abbr} away={game.away.abbr} live={game.state === "in"} />
+      ) : null}
       <GameLive
         league={league}
         id={id}

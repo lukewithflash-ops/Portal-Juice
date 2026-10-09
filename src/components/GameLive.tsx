@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import DriveFeed from "@/components/DriveFeed";
 import GameChat from "@/components/GameChat";
 import Mark from "@/components/Mark";
+import { MomentBadge, TaggedText, YourPlayersProvider, useYourPlayers } from "@/components/YourPlayers";
+import { mentions } from "@/lib/yourPlayers";
 import MyProps from "@/components/MyProps";
 import { isBehind, type LivePlay, type LiveSnap } from "@/lib/live";
 import { POLL_ERROR_MS, pollDelay, usePoll } from "@/components/usePoll";
@@ -143,8 +145,11 @@ export default function GameLive({
   return (
     <div className="game-stage">
       <div className={tab === "chat" ? "max-lg:hidden" : ""}>
+        <YourPlayersProvider league={league} gameId={id} snap={snap}>
         <MyProps league={league} gameId={id} snap={snap} />
         <div className={tab === "lines" ? "max-lg:hidden" : ""} style={vars}>
+          <div className="relative">
+          <MomentBadge />
           <Hero
             league={league}
             snap={snap}
@@ -156,6 +161,7 @@ export default function GameLive({
             bump={bump}
             freshIds={freshIds}
           />
+          </div>
           {shown && shown.win.length > 1 ? <Momentum snap={shown} flipped={flipped} /> : null}
           {shown ? <PossessionStrip league={league} snap={shown} run={run} /> : null}
           {bigChips.length ? <BigChips plays={bigChips} snap={shown} /> : null}
@@ -173,6 +179,7 @@ export default function GameLive({
         <div className={tab === "play" ? "max-lg:hidden" : ""}>
           <Tracker top={top} rest={rest} state={snap?.state ?? "pre"} />
         </div>
+        </YourPlayersProvider>
       </div>
       <div className={tab !== "chat" ? "max-lg:hidden lg:block" : "lg:block"}>
         <GameChat league={league} id={id} awayColor={awayColor} homeColor={homeColor} />
@@ -586,6 +593,7 @@ function Feed({
 }) {
   const box = useRef<HTMLOListElement | null>(null);
   const pinned = useRef(true);
+  const { moment } = useYourPlayers();
   const newest = plays[0]?.id;
   useEffect(() => {
     if (box.current && pinned.current) box.current.scrollTo({ top: 0 });
@@ -605,10 +613,12 @@ function Feed({
           const color = teamColor(snap, p.teamId, awayColor, homeColor);
           const kind = playKind(p);
           const big = isBigPlay(p);
+          const mine = !!moment && freshIds.includes(p.id) && mentions(p.text, moment.name);
           return (
             <li
               key={p.id}
               className={
+                (mine ? "your-player " : "") +
                 "feed-row foil-tile rounded-l-md px-3 py-2 text-sm " +
                 (i === 0 ? "newest " : "older ") +
                 (freshIds.includes(p.id) ? "feed-spring " : "") +
@@ -624,7 +634,9 @@ function Feed({
                     <span style={{ color }}>{p.period} {p.clock}</span>
                     {p.scoring && p.points > 0 ? <span className="font-black" style={{ color }}>+{p.points}</span> : null}
                   </div>
-                  <p className="mt-0.5 leading-snug text-[color:var(--flat)]">{p.text}</p>
+                  <p className="mt-0.5 leading-snug text-[color:var(--flat)]">
+                    <TaggedText text={p.text} />
+                  </p>
                   {p.awayScore !== null && p.homeScore !== null && p.scoring ? (
                     <p className="tabular text-[0.7em] text-zinc-500">
                       {snap?.awayAbbr} {p.awayScore} · {snap?.homeAbbr} {p.homeScore}

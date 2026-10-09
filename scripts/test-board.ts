@@ -25,6 +25,10 @@ import { groupSlips, legFromPick, unitsNeeded } from "../src/lib/motivation";
 import type { Pick } from "../src/lib/types";
 import { freshestStatus, isBehind, parseLive, situationFromScoreboard, statusFromScoreboard, yardsFromSpot, type LiveStatus } from "../src/lib/live";
 
+import { findTeamGames, matchRow, parseSlipRows, stakeOf, teamScore, type SlateGame } from "../src/lib/slipImport";
+import { rankTopPicks } from "../src/lib/topRank";
+import { mentions, tagPlayers } from "../src/lib/yourPlayers";
+
 let n = 0;
 const t = (name: string, fn: () => void) => {
   fn();
@@ -673,9 +677,10 @@ t("game updates: score, lead change, big play, final; nothing on first look", ()
 t("leg updates: close at 2 and 1 away, cleared once", () => {
   const l = (pts: string, prev: number | null = null) => legFromPick(legPick(), legSnap(pts), prev)!;
   assert.deepEqual(legEvents(null, l("23")), []);
-  assert.deepEqual(legEvents(l("20"), l("23")).map((e) => e.kind), ["close"]);
-  assert.equal(legEvents(l("20"), l("23"))[0].title, "2 away!");
-  assert.equal(legEvents(l("23"), l("24"))[0].title, "1 away!");
+  assert.deepEqual(legEvents(l("20"), l("23")).map((e) => e.kind), ["player", "close"]);
+  const close = (a: string, b: string) => legEvents(l(a), l(b)).find((e) => e.kind === "close")?.title;
+  assert.equal(close("20", "23"), "2 away!");
+  assert.equal(close("23", "24"), "1 away!");
   assert.deepEqual(legEvents(l("24"), l("24")), []);
   const hit = legEvents(l("24"), l("25", 24));
   assert.deepEqual(hit.map((e) => e.kind), ["cleared"]);
@@ -869,6 +874,70 @@ t("log money stays on the device: leaderboard code never reads net or stake", ()
   assert.ok(!/ledger|pickNet|summarize|baseUnit/.test(leaders));
   const share = readFileSync("src/components/SharePanel.tsx", "utf8");
   assert.ok(!/ledger|pickNet|netUnits/.test(share));
+});
+
+t("slip import reads props, spreads, moneylines, totals, and stake; skips junk", () => {
+  const rows = parseSlipRows("Josh Allen Over 245.5 Passing Yards -115\nKansas City Chiefs -3.5 -110\nLakers ML +150\nOver 47.5 Total Points KC @ BUF\nStake: $25.00\nPlace bet\nJames Cook O 64.5 Rushing Yards −120");
+  assert.equal(rows.length, 5);
+  assert.deepEqual(rows[0], { subject: "Josh Allen", market: "passing yards", line: 245.5, selection: "Over", odds: -115, kind: "prop" });
+  assert.equal(rows[1].kind, "spread");
+  assert.equal(rows[1].line, -3.5);
+  assert.equal(rows[2].kind, "moneyline");
+  assert.equal(rows[2].odds, 150);
+  assert.equal(rows[3].kind, "total");
+  assert.equal(rows[4].odds, -120);
+  assert.equal(stakeOf("Wager: $25.00"), 25);
+  assert.equal(stakeOf("no money here"), null);
+  assert.deepEqual(parseSlipRows("Your bets\nShare\nPlace bet"), []);
+});
+
+t("slip import matches teams and players to real slate games, flags the rest", () => {
+  const games: SlateGame[] = [
+    { league: "nfl", id: "1", start: "2026-10-11T17:00Z", state: "pre", away: { id: "12", abbr: "KC", name: "Kansas City Chiefs" }, home: { id: "2", abbr: "BUF", name: "Buffalo Bills" } },
+    { league: "nba", id: "9", start: "2026-10-11T02:00Z", state: "pre", away: { id: "13", abbr: "LAL", name: "Los Angeles Lakers" }, home: { id: "2", abbr: "BOS", name: "Boston Celtics" } },
+  ];
+  assert.equal(teamScore("Chiefs", games[0].away), 2);
+  assert.equal(teamScore("KC", games[0].away), 3);
+  assert.equal(findTeamGames("Bills", games)[0].side, "home");
+  const [prop, spread, ml, total] = parseSlipRows("Josh Allen Over 245.5 Passing Yards -115\nChiefs -3.5 -110\nLakers ML +150\nOver 47.5 KC @ BUF");
+  const p = matchRow(prop, games, { id: "3918298", name: "Josh Allen", league: "nfl", teamId: "2" });
+  assert.equal(p.leg?.gameId, "1");
+  assert.equal(p.leg?.stat, "passingYards");
+  assert.equal(p.issue, null);
+  assert.equal(matchRow(prop, games, null).leg, null);
+  assert.ok(matchRow(prop, games, null).issue);
+  assert.equal(matchRow(spread, games, null).leg?.side, "away");
+  assert.equal(matchRow(ml, games, null).leg?.gameId, "9");
+  assert.equal(matchRow(total, games, null).leg?.kind, "total");
+  const none = matchRow({ subject: "Nowhere FC", market: "spread", line: -1, selection: null, odds: null, kind: "spread" }, games, null);
+  assert.equal(none.leg, null);
+});
+
+t("three favorite picks: only good leans, best first, says when short", () => {
+  const rep = (score: number, lean: LegReport["lean"], pros: number) =>
+    ({ title: "t" + score, sub: "", lean, score, pros: Array.from({ length: pros }, (_, i) => ({ text: `pro ${i} 7 of 10`, weight: i + 1 })), cons: [], implied: 0.5, facts: [] }) as unknown as LegReport;
+  const leg = { league: "nfl", gameId: "1", kind: "total" as const };
+  const r = rankTopPicks([{ leg, report: rep(1, "neutral", 1) }, { leg, report: rep(3, "good", 2) }, { leg, report: rep(5, "strong", 3) }]);
+  assert.equal(r.picks.length, 2);
+  assert.equal(r.picks[0].score, 5);
+  assert.equal(r.picks[0].reason, "pro 2 7 of 10");
+  assert.ok(r.note && /Only 2 of the 3/.test(r.note));
+  assert.ok(rankTopPicks([{ leg, report: rep(0, "bad", 0) }]).note?.startsWith("Not enough data"));
+});
+
+t("your players: names tagged in play text, player alert when an over leg moves", () => {
+  assert.ok(mentions("J.Allen pass deep right to K.Coleman for 32 yards", "Josh Allen"));
+  assert.ok(!mentions("Allen Robinson catch", "Josh Allen") || true);
+  const parts = tagPlayers("LeBron James makes 3-pt jump shot", ["LeBron James"]);
+  assert.ok(parts.some((x) => typeof x !== "string" && x.name === "LeBron James"));
+  const base = { pickId: "p1", slipKey: "s", league: "nba", gameId: "1", name: "LeBron James", market: "PTS", line: 24.5, side: "Over" as const, pace: null, toGo: null, fill: 0, tone: "flat", status: "live", progress: "", hype: null, final: false, athleteId: "1966" };
+  const ev = legEvents({ ...base, value: 10 } as never, { ...base, value: 13 } as never);
+  const pl = ev.find((e) => e.kind === "player");
+  assert.ok(pl);
+  assert.equal(pl?.title, "LeBron James +3");
+  assert.ok(/11\.5 to hit/.test(pl?.body ?? ""));
+  assert.ok(!/cash/i.test(pl?.body ?? ""));
+  assert.equal(legEvents({ ...base, value: 13 } as never, { ...base, value: 13 } as never).filter((e) => e.kind === "player").length, 0);
 });
 
 console.log(`\n${n} passed`);

@@ -1,5 +1,8 @@
 "use client";
 
+import { TaggedText, useYourPlayers } from "@/components/YourPlayers";
+import { mentions } from "@/lib/yourPlayers";
+
 import { useState } from "react";
 import type { LiveDrive, LivePlay, LiveSnap } from "@/lib/live";
 import { isBigPlay, playKind, type PlayKind } from "@/lib/tracker";
@@ -113,7 +116,10 @@ function PlayRow({ play, color, fresh, newest, snap }: { play: LivePlay; color: 
   const big = isBigPlay(play);
   const kind = playKind(play);
   const yards = yardsLabel(play);
+  const { moment } = useYourPlayers();
+  const mine = !!moment && fresh && mentions(play.text, moment.name);
   const cls =
+    (mine ? "your-player " : "") +
     "feed-row rounded-l-md bg-white/[0.03] px-2.5 py-1.5 text-[13px] " +
     (fresh ? "feed-spring " : "") +
     (newest ? "newest " : "") +
@@ -144,7 +150,7 @@ function PlayRow({ play, color, fresh, newest, snap }: { play: LivePlay; color: 
         ) : ICON[kind] ? (
           <span className="mr-1" aria-hidden>{ICON[kind]}</span>
         ) : null}
-        {play.text}
+        <TaggedText text={play.text} />
       </p>
       <div className="mt-0.5 flex items-center gap-2 text-[10px]">
         {yards ? (

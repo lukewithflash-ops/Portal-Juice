@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Bell from "@/components/Bell";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { usePrefs, type FavTeam } from "@/components/Prefs";
@@ -57,6 +58,7 @@ export default function SiteHeader() {
             </span>
           </Link>
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <Bell />
             <button
               type="button"
               className="rounded-lg border border-white/10 px-2 py-1 text-[11px] font-bold text-zinc-200"

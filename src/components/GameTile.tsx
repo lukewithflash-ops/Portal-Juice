@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { OddsText } from "@/components/Prefs";
 import FollowStar from "@/components/FollowStar";
+import TopPicks from "@/components/TopPicks";
 import { useEffect, useState } from "react";
 import { TAGLINE } from "@/lib/site";
 import type { Game, Price } from "@/lib/slate";
@@ -48,14 +49,21 @@ function Countdown({ start, state }: { start: string; state: Game["state"] }) {
   return <span className="tabular text-[color:var(--flat)]">{label}</span>;
 }
 
-function TeamLink({ league, abbr, name, rank }: { league: string; abbr: string; name: string; rank: number | null }) {
+function TeamLink({ league, abbr, rank }: { league: string; abbr: string; rank: number | null }) {
   return (
-    <Link href={`/teams/${league}/${abbr.toLowerCase()}`} className="relative z-10 truncate hover:text-white">
-      {rank ? <span className="mr-1 text-[10px] text-zinc-500">{rank}</span> : null}
-      <span className="font-bold">{abbr}</span>
-      <span className="ml-1 hidden text-zinc-400 sm:inline">{name.replace(/^[A-Z][a-z]+ /, "")}</span>
+    <Link href={`/teams/${league}/${abbr.toLowerCase()}`} className="relative z-10 hover:text-white">
+      {rank ? <span className="mr-1 align-top text-[11px] text-zinc-500">{rank}</span> : null}
+      {abbr}
     </Link>
   );
+}
+
+/** "Philadelphia Eagles" → "Eagles". Keeps two-word nicknames like "Red Sox" whole when ESPN sends them. */
+function nick(name: string) {
+  const parts = name.split(" ");
+  if (parts.length <= 1) return name;
+  const two = /^(Red|White|Blue|Golden|Trail|Maple)$/.test(parts[parts.length - 2]);
+  return parts.slice(two ? -2 : -1).join(" ");
 }
 
 function PriceBlock({ price, home, away }: { price: Price; home: string; away: string }) {
@@ -67,7 +75,7 @@ function PriceBlock({ price, home, away }: { price: Price; home: string; away: s
             <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
               Total
             </div>
-            <div className="big-num text-5xl font-black text-[color:var(--flat)]">{price.total}</div>
+            <div className="big-num text-2xl font-black text-zinc-200">{price.total}</div>
           </div>
           <div className="text-right text-xs text-zinc-300">
             {price.overJuice && (
@@ -132,6 +140,7 @@ export default function GameTile({
     (move?.total && move.total.to < move.total.from) ||
     (move?.spread && move.spread.to < move.spread.from);
   const showScore = game.state === "in" || game.state === "post";
+  const [picksOpen, setPicksOpen] = useState(false);
   return (
     <article
       className={`foil-tile relative p-4 ${moved ? `line-moved ${down ? "against" : ""}` : ""}`}
@@ -149,11 +158,14 @@ export default function GameTile({
             {game.ranked ? " · Ranked" : ""}
             {yours ? " · Your team" : ""}
           </div>
-          <h3 className="mt-1 truncate text-sm font-bold text-[color:var(--flat)]">
-            <TeamLink league={game.league} abbr={game.away.abbr} name={game.away.name} rank={game.away.rank} />
-            <span className="mx-1 text-zinc-500">@</span>
-            <TeamLink league={game.league} abbr={game.home.abbr} name={game.home.name} rank={game.home.rank} />
+          <h3 className="big-num mt-1 truncate text-[1.85rem] font-black leading-none text-[color:var(--flat)]">
+            <TeamLink league={game.league} abbr={game.away.abbr} rank={game.away.rank} />
+            <span className="mx-1.5 text-zinc-500">@</span>
+            <TeamLink league={game.league} abbr={game.home.abbr} rank={game.home.rank} />
           </h3>
+          <p className="mt-1 truncate text-[12px] font-semibold text-zinc-400">
+            {nick(game.away.name)} at {nick(game.home.name)}
+          </p>
         </div>
         <div className="flex shrink-0 items-start gap-1.5">
         {game.state !== "post" ? <FollowStar league={game.league} id={game.id} label={`${game.away.abbr} @ ${game.home.abbr}`} /> : null}
@@ -173,7 +185,7 @@ export default function GameTile({
       </div>
 
       {showScore && (
-        <p className="big-num mt-2 text-3xl font-black text-[color:var(--flat)]">
+        <p className="big-num mt-2 text-2xl font-black text-zinc-200">
           {game.away.abbr} {game.away.score ?? "0"}
           <span className="mx-2 text-zinc-600">·</span>
           {game.home.abbr} {game.home.score ?? "0"}
@@ -208,10 +220,24 @@ export default function GameTile({
         </p>
       )}
 
+      {picksOpen ? <TopPicks league={game.league} id={game.id} home={game.home.abbr} away={game.away.abbr} live={game.state === "in"} compact /> : null}
+
       <div className="mt-3 flex items-center justify-between text-[11px]">
-        <Link href={`/games/${game.league}/${game.id}`} className="relative z-10 font-semibold text-purple-200/90 hover:text-white">
-          Game
-        </Link>
+        <span className="flex items-center gap-3">
+          <Link href={`/games/${game.league}/${game.id}`} className="relative z-10 font-semibold text-purple-200/90 hover:text-white">
+            Game
+          </Link>
+          {game.state !== "post" ? (
+            <button
+              type="button"
+              onClick={() => setPicksOpen((v) => !v)}
+              aria-expanded={picksOpen}
+              className="relative z-10 font-bold tone-gold"
+            >
+              {picksOpen ? "Hide picks" : "3 picks ▾"}
+            </button>
+          ) : null}
+        </span>
         {(game.home.record || game.away.record) && (
           <span className="tabular text-zinc-500">
             {game.away.abbr} {game.away.record ?? ""} · {game.home.abbr} {game.home.record ?? ""}

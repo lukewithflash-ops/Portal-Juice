@@ -81,7 +81,7 @@ export default function GameDetailView({ bundle }: { bundle: DetailBundle }) {
               <div className="mt-2 flex items-end justify-between gap-3">
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-zinc-500">Total</div>
-                  <div className="big-num text-5xl font-black text-[color:var(--flat)]">{move.total}</div>
+                  <div className="big-num text-3xl font-black text-[color:var(--flat)]">{move.total}</div>
                   {move.totalOpen !== null && move.totalOpen !== move.total ? (
                     <div className="text-[11px] text-zinc-400">
                       Opened <span className="tabular">{move.totalOpen}</span>

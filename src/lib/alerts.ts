@@ -7,10 +7,11 @@ import type { LivePlay, LiveSnap } from "@/lib/live";
 import { unitsNeeded, type Leg } from "@/lib/motivation";
 import { isBigPlay } from "@/lib/tracker";
 
-export type AlertKind = "score" | "lead" | "big" | "close" | "cleared" | "final";
+export type AlertKind = "score" | "lead" | "big" | "close" | "cleared" | "final" | "player";
 
 export const ALERT_KINDS: { kind: AlertKind; label: string; hint: string }[] = [
   { kind: "cleared", label: "Prop cleared", hint: "A logged leg hits its line." },
+  { kind: "player", label: "Your player", hint: "A player on your slips moves toward the line. One per player every 90 seconds." },
   { kind: "close", label: "Prop close", hint: "1 or 2 away from the line." },
   { kind: "final", label: "Game final", hint: "Final score for your games." },
   { kind: "lead", label: "Lead change", hint: "The lead flips." },
@@ -19,7 +20,7 @@ export const ALERT_KINDS: { kind: AlertKind; label: string; hint: string }[] = [
 ];
 
 export type AlertPrefs = Record<AlertKind, boolean>;
-export const DEFAULT_ALERTS: AlertPrefs = { cleared: true, close: true, final: true, lead: true, big: true, score: false };
+export const DEFAULT_ALERTS: AlertPrefs = { cleared: true, player: true, close: true, final: true, lead: true, big: true, score: false };
 
 export type GameAlert = {
   kind: AlertKind;
@@ -28,6 +29,8 @@ export type GameAlert = {
   title: string;
   body: string;
   url: string;
+  /** Set on "Your player" moments. */
+  player?: { name: string; athleteId: string | null; league: string; gain: number; pickId: string };
 };
 
 const scoreLine = (s: LiveSnap) => `${s.awayAbbr} ${s.awayScore ?? 0} · ${s.homeScore ?? 0} ${s.homeAbbr}`;
@@ -91,6 +94,26 @@ export function legEvents(prev: Leg | null, next: Leg): GameAlert[] {
       url,
     });
     return out;
+  }
+  // Your player: an over leg moved toward its line.
+  if (
+    next.side === "Over" &&
+    !next.final &&
+    next.value !== null &&
+    prev.value !== null &&
+    next.value > prev.value &&
+    next.status !== "cleared"
+  ) {
+    const gain = Math.round((next.value - prev.value) * 10) / 10;
+    const toHit = Math.round(Math.max(0, next.line - next.value) * 10) / 10;
+    out.push({
+      kind: "player",
+      key: `${next.pickId}:player:${next.value}`,
+      title: `${next.name} +${gain}`,
+      body: `${next.value} of ${next.line} ${next.market} · ${toHit} to hit.`,
+      url,
+      player: { name: next.name, athleteId: next.athleteId ?? null, league: next.league, gain, pickId: next.pickId },
+    });
   }
   if (next.side === "Over" && !next.final && next.value !== null && next.status !== "cleared") {
     const need = unitsNeeded(next.line, next.value);

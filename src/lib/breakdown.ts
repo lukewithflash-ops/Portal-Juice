@@ -172,14 +172,17 @@ export function statLabel(league: string, key: string | undefined): string {
 /** Map an ESPN prop market name to a stat key. */
 export function statFromMarket(league: string, market: string): string | null {
   const m = market.toLowerCase();
-  if (/points.*rebounds.*assists|pra/.test(m)) return "pra";
+  if (/points.*rebounds.*assists|pts.*reb.*ast|\bpra\b/.test(m)) return "pra";
+  if (/earned run/.test(m)) return "earnedRuns";
+  if (/steal/.test(m)) return "steals";
+  if (/block/.test(m)) return "blocks";
+  if (/pass.*(td|touchdown)/.test(m)) return "passingTouchdowns";
   if (/three|3-point|3pt/.test(m)) return "threePointFieldGoalsMade";
   if (/pass.*yard/.test(m)) return "passingYards";
   if (/rush.*yard/.test(m)) return "rushingYards";
   if (/receiv.*yard/.test(m)) return "receivingYards";
   if (/reception/.test(m)) return "receptions";
   if (/completion/.test(m)) return "completions";
-  if (/pass.*touchdown/.test(m)) return "passingTouchdowns";
   if (/strikeout/.test(m)) return "strikeouts";
   if (/home run/.test(m)) return "homeRuns";
   if (/rbi/.test(m)) return "RBIs";

@@ -23,6 +23,106 @@ type PushTeam = { league: string; abbr: string; id: string };
 const SUBS = "pj:push:subs";
 const GAMES = "pj:push:games";
 const LEGS = "pj:push:legs";
+const LAST = "pj:push:last";
+const INBOX = "pj:push:inbox:";
+const INBOX_MAX = 50;
+const PLAYER_GAP_S = 90;
+
+/** Short, stable id for one device's subscription. Never the endpoint itself. */
+export async function deviceId(endpoint: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint));
+  return [...new Uint8Array(buf)].slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export type InboxEntry = { key: string; kind: string; title: string; body: string; url: string; at: number; pushed: boolean; code: number | null };
+
+async function toInbox(endpoint: string, e: InboxEntry) {
+  const k = INBOX + (await deviceId(endpoint));
+  await redis(["LPUSH", k, JSON.stringify(e)]);
+  await redis(["LTRIM", k, 0, INBOX_MAX - 1]);
+  await redis(["EXPIRE", k, 60 * 60 * 24 * 14]);
+}
+
+export async function readInbox(endpoint: string): Promise<InboxEntry[]> {
+  if (!chatEnabled()) return [];
+  const raw = (await redis(["LRANGE", INBOX + (await deviceId(endpoint)), 0, INBOX_MAX - 1])) as string[] | null;
+  return (raw ?? []).flatMap((x) => {
+    try {
+      return [JSON.parse(x) as InboxEntry];
+    } catch {
+      return [];
+    }
+  });
+}
+
+export async function hasSubscription(endpoint: string): Promise<boolean> {
+  if (!chatEnabled()) return false;
+  return Boolean(await redis(["HEXISTS", SUBS, endpoint]));
+}
+
+export type SendResult = { ok: boolean; code: number | null; error: string | null };
+
+/** One push. Logs the result; drops dead endpoints. */
+export async function sendTo(sub: webpush.PushSubscription, payload: { title: string; body: string; url: string; tag: string }): Promise<SendResult> {
+  webpush.setVapidDetails("mailto:juice@portaljuice.app", vapidPublic() as string, process.env.VAPID_PRIVATE_KEY as string);
+  const host = (() => {
+    try {
+      return new URL(sub.endpoint).host;
+    } catch {
+      return "?";
+    }
+  })();
+  try {
+    const r = await webpush.sendNotification(sub, JSON.stringify(payload), { TTL: 600, urgency: "high" });
+    console.log(JSON.stringify({ event: "push.send", host, tag: payload.tag, code: r.statusCode }));
+    return { ok: true, code: r.statusCode, error: null };
+  } catch (err) {
+    const code = (err as { statusCode?: number }).statusCode ?? null;
+    const body = String((err as { body?: string }).body ?? (err as Error).message ?? "").slice(0, 200);
+    console.log(JSON.stringify({ event: "push.send", host, tag: payload.tag, code, error: body }));
+    if (code === 404 || code === 410) await redis(["HDEL", SUBS, sub.endpoint]).catch(() => {});
+    return { ok: false, code, error: body };
+  }
+}
+
+/** Sends a test right now to a device that already subscribed. */
+export async function sendTest(endpoint: string): Promise<SendResult & { stored: boolean }> {
+  if (!chatEnabled() || !vapidReady()) return { ok: false, code: null, error: "Push is not set up on the server.", stored: false };
+  const raw = (await redis(["HGET", SUBS, endpoint])) as string | null;
+  if (!raw) return { ok: false, code: null, error: "This device is not subscribed yet. Turn notifications on first.", stored: false };
+  const row = JSON.parse(raw) as Stored;
+  const at = Date.now();
+  const payload = { title: "Portal Juice test", body: "Notifications work on this device.", url: "/lines/portfolio", tag: `test:${at}` };
+  const r = await sendTo(row.sub, payload);
+  await toInbox(endpoint, { key: payload.tag, kind: "test", title: payload.title, body: payload.body, url: payload.url, at, pushed: r.ok, code: r.code }).catch(() => {});
+  return { ...r, stored: true };
+}
+
+export type PushHeartbeat = { at: string; source: string; subs: number; games: number; sent: number; failed: number; codes: Record<string, number> };
+
+export async function lastRun(): Promise<PushHeartbeat | null> {
+  if (!chatEnabled()) return null;
+  const raw = (await redis(["GET", LAST])) as string | null;
+  try {
+    return raw ? (JSON.parse(raw) as PushHeartbeat) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function subCount(): Promise<number> {
+  if (!chatEnabled()) return 0;
+  return Number(await redis(["HLEN", SUBS])) || 0;
+}
+
+/** One check per window, whoever asks: cron, a GitHub schedule, or an open app. */
+export async function tryCheck(source: string, windowS = 50): Promise<{ ran: boolean; result?: Awaited<ReturnType<typeof checkPush>> }> {
+  if (!chatEnabled()) return { ran: false };
+  const lock = await redis(["SET", "pj:push:lock", source, "EX", windowS, "NX"]);
+  if (lock !== "OK") return { ran: false };
+  return { ran: true, result: await checkPush(source) };
+}
+
 const LEAGUES = new Set(["nfl", "nba", "mlb", "nhl", "ncaaf"]);
 
 export function vapidPublic(): string | null {
@@ -101,11 +201,18 @@ function asPick(p: PushProp): LogPick {
  * Cron: compare each tracked game and leg to the last run and push what changed.
  * Same events and wording as the in-app updates. No-op until Redis and VAPID keys exist.
  */
-export async function checkPush(): Promise<{ enabled: boolean; subs: number; games: number; sent: number }> {
-  if (!chatEnabled() || !vapidReady()) return { enabled: false, subs: 0, games: 0, sent: 0 };
-  webpush.setVapidDetails("mailto:juice@portaljuice.app", vapidPublic() as string, process.env.VAPID_PRIVATE_KEY as string);
+export async function checkPush(source = "cron"): Promise<{ enabled: boolean; subs: number; games: number; sent: number; failed: number }> {
+  if (!chatEnabled() || !vapidReady()) return { enabled: false, subs: 0, games: 0, sent: 0, failed: 0 };
+  const beat = async (b: Omit<PushHeartbeat, "at" | "source">) => {
+    const row: PushHeartbeat = { at: new Date().toISOString(), source, ...b };
+    console.log(JSON.stringify({ event: "push.check", ...row }));
+    await redis(["SET", LAST, JSON.stringify(row)]).catch(() => {});
+  };
   const flat = (await redis(["HGETALL", SUBS])) as string[] | null;
-  if (!Array.isArray(flat) || !flat.length) return { enabled: true, subs: 0, games: 0, sent: 0 };
+  if (!Array.isArray(flat) || !flat.length) {
+    await beat({ subs: 0, games: 0, sent: 0, failed: 0, codes: {} });
+    return { enabled: true, subs: 0, games: 0, sent: 0, failed: 0 };
+  }
   const rows: Stored[] = [];
   for (let i = 0; i < flat.length; i += 2) {
     try {
@@ -158,6 +265,8 @@ export async function checkPush(): Promise<{ enabled: boolean; subs: number; gam
   );
 
   let sent = 0;
+  let failed = 0;
+  const codes: Record<string, number> = {};
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const prefs = readAlertPrefs(row.prefs);
@@ -178,23 +287,26 @@ export async function checkPush(): Promise<{ enabled: boolean; subs: number; gam
       const leg = legFromPick(asPick(p), snap, prevLeg?.value ?? null);
       if (!leg) continue;
       out.push(...legEvents(prevLeg, leg));
-      await redis(["HSET", LEGS, key, JSON.stringify({ status: leg.status, value: leg.value, line: leg.line })]);
+      await redis(["HSET", LEGS, key, JSON.stringify({ status: leg.status, value: leg.value, line: leg.line, side: leg.side })]);
     }
     for (const a of out) {
       if (!prefs[a.kind]) continue;
       const once = await redis(["SET", `pj:push:sent:${tail}:${a.key}`, "1", "EX", 172800, "NX"]);
       if (once !== "OK") continue;
-      try {
-        await webpush.sendNotification(row.sub, JSON.stringify({ title: a.title, body: a.body, url: a.url, tag: a.key }));
-        sent += 1;
-      } catch (err) {
-        const code = (err as { statusCode?: number }).statusCode;
-        if (code === 404 || code === 410) {
-          await redis(["HDEL", SUBS, row.endpoint]);
-          break;
-        }
+      if (a.kind === "player" && a.player) {
+        const gap = await redis(["SET", `pj:push:pl:${tail}:${a.player.pickId}`, "1", "EX", PLAYER_GAP_S, "NX"]);
+        if (gap !== "OK") continue;
+      }
+      const r = await sendTo(row.sub, { title: a.kind === "player" ? `⭐ ${a.title}` : a.title, body: a.body, url: a.url, tag: a.key });
+      codes[String(r.code)] = (codes[String(r.code)] ?? 0) + 1;
+      await toInbox(row.endpoint, { key: a.key, kind: a.kind, title: a.title, body: a.body, url: a.url, at: Date.now(), pushed: r.ok, code: r.code }).catch(() => {});
+      if (r.ok) sent += 1;
+      else {
+        failed += 1;
+        if (r.code === 404 || r.code === 410) break;
       }
     }
   }
-  return { enabled: true, subs: rows.length, games: wanted.size, sent };
+  await beat({ subs: rows.length, games: wanted.size, sent, failed, codes });
+  return { enabled: true, subs: rows.length, games: wanted.size, sent, failed };
 }

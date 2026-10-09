@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "No." }, { status: 401 });
   }
-  const result = await checkPush();
+  const result = await checkPush("cron");
   const settled = await settlePortalPicks().catch(() => 0);
   return NextResponse.json({ ...result, settled });
 }
