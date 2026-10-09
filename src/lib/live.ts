@@ -147,7 +147,25 @@ export function parseLive(data: unknown): LiveSnap | null {
   }
 
   const plays: LivePlay[] = [];
-  for (const raw of asList(d.plays).slice(-40)) {
+  // NFL/NCAAF put plays inside drives; NBA/NHL/MLB use top-level plays.
+  let rawPlays = asList(d.plays);
+  if (!rawPlays.length) {
+    const drives = asDict(d.drives);
+    const drivePlays: unknown[] = [];
+    for (const dr of asList(drives.previous)) drivePlays.push(...asList(asDict(dr).plays).map((pl) => ({ ...asDict(pl), team: asDict(pl).team ?? asDict(dr).team })));
+    const cur = asDict(drives.current);
+    const curPlays = asList(cur.plays);
+    const lastPrev = asList(drives.previous).slice(-1)[0];
+    if (curPlays.length && str(cur.id) !== str(asDict(lastPrev).id)) drivePlays.push(...curPlays.map((pl) => ({ ...asDict(pl), team: asDict(pl).team ?? cur.team })));
+    const seen = new Set<string>();
+    rawPlays = drivePlays.filter((pl) => {
+      const pid = str(asDict(pl).id);
+      if (!pid || seen.has(pid)) return false;
+      seen.add(pid);
+      return true;
+    });
+  }
+  for (const raw of rawPlays.slice(-40)) {
     const p = asDict(raw);
     const id = str(p.id);
     const text = str(p.text) || str(p.shortDescription);
