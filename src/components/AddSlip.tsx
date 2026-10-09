@@ -29,6 +29,7 @@ export default function AddSlip() {
   const [gameId, setGameId] = useState("");
   const [link, setLink] = useState("");
   const [book, setBook] = useState("");
+  const [pasted, setPasted] = useState("");
 
   function loadText(text: string) {
     const parsed = parseSlipText(text).map((r) => ({ ...r, keep: true }));
@@ -152,10 +153,16 @@ export default function AddSlip() {
           <textarea
             className="field mt-2 min-h-16 w-full"
             placeholder="Or paste the slip text"
-            onBlur={(e) => {
-              if (e.target.value.trim()) loadText(e.target.value);
-            }}
+            value={pasted}
+            onChange={(e) => setPasted(e.target.value)}
           />
+          <button
+            type="button"
+            onClick={() => pasted.trim() && loadText(pasted)}
+            className="mt-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white"
+          >
+            Read text
+          </button>
           {busy ? <p className="mt-2 text-sm text-zinc-400">{busy}</p> : null}
           {error ? <p className="mt-2 text-sm text-[color:var(--minus)]">{error}</p> : null}
           {rows && (

@@ -94,9 +94,11 @@ export function liveStat(map: Record<string, string> | undefined, market: string
 
 function clockSeconds(clock: string | null): number | null {
   if (!clock) return null;
-  const m = clock.trim().match(/^(\d+):(\d{1,2})(?:\.\d+)?$/);
-  if (!m) return null;
-  return Number(m[1]) * 60 + Number(m[2]);
+  const c = clock.trim();
+  const m = c.match(/^(\d+):(\d{1,2})(?:\.\d+)?$/);
+  if (m) return Number(m[1]) * 60 + Number(m[2]);
+  const s = c.match(/^(\d{1,2})(?:\.\d+)?$/);
+  return s ? Number(s[1]) : null;
 }
 
 /** Elapsed and regulation length in seconds. Null when the sport has no clock. */
@@ -294,4 +296,52 @@ export function playerByName(boxes: LiveBox[], subject: string) {
     all.find((p) => p.name.toLowerCase().includes(want) || want.includes(p.name.toLowerCase())) ??
     null
   );
+}
+
+/** Player name at the start of ESPN play text ("Donovan Mitchell makes…"). Null when the text does not lead with a name. */
+export function playerFromText(text: string): string | null {
+  const m = text.trim().match(/^((?:[A-Z][A-Za-z.'-]*\s+){1,3}?(?:[A-Z][A-Za-z.'-]+))(?:\s+(?:Jr\.|Sr\.|II|III|IV))?(?=\s+[a-z(])/);
+  if (!m) return null;
+  const full = text.trim().slice(0, m[0].length);
+  if (/^(End|Start|Timeout|Official|Jump Ball|Full|Kickoff|Two)\b/.test(full)) return null;
+  return full;
+}
+
+export type PlayKind = "three" | "dunk" | "bucket" | "miss" | "ft" | "rebound" | "turnover" | "foul" | "block" | "steal" | "sub" | "td" | "fg" | "pass" | "rush" | "sack" | "punt" | "pick" | "goal" | "shot" | "save" | "penalty" | "hit" | "out" | "period" | "other";
+
+/** Icon bucket from ESPN's own type text and play text. Display only. */
+export function playKind(p: LivePlay): PlayKind {
+  const t = `${p.typeText} ${p.text}`.toLowerCase();
+  if (/end (of )?(the )?(period|quarter|half|game|inning)|end period|start|timeout/.test(t)) return "period";
+  if (/substitution|enters the game/.test(t)) return "sub";
+  if (/touchdown/.test(t)) return "td";
+  if (/field goal good|extra point good/.test(t)) return "fg";
+  if (/intercept/.test(t)) return "pick";
+  if (/fumble|turnover|bad pass|traveling|offensive foul turnover/.test(t)) return "turnover";
+  if (/sack/.test(t)) return "sack";
+  if (/punt/.test(t)) return "punt";
+  if (/penalty/.test(t)) return "penalty";
+  if (/\bgoal\b/.test(t) && p.scoring) return "goal";
+  if (/save|saved/.test(t)) return "save";
+  if (/home run|single|double|triple/.test(t) && !/double play/.test(t)) return "hit";
+  if (/strikes out|flies out|grounds out|lines out|pops out|out at/.test(t)) return "out";
+  if (/free throw/.test(t)) return "ft";
+  if (/block/.test(t)) return "block";
+  if (/steal/.test(t)) return "steal";
+  if (/foul/.test(t)) return "foul";
+  if (/rebound/.test(t)) return "rebound";
+  if (/dunk/.test(t) && p.scoring) return "dunk";
+  if (p.scoring && p.points >= 3 && /three|3-pt|3pt/.test(t)) return "three";
+  if (/pass (complete|incomplete)|pass short|pass deep/.test(t)) return "pass";
+  if (/rush|run for|left end|right end|up the middle|left tackle|right tackle|left guard|right guard/.test(t)) return "rush";
+  if (/shot|layup|jumper|hook|tip|dunk/.test(t)) return p.scoring ? "bucket" : /miss/.test(t) ? "miss" : "shot";
+  return "other";
+}
+
+/** True when ESPN's type text marks a field-goal attempt with a location (not a free throw). */
+export function isShotAttempt(p: LivePlay): boolean {
+  if (p.x === null || p.y === null) return false;
+  const t = `${p.typeText} ${p.text}`.toLowerCase();
+  if (/free throw/.test(t)) return false;
+  return /shot|layup|dunk|jumper|hook|tip|three point/.test(t);
 }

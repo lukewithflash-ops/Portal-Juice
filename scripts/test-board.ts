@@ -10,6 +10,7 @@ import { lastNAverage, parsePrice, rankGames, sportsDate } from "../src/lib/slat
 import { parseTeamCookie, parseTeamList } from "../src/lib/team";
 import { impliedChance, parseMvpMarket, parsePropItems, parseWeather, rankByImplied } from "../src/lib/detail";
 import { parseSlipText, safeSlipUrl } from "../src/lib/slip";
+import { playKind, playerFromText, isShotAttempt } from "../src/lib/tracker";
 import { clockSpan, isBigPlay, paceOf, parseLine, scoringRun, statNumber, trackProps } from "../src/lib/tracker";
 import type { LivePlay, LiveSnap } from "../src/lib/live";
 
@@ -335,6 +336,18 @@ t("slip text keeps only what is on the slip", () => {
   assert.equal(safeSlipUrl("http://example.com"), null);
   assert.equal(safeSlipUrl("https://127.0.0.1/x"), null);
   assert.ok(safeSlipUrl("https://example.com/slip"));
+});
+
+
+t("play graphics read only ESPN text", () => {
+  assert.equal(playerFromText("Donovan Mitchell makes 26-foot three point jumper"), "Donovan Mitchell");
+  assert.equal(playerFromText("Chris Cenac Jr. enters the game for Mike Conley"), "Chris Cenac Jr.");
+  assert.equal(playerFromText("End of the 2nd Quarter"), null);
+  const base = { id: "1", clock: "1:00", period: "2nd", awayScore: 1, homeScore: 2, teamId: "5", down: null, distance: null, yardsToEndzone: null, spot: null };
+  assert.equal(playKind({ ...base, text: "X makes 26-foot three point jumper", typeText: "Jump Shot", scoring: true, points: 3, x: 1, y: 20 }), "three");
+  assert.equal(playKind({ ...base, text: "X misses driving layup", typeText: "Driving Layup Shot", scoring: false, points: 0, x: 25, y: 3 }), "miss");
+  assert.equal(isShotAttempt({ ...base, text: "X loose ball foul", typeText: "Loose Ball Foul", scoring: false, points: 0, x: 25, y: 2 }), false);
+  assert.equal(isShotAttempt({ ...base, text: "X misses driving layup", typeText: "Driving Layup Shot", scoring: false, points: 0, x: 25, y: 3 }), true);
 });
 
 console.log(`\n${n} passed`);
