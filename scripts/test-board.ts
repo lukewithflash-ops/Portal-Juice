@@ -32,6 +32,10 @@ import { combinedChance, impliedFromAmerican, livePropChance, liveTeamChance, pl
 import { juiceDir, lineDir, loggedLineDir, priceDir } from "../src/lib/move";
 import { spreadText } from "../src/lib/slate";
 import { emoteOf, pickEmote, replaySnap } from "../src/lib/emotes";
+import { noVig, winPct } from "../src/lib/winPct";
+import { barColors } from "../src/components/WinBar";
+import { chooseLean, leanCandidates } from "../src/lib/gameLean";
+import { parseSportScoreboard, sportLeague, parseMatchFeed } from "../src/lib/sports";
 
 let n = 0;
 const t = (name: string, fn: () => void) => {
@@ -1047,6 +1051,109 @@ t("emotes: one per play type, loudest wins, replay uses only real plays", () => 
   assert.equal(r.awayScore, "3");
   assert.equal(r.homeScore, "7");
   assert.equal(r.state, "in");
+});
+
+
+
+// ---- Win chance, lean, more sports ----
+t("win chance: no-vig from the moneyline, two-way and three-way", () => {
+  const two = noVig("-150", "+130");
+  assert.ok(two);
+  assert.equal(two!.home, 58.0);
+  assert.equal(two!.away, 42.0);
+  const three = noVig("-245", "+650", "+390");
+  assert.ok(three);
+  assert.equal(Math.round((three!.home + three!.away + (three!.draw ?? 0)) * 10) / 10, 100);
+  assert.equal(three!.home, 67.8);
+  assert.equal(three!.draw, 19.5);
+  assert.equal(noVig("-150", null), null);
+  assert.equal(noVig("-150", "+130", "x"), null);
+});
+
+t("win bar: clashing team colors switch the away side", () => {
+  assert.deepEqual(barColors("e30613", "ffffff", "670e36"), { away: "e30613", home: "670e36" });
+  assert.equal(barColors("c8102e", "fdb913", "d00027").away, "fdb913");
+  assert.equal(barColors(null, null, null).away, "a78bfa");
+});
+
+t("win chance: live ESPN beats projection beats moneyline; finals show nothing", () => {
+  assert.equal(winPct({ state: "in", liveHome: 0.234, homeMl: "-150", awayMl: "+130" })?.source, "live");
+  assert.equal(winPct({ state: "in", liveHome: 0.234 })?.home, 23.4);
+  const pre = winPct({ state: "pre", projection: { home: 61.2, away: 38.8 }, homeMl: "-150", awayMl: "+130" });
+  assert.equal(pre?.source, "espn");
+  assert.equal(pre?.label, "ESPN projection");
+  assert.equal(winPct({ state: "pre", homeMl: "-150", awayMl: "+130" })?.label, "From the moneyline, vig removed");
+  assert.equal(winPct({ state: "post", homeMl: "-150", awayMl: "+130" }), null);
+  assert.equal(winPct({ state: "pre" }), null);
+  // Never stale pregame odds as a live number.
+  assert.equal(winPct({ state: "in", homeMl: "-150", awayMl: "+130" }), null);
+});
+
+function leanGame(over: Partial<GameResearch> = {}): GameResearch {
+  const team = (abbr: string, id: string): TeamResearch => ({ id, abbr, name: abbr, record: null, form: [], ats: null, ppg: null, papg: null, passAllowed: null, rushAllowed: null, batting: null, injuries: [] });
+  return {
+    league: "nfl", id: "1", label: "AAA @ BBB", start: "2026-10-11T17:00Z", state: "pre", venue: null, weather: null, indoor: null,
+    odds: { provider: "DraftKings", spreadHome: -3.5, spreadHomeOpen: -3.5, total: 47.5, totalOpen: 47.5, homeMl: -170, awayMl: 145, homeMlOpen: -170, awayMlOpen: 145, overJuice: -110, underJuice: -110, homeSpreadJuice: -110, awaySpreadJuice: -110 },
+    home: team("BBB", "2"), away: team("AAA", "1"), pitchers: null, ...over,
+  };
+}
+
+t("our lean: picks the strongest side, or says not enough data", () => {
+  assert.equal(chooseLean(null).kind, "none");
+  assert.equal(chooseLean(leanGame({ odds: null })).kind, "none");
+  assert.equal(leanCandidates(leanGame()).length, 6);
+  const thin = chooseLean(leanGame());
+  assert.equal(thin.kind, "none");
+  if (thin.kind === "none") assert.match(thin.reason, /Not enough data|No side stands out/);
+  const g = leanGame();
+  g.home.form = [1, 2, 3, 4, 5].map((i) => ({ result: "W" as const, pf: 30, pa: 14, opp: "X" + i }));
+  g.away.form = [1, 2, 3, 4, 5].map((i) => ({ result: "L" as const, pf: 10, pa: 27, opp: "Y" + i }));
+  g.home.ppg = { value: 29, rank: 2, of: 32 };
+  g.home.papg = { value: 16, rank: 3, of: 32 };
+  g.away.ppg = { value: 15, rank: 30, of: 32 };
+  g.away.papg = { value: 28, rank: 31, of: 32 };
+  g.odds!.spreadHomeOpen = -4.5;
+  const lean = chooseLean(g);
+  assert.equal(lean.kind, "lean");
+  if (lean.kind === "lean") {
+    assert.equal(lean.leg.side, "home");
+    assert.ok(lean.points.length >= 2 && lean.points.length <= 5);
+    assert.ok(lean.points.every((p) => /\d/.test(p.text)), "every point quotes a number");
+    // Spread slot is a point number, never a price.
+    if (lean.leg.kind === "spread") assert.equal(lean.report.title, "BBB -3.5");
+  }
+});
+
+const fx = (n: string) => JSON.parse(readFileSync(join(__dirname, "fixtures", n), "utf8"));
+
+t("more sports: soccer three-way price and win chance from real ESPN data", () => {
+  const { matches } = parseSportScoreboard(sportLeague("epl")!, fx("espn-epl-scoreboard.json"));
+  const m = matches.find((x) => x.home.short === "ARS");
+  assert.ok(m, "Arsenal match parsed");
+  assert.equal(m!.price?.provider, "DraftKings");
+  assert.equal(m!.price?.homeMl, "-245");
+  assert.equal(m!.price?.awayMl, "+650");
+  assert.equal(m!.price?.drawMl, "+390");
+  assert.equal(m!.price?.spread, "ARS -1.5");
+  assert.ok(!/[+-]\d{3}/.test(m!.price?.spread ?? ""), "spread is never a price");
+  assert.equal(m!.win?.source, "moneyline");
+  assert.ok(m!.win!.draw! > 10);
+});
+
+t("more sports: tennis and UFC are head-to-head; golf is a leaderboard", () => {
+  const atp = parseSportScoreboard(sportLeague("atp")!, fx("espn-atp-scoreboard.json"), Date.parse("2026-10-05T06:00Z"));
+  assert.ok(atp.matches.length >= 1);
+  assert.ok(atp.matches.every((m) => m.home.name && m.away.name && m.home.name !== m.away.name));
+  assert.ok(atp.matches.some((m) => m.away.sets.length > 0), "set scores read");
+  assert.ok(atp.matches.every((m) => m.win === null || m.price !== null), "no win chance without a price");
+  const ufc = parseSportScoreboard(sportLeague("ufc")!, fx("espn-ufc-scoreboard.json"));
+  assert.equal(ufc.matches.length, 3);
+  assert.ok(ufc.matches.some((m) => /Allen/.test(m.away.name + m.home.name)));
+  const pga = parseSportScoreboard(sportLeague("pga")!, fx("espn-pga-scoreboard.json"));
+  assert.equal(pga.matches.length, 0);
+  assert.equal(pga.golf[0].rows[0].pos, "T1");
+  assert.equal(pga.golf[0].rows[0].score, "-11");
+  assert.deepEqual(parseMatchFeed({ keyEvents: [{ id: "1", text: "Goal! Saka", clock: { displayValue: "12'" }, type: { type: "goal" } }] })[0].clock, "12'");
 });
 
 console.log(`\n${n} passed`);

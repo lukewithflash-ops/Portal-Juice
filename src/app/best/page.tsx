@@ -35,7 +35,7 @@ export default async function BestPage() {
       <p className="mt-1 text-sm text-zinc-400">{BEST_NOTE}</p>
       <p className="mt-2 mb-6 text-[12px] leading-snug text-zinc-500">
         Every row shows its homework: the posted price, the line move, or the game log behind the rank. Gold is #1 of each list.
-        Green is up, red is down. Tap a row for the game.
+        Green is a better number for that side, red is worse. Tap a row for the game.
       </p>
 
       <div className="mb-8">

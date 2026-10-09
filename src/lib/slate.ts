@@ -97,6 +97,9 @@ export type Side = {
   rank: number | null;
   logo: string | null;
   record: string | null;
+  /** ESPN team color hex without #, when sent. */
+  color?: string | null;
+  alt?: string | null;
 };
 
 export type Price = {
@@ -116,6 +119,8 @@ export type Price = {
   /** Open total / home spread when ESPN sent an open. Null if absent. */
   totalOpen: number | null;
   spreadHomeOpen: number | null;
+  /** Soccer three-way draw price, when posted. */
+  drawMl?: string | null;
 };
 
 export type GameState = "pre" | "in" | "post";
@@ -134,6 +139,8 @@ export type Game = {
   national: boolean;
   ranked: boolean;
   price: Price | null;
+  /** ESPN live home win chance 0–1 from the scoreboard, when sent. */
+  liveHomeWin?: number | null;
 };
 
 /** Slim live score for one game. Polled by the games list. */
@@ -345,6 +352,7 @@ export function parsePrice(raw: unknown): Price | null {
     spreadHome,
     totalOpen,
     spreadHomeOpen,
+    drawMl: american(asDict(o.drawOdds).moneyLine),
   };
   const any =
     price.total !== null ||
@@ -376,6 +384,8 @@ function parseSide(raw: unknown): Side | null {
     rank,
     logo: logo && logo.startsWith("https://") ? logo : null,
     record: str(overall?.summary),
+    color: /^[0-9a-f]{6}$/i.test(str(team.color) ?? "") ? str(team.color) : null,
+    alt: /^[0-9a-f]{6}$/i.test(str(team.alternateColor) ?? "") ? str(team.alternateColor) : null,
   };
 }
 
@@ -432,6 +442,7 @@ export function parseGame(
     national,
     ranked: home.rank !== null || away.rank !== null,
     price: parsePrice(rawOdds),
+    liveHomeWin: state === "in" ? finiteNumber(asDict(asDict(asDict(comp.situation).lastPlay).probability).homeWinPercentage) : null,
   };
 }
 

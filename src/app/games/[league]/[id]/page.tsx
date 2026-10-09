@@ -7,6 +7,10 @@ import FollowStar from "@/components/FollowStar";
 import TopPicks from "@/components/TopPicks";
 import { getGameDetail } from "@/lib/espn";
 import { leagueById } from "@/lib/slate";
+import { Suspense } from "react";
+import LeanPanel from "@/components/LeanPanel";
+import WinBar from "@/components/WinBar";
+import { winPct } from "@/lib/winPct";
 
 export const revalidate = 60;
 
@@ -33,6 +37,14 @@ export default async function GamePage({ params }: { params: Promise<Params> }) 
   const bundle = await getGameDetail(league, id);
   if (!bundle) notFound();
   const { game } = bundle;
+  const win = winPct({
+    state: game.state,
+    liveHome: bundle.detail.liveHomeWin ?? game.liveHomeWin,
+    projection: bundle.detail.projection,
+    homeMl: game.price?.homeMl,
+    awayMl: game.price?.awayMl,
+    drawMl: game.price?.drawMl,
+  });
   return (
     <>
       <p className="mb-3 text-[11px]">
@@ -55,6 +67,18 @@ export default async function GamePage({ params }: { params: Promise<Params> }) 
         {game.leagueLabel}
         {game.state === "in" ? " · Live" : game.state === "post" ? " · Final" : ""}
       </p>
+      {win ? (
+        <div className="mb-4 max-w-xl">
+          <WinBar win={win} away={game.away.abbr} home={game.home.abbr} awayColor={game.away.color} awayAlt={game.away.alt} homeColor={game.home.color} />
+        </div>
+      ) : null}
+      {game.state === "pre" ? (
+        <div className="mb-4 max-w-xl">
+          <Suspense fallback={<p className="foil-tile mt-4 p-4 text-sm text-zinc-400">Reading the numbers…</p>}>
+            <LeanPanel league={league} id={id} />
+          </Suspense>
+        </div>
+      ) : null}
       {game.state !== "post" ? (
         <TopPicks league={league} id={id} home={game.home.abbr} away={game.away.abbr} live={game.state === "in"} />
       ) : null}

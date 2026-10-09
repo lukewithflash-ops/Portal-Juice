@@ -75,13 +75,13 @@ async function loadSlate(day: string): Promise<Slate> {
 /** Slate for any ESPN day (YYYYMMDD). Same 15s window. */
 export function getSlateFor(day: string): Promise<Slate> {
   if (!/^\d{8}$/.test(day)) return Promise.resolve({ day, dayLabel: day, fetchedAt: new Date().toISOString(), games: [], missing: [] });
-  return unstable_cache(() => loadSlate(day), ["pj-slate", day], { revalidate: 15 })();
+  return unstable_cache(() => loadSlate(day), ["pj-slate2", day], { revalidate: 15 })();
 }
 
 export function getSlate(): Promise<Slate> {
   const day = sportsDate();
   // Short window: scores on first paint should be close to live. Prices ride along.
-  return unstable_cache(() => loadSlate(day), ["pj-slate", day], { revalidate: 15 })();
+  return unstable_cache(() => loadSlate(day), ["pj-slate2", day], { revalidate: 15 })();
 }
 
 const TREND_CAP = 12;
@@ -260,7 +260,7 @@ export async function getGame(leagueId: string, id: string): Promise<Game | null
         return null;
       }
     },
-    ["pj-game", league.id, id],
+    ["pj-game2", league.id, id],
     { revalidate: REVALIDATE }
   );
   return load();
@@ -527,7 +527,7 @@ async function loadDetail(leagueId: string, id: string): Promise<DetailBundle | 
 export function getGameDetail(leagueId: string, id: string): Promise<DetailBundle | null> {
   const league = leagueById(leagueId);
   if (!league || !/^\d+$/.test(id)) return Promise.resolve(null);
-  return unstable_cache(() => loadDetail(leagueId, id), ["pj-detail", league.id, id], {
+  return unstable_cache(() => loadDetail(leagueId, id), ["pj-detail2", league.id, id], {
     revalidate: REVALIDATE,
   })();
 }

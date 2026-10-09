@@ -73,6 +73,8 @@ export type GameDetail = {
   series: string | null;
   /** ESPN matchup projection, 0–100, only when they send both sides. */
   projection: { home: number; away: number } | null;
+  /** Latest ESPN live home win chance, 0–1, when the summary has a win probability chart. */
+  liveHomeWin?: number | null;
   stories: Story[];
   move: OddsMove | null;
 };
@@ -310,6 +312,10 @@ export function parseSummaryDetail(data: unknown, leagueLabel: string): GameDeta
     ats,
     series,
     projection,
+    liveHomeWin: (() => {
+      const wp = asList(d.winprobability);
+      return wp.length ? finiteNumber(asDict(wp[wp.length - 1]).homeWinPercentage) : null;
+    })(),
     stories: parseStories(d.news, leagueLabel).slice(0, 6),
     move: parseOddsMove(pick),
   };

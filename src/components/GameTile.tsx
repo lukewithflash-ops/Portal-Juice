@@ -7,6 +7,8 @@ import TopPicks from "@/components/TopPicks";
 import { useEffect, useState } from "react";
 import { TAGLINE } from "@/lib/site";
 import type { Game, Price } from "@/lib/slate";
+import WinBar from "@/components/WinBar";
+import { winPct } from "@/lib/winPct";
 
 export type MoveFlag = {
   total?: { from: number; to: number };
@@ -189,6 +191,11 @@ export default function GameTile({
         </p>
       )}
 
+      {(() => {
+        const win = winPct({ state: game.state, liveHome: game.liveHomeWin, homeMl: game.price?.homeMl, awayMl: game.price?.awayMl, drawMl: game.price?.drawMl });
+        return win ? <WinBar win={win} away={game.away.abbr} home={game.home.abbr} awayColor={game.away.color} awayAlt={game.away.alt} homeColor={game.home.color} compact /> : null;
+      })()}
+
       {game.broadcasts.length > 0 && (
         <p className="mt-1 truncate text-[11px] text-zinc-500">{game.broadcasts.join(" · ")}</p>
       )}
@@ -213,7 +220,7 @@ export default function GameTile({
               Spread {move.spread.from} → {move.spread.to}.{" "}
             </span>
           )}
-          <span className="font-medium text-zinc-500">Green is up, red is down.</span>
+          <span className="font-medium text-zinc-500">Shown as numbers; a total has no side.</span>
         </p>
       )}
 
