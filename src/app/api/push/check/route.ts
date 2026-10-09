@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { checkPush, runOnceAlert } from "@/lib/push";
+import { checkPush } from "@/lib/push";
 import { settlePortalPicks } from "@/lib/portalPickStore";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "No." }, { status: 401 });
   }
   const result = await checkPush("cron");
-  await runOnceAlert().catch(() => null);
   const settled = await settlePortalPicks().catch(() => 0);
   return NextResponse.json({ ...result, settled });
 }
