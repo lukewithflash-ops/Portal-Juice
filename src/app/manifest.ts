@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { cookies } from "next/headers";
 import { parseTeamCookie } from "@/lib/team";
+import { SITE_NAME } from "@/lib/site";
 
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const jar = await cookies();
@@ -20,7 +21,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
       ];
   return {
     name: "Portal Juice",
-    short_name: "Juice",
+    short_name: SITE_NAME,
     description: "The number moved. Lines, juice, streaks. Not a book.",
     start_url: "/lines",
     scope: "/",

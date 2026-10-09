@@ -37,40 +37,42 @@ export default function SiteHeader() {
 
   return (
     <header className="site-chrome">
-      <div className="mx-auto max-w-6xl px-4 pt-2.5">
-        <div className="flex items-center gap-3">
-          <Link href="/lines" className="flex min-w-0 items-center gap-2.5" aria-label={SITE_NAME + " — Lines"}>
+      <div className="mx-auto max-w-6xl px-3 pt-2.5 sm:px-4">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Link href="/lines" className="flex shrink-0 items-center gap-1.5 sm:gap-2.5" aria-label={SITE_NAME + " — Lines"}>
             {team ? (
-              <span className="brand-mask h-9 w-11 shrink-0" aria-hidden />
+              <span className="brand-mask h-7 w-9 shrink-0 sm:h-9 sm:w-11" aria-hidden />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src="/brand/swirl-mark.png" alt="" width={44} height={37} className="h-9 w-auto mix-blend-screen" aria-hidden />
+              <img src="/brand/swirl-mark.png" alt="" width={44} height={37} className="h-7 w-auto shrink-0 mix-blend-screen sm:h-9" aria-hidden />
             )}
             {team?.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={team.logo} alt="" width={24} height={24} className="h-6 w-6 shrink-0" />
+              <img src={team.logo} alt="" width={24} height={24} className="hidden h-6 w-6 shrink-0 min-[380px]:block" />
             ) : null}
-            <span className="flex min-w-0 flex-col leading-none">
-              <span className="wordmark truncate text-lg font-black tracking-tight sm:text-xl">{SITE_NAME}</span>
+            <span className="flex shrink-0 flex-col leading-none">
+              <span className="wordmark whitespace-nowrap text-[17px] font-black tracking-tight sm:text-xl" data-testid="site-name">{SITE_NAME}</span>
               {showTagline && (
-                <span className="mt-1 text-[10px] font-medium uppercase tracking-[0.22em] text-zinc-400">{TAGLINE}</span>
+                <span className="mt-1 whitespace-nowrap text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-400 sm:text-[10px] sm:tracking-[0.22em]">{TAGLINE}</span>
               )}
             </span>
           </Link>
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          <div className="ml-auto flex min-w-0 shrink items-center gap-1 sm:gap-1.5">
             <Bell />
             <button
               type="button"
-              className="rounded-lg border border-white/10 px-2 py-1 text-[11px] font-bold text-zinc-200"
+              className="shrink-0 rounded-lg border border-white/10 px-1.5 py-1 text-[11px] font-bold text-zinc-200 sm:px-2"
               aria-pressed={odds === "pct"}
+              aria-label={odds === "pct" ? "Odds: implied chance. Tap for American odds." : "Odds: American. Tap for implied chance."}
               title={IMPLIED_TIP}
               onClick={() => setOdds(odds === "pct" ? "american" : "pct")}
             >
-              {odds === "pct" ? "Implied chance" : "American odds"}
+              <span className="sm:hidden" aria-hidden>{odds === "pct" ? "%" : "+110"}</span>
+              <span className="sr-only sm:not-sr-only">{odds === "pct" ? "Implied chance" : "American odds"}</span>
             </button>
             <button
               type="button"
-              className="rounded-lg border border-white/10 px-2 py-1 text-[11px] font-bold text-zinc-200"
+              className="shrink-0 rounded-lg border border-white/10 px-1.5 py-1 text-[11px] font-bold text-zinc-200 sm:px-2"
               aria-expanded={open}
               onClick={() => setOpen((v) => !v)}
             >

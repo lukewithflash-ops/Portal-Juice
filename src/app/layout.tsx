@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Juice",
+    title: SITE_NAME,
     statusBarStyle: "black-translucent",
   },
   icons: {

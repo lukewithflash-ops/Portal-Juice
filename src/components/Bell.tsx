@@ -57,7 +57,7 @@ export default function Bell() {
         type="button"
         aria-label={unread ? `Updates, ${unread} new` : "Updates"}
         aria-expanded={open}
-        className="relative rounded-lg border border-white/10 px-2 py-1 text-[13px] leading-none text-zinc-200"
+        className="relative shrink-0 rounded-lg border border-white/10 px-1.5 py-1 text-[13px] sm:px-2 leading-none text-zinc-200"
         onClick={() => {
           const next = !open;
           setOpen(next);
