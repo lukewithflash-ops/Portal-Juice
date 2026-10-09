@@ -211,7 +211,13 @@ function GameStrip({
       </div>
       {!slim ? (
         <Link href={href} className="block border-t border-white/10 px-3 pb-2 pt-1">
-          {last ? <p className="line-clamp-1 text-[11px] font-semibold text-white/90">{last.text}</p> : null}
+          {s?.situation?.text ? (
+            <p className="tabular text-[12px] font-black text-white">
+              {s.situation.teamId === s.homeId ? s.homeAbbr : s.situation.teamId === s.awayId ? s.awayAbbr : ""} ball · {s.situation.text}
+              {s.situation.redZone ? <span className="ml-1 text-[color:var(--minus)]">Red zone</span> : null}
+            </p>
+          ) : null}
+          {last ? <p className="line-clamp-1 text-[11px] font-semibold text-white/90">{last.text.trim()}</p> : null}
           {legsShown.length ? (
             <div className="mt-1 grid gap-1 sm:grid-cols-2">
               {legsShown.map((l) => (

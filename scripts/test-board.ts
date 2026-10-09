@@ -20,7 +20,7 @@ import type { LivePlay, LiveSnap } from "../src/lib/live";
 import { gameEvents, legEvents } from "../src/lib/alerts";
 import { groupSlips, legFromPick, unitsNeeded } from "../src/lib/motivation";
 import type { Pick } from "../src/lib/types";
-import { freshestStatus, isBehind, parseLive, statusFromScoreboard, type LiveStatus } from "../src/lib/live";
+import { freshestStatus, isBehind, parseLive, situationFromScoreboard, statusFromScoreboard, yardsFromSpot, type LiveStatus } from "../src/lib/live";
 
 let n = 0;
 const t = (name: string, fn: () => void) => {
@@ -287,6 +287,8 @@ t("live versus line uses only a real box cell", () => {
     win: [],
     period: 2,
     plays: [] as LivePlay[],
+    drives: [],
+    situation: null,
   };
   const snap: LiveSnap = {
     ...base,
@@ -504,6 +506,50 @@ t("box stats map ESPN keys so NFL yards props track", () => {
   assert.equal(lamb?.statMap.receptions, "5");
 });
 
+t("football keeps every play from every drive, grouped, with down and distance", () => {
+  const mk = (id: string, seq: number, extra: Record<string, unknown> = {}) => ({ id, sequenceNumber: String(seq), text: "play " + id, period: { number: 1 }, clock: { displayValue: "10:00" }, ...extra });
+  const prev = Array.from({ length: 30 }, (_, k) => ({
+    id: "d" + k,
+    team: { id: k % 2 ? "6" : "27", abbreviation: k % 2 ? "DAL" : "TB", logos: [{ href: "https://a.espncdn.com/i/teamlogos/nfl/500/tb.png" }] },
+    shortDisplayResult: k % 2 ? "PUNT" : "TD",
+    description: "3 plays, 10 yards, 1:00",
+    plays: [mk(k + "a", k * 10 + 1), mk(k + "b", k * 10 + 2, { start: { down: 2, distance: 7, yardsToEndzone: 66, downDistanceText: "2nd & 7 at DAL 34", team: { id: "27" } }, statYardage: 5 }), mk(k + "c", k * 10 + 3)],
+  }));
+  const last = prev[29];
+  const data = {
+    ...summaryFixture(),
+    drives: {
+      previous: prev,
+      current: { id: last.id, team: last.team, plays: [...last.plays, mk("29d", 294, { end: { down: 3, distance: 2, yardsToEndzone: 61, downDistanceText: "3rd & 2 at DAL 39", shortDownDistanceText: "3rd & 2", possessionText: "DAL 39", team: { id: "6" } } })] },
+    },
+  };
+  const snap = parseLive(data)!;
+  assert.equal(snap.plays.length, 91);
+  assert.equal(snap.drives.length, 30);
+  assert.equal(snap.drives[29].playIds.length, 4);
+  assert.equal(snap.drives[29].live, true);
+  assert.equal(snap.drives[0].live, false);
+  assert.equal(snap.drives[0].result, "TD");
+  const b = snap.plays.find((p) => p.id === "0b")!;
+  assert.equal(b.downText, "2nd & 7 at DAL 34");
+  assert.equal(b.yards, 5);
+  assert.equal(b.teamId, "27");
+  assert.equal(snap.situation?.text, "3rd & 2 at DAL 39");
+  assert.equal(snap.situation?.yardsToEndzone, 61);
+});
+
+t("scoreboard situation reads the spot for the team with the ball", () => {
+  assert.equal(yardsFromSpot("DAL 34", "DAL"), 66);
+  assert.equal(yardsFromSpot("DAL 34", "TB"), 34);
+  assert.equal(yardsFromSpot("50", "TB"), 50);
+  const board = { events: [{ id: "401", competitions: [{ situation: { down: 2, distance: 6, downDistanceText: "2nd & 6 at USF 29", shortDownDistanceText: "2nd & 6", possessionText: "USF 29", possession: "58", isRedZone: false } }] }] };
+  const sit = situationFromScoreboard(board, "401", { awayId: "58", homeId: "2636", awayAbbr: "USF", homeAbbr: "UTSA" });
+  assert.equal(sit?.yardsToEndzone, 71);
+  assert.equal(sit?.text, "2nd & 6 at USF 29");
+  const between = { events: [{ id: "401", competitions: [{ situation: { down: -1, distance: 0 } }] }] };
+  assert.equal(situationFromScoreboard(between, "401", { awayId: "58", homeId: "2636", awayAbbr: "USF", homeAbbr: "UTSA" }), null);
+});
+
 t("scoreboard ahead of summary wins score and clock", () => {
   const snap = parseLive(summaryFixture());
   assert.ok(snap);
@@ -547,7 +593,7 @@ const legSnap = (pts: string, state: "pre" | "in" | "post" = "in", period = 3, c
   awayColor: "#000000", homeColor: "#ffffff", awayId: "2", homeId: "5", provider: null, total: null, totalOpen: null,
   spreadDetail: null, spreadHome: null, spreadOpen: null, awayMl: null, homeMl: null, homeWin: null, win: [], period,
   boxes: [{ abbr: "BOS", color: "#000000", columns: ["PTS"], players: [{ id: "9", name: "Jaylen Brown", starter: true, played: true, stats: [pts], statMap: { points: pts, PTS: pts } }] }],
-  plays: [],
+  plays: [], drives: [], situation: null,
 });
 const legPick = (over: Partial<Pick> = {}): Pick => ({
   id: "k1", sport: "NBA", subject: "Jaylen Brown", line: 24.5, odds: 0, stake: 0, book: "Slip", date: "2026-10-08",

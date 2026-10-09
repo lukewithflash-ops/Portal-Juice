@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import DriveFeed from "@/components/DriveFeed";
 import GameChat from "@/components/GameChat";
 import Mark from "@/components/Mark";
 import MyProps from "@/components/MyProps";
@@ -163,7 +164,11 @@ export default function GameLive({
               <Tracker top={top.slice(0, 3)} rest={[]} state={snap?.state ?? "pre"} />
             </div>
           ) : null}
-          <Feed plays={plays.slice(0, 30)} freshIds={freshIds} snap={snap} awayColor={awayColor} homeColor={homeColor} />
+          {snap && snap.drives.length ? (
+            <DriveFeed snap={snap} freshIds={freshIds} awayColor={awayColor} homeColor={homeColor} />
+          ) : (
+            <Feed plays={plays.slice(0, 30)} freshIds={freshIds} snap={snap} awayColor={awayColor} homeColor={homeColor} />
+          )}
         </div>
         <div className={tab === "play" ? "max-lg:hidden" : ""}>
           <Tracker top={top} rest={rest} state={snap?.state ?? "pre"} />
@@ -283,14 +288,27 @@ function Surface({
 }
 
 function Field({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: string; homeColor: string }) {
-  const drive = currentDrive(snap.plays);
-  const offense = drive ? (drive.teamId === snap.homeId ? homeColor : awayColor) : "#a1a1aa";
-  const defense = drive ? (drive.teamId === snap.homeId ? awayColor : homeColor) : "#a1a1aa";
+  const sit = snap.situation;
+  // With ESPN drives, trust only the posted situation; between snaps (after a score or kick) show no ball.
+  const drive = snap.drives.length ? null : currentDrive(snap.plays);
+  const lastDrive = snap.drives.length ? snap.drives[snap.drives.length - 1] : null;
+  // Prefer ESPN's posted situation; fall back to the latest marked play.
+  const teamId = sit?.teamId ?? drive?.teamId ?? null;
+  const toGoal = sit?.yardsToEndzone ?? drive?.ball ?? null;
+  const offense = teamId ? (teamId === snap.homeId ? homeColor : awayColor) : "#a1a1aa";
+  const defense = teamId ? (teamId === snap.homeId ? awayColor : homeColor) : "#a1a1aa";
   // Offense drives left to right. 10-yard end zones at 0–10 and 110–120.
-  const ball = drive ? 10 + (100 - drive.ball) : null;
-  const startPlay = drive ? [...snap.plays].reverse().find((p) => p.teamId === drive.teamId && p.yardsToEndzone !== null) : null;
-  const start = drive && startPlay?.yardsToEndzone != null ? 10 + (100 - startPlay.yardsToEndzone) : ball;
-  const first = drive && drive.firstDown !== null ? 10 + (100 - drive.firstDown) : null;
+  const ball = toGoal !== null ? 10 + (100 - toGoal) : null;
+  const startPlay = drive && drive.teamId === teamId ? [...snap.plays].reverse().find((p) => p.teamId === drive.teamId && p.yardsToEndzone !== null && p.driveId === snap.plays[snap.plays.length - 1]?.driveId) : null;
+  const start = startPlay?.yardsToEndzone != null ? 10 + (100 - startPlay.yardsToEndzone) : ball;
+  const distance = sit?.distance ?? null;
+  const firstToGoal =
+    toGoal !== null && distance !== null && distance > 0 ? Math.max(0, toGoal - distance) : drive && drive.teamId === teamId ? drive.firstDown : null;
+  const first = firstToGoal !== null ? 10 + (100 - firstToGoal) : null;
+  const redZone = sit ? sit.redZone : !!drive?.redZone;
+  const label =
+    sit?.text ??
+    (snap.state === "in" && lastDrive && !lastDrive.live && lastDrive.resultLong ? `${lastDrive.abbr} ${lastDrive.resultLong} · next snap soon` : null);
   return (
     <svg viewBox="0 0 120 54" preserveAspectRatio="xMidYMid meet" aria-label="Field">
       <defs>
@@ -303,7 +321,7 @@ function Field({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: stri
       <rect x="0" y="0" width="120" height="54" rx="2" fill="url(#turf)" />
       <rect x="0" y="0" width="10" height="54" fill={offense} opacity="0.55" />
       <rect x="110" y="0" width="10" height="54" fill={defense} opacity="0.55" />
-      {drive?.redZone ? <rect x="90" y="0" width="20" height="54" fill="rgba(255,59,92,0.22)" /> : null}
+      {redZone ? <rect x="90" y="0" width="20" height="54" fill="rgba(255,59,92,0.22)" /> : null}
       {Array.from({ length: 21 }, (_, i) => 10 + i * 5).map((x) => (
         <line key={x} x1={x} y1="0" x2={x} y2="54" stroke="rgba(255,255,255,0.35)" strokeWidth={x % 10 === 0 ? 0.45 : 0.2} />
       ))}
@@ -312,7 +330,12 @@ function Field({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: stri
           {n}
         </text>
       ))}
-      {drive && start !== null && ball !== null ? (
+      {label ? (
+        <text x="60" y="7" fontSize="4.2" textAnchor="middle" fill="#fff" fontWeight="900" style={{ paintOrder: "stroke", stroke: "rgba(0,0,0,0.6)", strokeWidth: 0.8 }}>
+          {label}
+        </text>
+      ) : null}
+      {start !== null && ball !== null ? (
         <>
           <rect x={Math.min(start, ball)} y="24.5" width={Math.abs(ball - start)} height="5" rx="2.5" fill={offense} opacity="0.55" />
           <line className="ball-mark" x1={ball} y1="2" x2={ball} y2="52" stroke="#38bdf8" strokeWidth="0.8" />
@@ -320,7 +343,7 @@ function Field({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: stri
           <ellipse className="ball-mark" cx={ball} cy="27" rx="2.2" ry="1.4" fill="#a0522d" stroke="#fff" strokeWidth="0.3" style={{ filter: "drop-shadow(0 0 3px #f5c542)" }} />
         </>
       ) : (
-        <text x="60" y="30" fontSize="4" textAnchor="middle" fill="rgba(255,255,255,0.6)">No yard line posted yet</text>
+        <text x="60" y="30" fontSize="4" textAnchor="middle" fill="rgba(255,255,255,0.6)">{label ? "Waiting on the next snap" : "No yard line posted yet"}</text>
       )}
     </svg>
   );
@@ -485,9 +508,10 @@ function Momentum({ snap, flipped }: { snap: LiveSnap; flipped: boolean }) {
 
 function PossessionStrip({ league, snap, run }: { league: string; snap: LiveSnap; run: Run }) {
   const football = league === "nfl" || league === "ncaaf";
-  const drive = football ? currentDrive(snap.plays) : null;
+  const liveDrive = football ? snap.drives.find((d) => d.live) ?? null : null;
+  const drive = football && (!snap.drives.length || liveDrive) ? currentDrive(snap.plays) : null;
   const lastTeam = [...snap.plays].reverse().find((p) => p.teamId)?.teamId ?? null;
-  const holder = football ? drive?.teamId ?? null : lastTeam;
+  const holder = football ? snap.situation?.teamId ?? drive?.teamId ?? null : lastTeam;
   const runAbbr = run ? (run.teamId === snap.homeId ? snap.homeAbbr : snap.awayAbbr) : null;
   const runColor = run ? (run.teamId === snap.homeId ? snap.homeColor : snap.awayColor) : "";
   const side = (teamId: string, abbr: string, color: string) => {
@@ -510,6 +534,9 @@ function PossessionStrip({ league, snap, run }: { league: string; snap: LiveSnap
         {side(snap.awayId, snap.awayAbbr, snap.awayColor)}
         {side(snap.homeId, snap.homeAbbr, snap.homeColor)}
       </div>
+      {football && snap.situation?.text && snap.state === "in" ? (
+        <p className="mt-1.5 text-center text-sm font-black text-[color:var(--flat)]">{snap.situation.text}</p>
+      ) : null}
       {drive ? (
         <p className="mt-1.5 text-center text-[11px] text-zinc-400">
           {drive.plays} plays{drive.yards !== null ? " · " + drive.yards + " yds" : ""}

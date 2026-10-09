@@ -42,6 +42,43 @@ export type LivePlay = {
   yardsToEndzone: number | null;
   spot: string | null;
   typeText: string;
+  /** Football only. "2nd & 7 at DAL 34" before the snap. */
+  downText?: string | null;
+  /** Football only. Yards gained on the play, as ESPN scored it. */
+  yards?: number | null;
+  penalty?: boolean;
+  turnover?: boolean;
+  driveId?: string | null;
+};
+
+export type LiveDrive = {
+  id: string;
+  teamId: string | null;
+  abbr: string;
+  logo: string | null;
+  /** "TD", "FG", "PUNT", "INT"… Null while the drive is on. */
+  result: string | null;
+  resultLong: string | null;
+  /** "9 plays, 70 yards, 4:09" */
+  description: string;
+  isScore: boolean;
+  live: boolean;
+  startText: string | null;
+  playIds: string[];
+};
+
+/** Down, distance, and ball spot for the team with the ball. */
+export type LiveSituation = {
+  down: number | null;
+  distance: number | null;
+  /** Yards from the offense to the end zone it is attacking. */
+  yardsToEndzone: number | null;
+  text: string | null;
+  short: string | null;
+  spot: string | null;
+  teamId: string | null;
+  redZone: boolean;
+  source: "scoreboard" | "play";
 };
 
 export type LiveSnap = {
@@ -70,6 +107,9 @@ export type LiveSnap = {
   period: number | null;
   boxes: LiveBox[];
   plays: LivePlay[];
+  /** Football only. Every drive in order, oldest first. */
+  drives: LiveDrive[];
+  situation: LiveSituation | null;
 };
 
 function colorOf(raw: unknown): string {
@@ -177,25 +217,58 @@ export function parseLive(data: unknown): LiveSnap | null {
   }
 
   const plays: LivePlay[] = [];
+  const drives: LiveDrive[] = [];
   // NFL/NCAAF put plays inside drives; NBA/NHL/MLB use top-level plays.
   let rawPlays = asList(d.plays);
+  const football = !rawPlays.length && asDict(d.drives).previous !== undefined;
   if (!rawPlays.length) {
-    const drives = asDict(d.drives);
-    const drivePlays: unknown[] = [];
-    for (const dr of asList(drives.previous)) drivePlays.push(...asList(asDict(dr).plays).map((pl) => ({ ...asDict(pl), team: asDict(pl).team ?? asDict(dr).team })));
-    const cur = asDict(drives.current);
-    const curPlays = asList(cur.plays);
-    const lastPrev = asList(drives.previous).slice(-1)[0];
-    if (curPlays.length && str(cur.id) !== str(asDict(lastPrev).id)) drivePlays.push(...curPlays.map((pl) => ({ ...asDict(pl), team: asDict(pl).team ?? cur.team })));
+    const driveData = asDict(d.drives);
+    const list = asList(driveData.previous).map(asDict);
+    const cur = asDict(driveData.current);
+    const curId = str(cur.id);
+    if (curId) {
+      const i = list.findIndex((x) => str(x.id) === curId);
+      if (i === -1) list.push({ ...cur, _live: true });
+      else list[i] = { ...list[i], plays: [...asList(list[i].plays), ...asList(cur.plays)], _live: !list[i].result };
+    }
     const seen = new Set<string>();
-    rawPlays = drivePlays.filter((pl) => {
-      const pid = str(asDict(pl).id);
-      if (!pid || seen.has(pid)) return false;
-      seen.add(pid);
-      return true;
-    });
+    const drivePlays: unknown[] = [];
+    for (const dr of list) {
+      const team = asDict(dr.team);
+      const ids: string[] = [];
+      const own = asList(dr.plays)
+        .map(asDict)
+        .filter((pl) => {
+          const pid = str(pl.id);
+          if (!pid || seen.has(pid)) return false;
+          seen.add(pid);
+          return true;
+        })
+        .sort((x, y) => (Number(x.sequenceNumber) || 0) - (Number(y.sequenceNumber) || 0));
+      for (const pl of own) {
+        ids.push(str(pl.id) as string);
+        // Offense for the snap: ESPN's start.team, else the drive's team.
+        const startTeam = str(asDict(asDict(pl.start).team).id);
+        drivePlays.push({ ...pl, team: pl.team ?? (startTeam ? { id: startTeam } : team), _drive: str(dr.id) });
+      }
+      const logo = asList(team.logos).map(asDict).find((l) => /^https:\/\/a\.espncdn\.com\//.test(str(l.href) || ""));
+      drives.push({
+        id: str(dr.id) || String(drives.length),
+        teamId: str(team.id),
+        abbr: str(team.abbreviation) || "",
+        logo: logo ? (str(logo.href) as string) : null,
+        result: str(dr.shortDisplayResult) || str(dr.result),
+        resultLong: str(dr.displayResult),
+        description: str(dr.description) || "",
+        isScore: dr.isScore === true,
+        live: dr._live === true && state === "in",
+        startText: str(asDict(dr.start).text),
+        playIds: ids,
+      });
+    }
+    rawPlays = drivePlays;
   }
-  for (const raw of rawPlays.slice(-40)) {
+  for (const raw of football ? rawPlays : rawPlays.slice(-40)) {
     const p = asDict(raw);
     const id = str(p.id);
     const text = str(p.text) || str(p.shortDescription);
@@ -219,7 +292,48 @@ export function parseLive(data: unknown): LiveSnap | null {
       yardsToEndzone: num(start.yardsToEndzone),
       spot: str(start.shortDownDistanceText) || str(start.possessionText),
       typeText: str(asDict(p.type).text) || "",
+      ...(football
+        ? {
+            downText: (num(start.down) ?? 0) > 0 ? str(start.downDistanceText) : null,
+            yards: num(p.statYardage),
+            penalty: p.isPenalty === true || /penalty/i.test(str(asDict(p.type).text) || ""),
+            turnover: p.isTurnover === true,
+            driveId: str(p._drive),
+          }
+        : {}),
     });
+  }
+  // Drop drives whose plays were all filtered out (no text).
+  const kept = new Set(plays.map((p) => p.id));
+  for (const dr of drives) dr.playIds = dr.playIds.filter((pid) => kept.has(pid));
+
+  let situation: LiveSituation | null = null;
+  if (football && state === "in") {
+    // A timeout or quarter break row carries the next snap in its start. Otherwise read the last play's end.
+    // A score or kick clears the down until the next snap is posted.
+    const lp = asDict(rawPlays[rawPlays.length - 1]);
+    const pause = /timeout|end of|end period|end quarter|two-minute/i.test(`${str(asDict(lp.type).text) || ""} ${str(lp.text) || ""}`);
+    const spotOf = pause ? asDict(lp.start) : asDict(lp.end);
+    const kicked = !pause && (lp.scoringPlay === true || /kickoff|field goal|extra point|punt/i.test(str(asDict(lp.type).text) || ""));
+    if (rawPlays.length && !kicked && (num(spotOf.down) ?? 0) > 0) {
+      // On a timeout row ESPN's team is the one that called it; the ball belongs to the drive's team.
+      const driveTeam = drives.find((dr) => dr.id === str(lp._drive))?.teamId ?? null;
+      const teamId = pause ? driveTeam ?? str(asDict(spotOf.team).id) : str(asDict(spotOf.team).id) ?? driveTeam;
+      const abbr = teamId === str(homeTeam.id) ? str(homeTeam.abbreviation) : teamId === str(awayTeam.id) ? str(awayTeam.abbreviation) : null;
+      const spot = str(spotOf.possessionText);
+      const toGoal = yardsFromSpot(spot, abbr) ?? num(spotOf.yardsToEndzone);
+      situation = {
+        down: num(spotOf.down),
+        distance: num(spotOf.distance),
+        yardsToEndzone: toGoal,
+        text: str(spotOf.downDistanceText),
+        short: str(spotOf.shortDownDistanceText),
+        spot,
+        teamId,
+        redZone: toGoal !== null && toGoal <= 20,
+        source: "play",
+      };
+    }
   }
 
   const winByPlay = new Map<string, number>();
@@ -259,6 +373,8 @@ export function parseLive(data: unknown): LiveSnap | null {
     period: num(asDict(comp.status).period),
     boxes,
     plays,
+    drives,
+    situation,
   };
 }
 
@@ -356,4 +472,40 @@ export function freshestStatus(snap: LiveSnap, board: LiveStatus | null): LiveSn
 export function isBehind(next: LiveStatus, prev: LiveStatus | null): boolean {
   if (!prev) return false;
   return compareProgress(next, prev) < 0;
+}
+
+/** Yards to the end zone for the offense, from "DAL 34" and the offense's abbreviation. */
+export function yardsFromSpot(spot: string | null, offenseAbbr: string | null): number | null {
+  if (!spot) return null;
+  const t = spot.trim();
+  if (/^50$/.test(t)) return 50;
+  const m = /^([A-Za-z&.'-]{2,8})\s+(\d{1,2})$/.exec(t);
+  if (!m) return null;
+  const yl = Number(m[2]);
+  if (yl === 50) return 50;
+  if (!offenseAbbr) return null;
+  return m[1].toUpperCase() === offenseAbbr.toUpperCase() ? 100 - yl : yl;
+}
+
+/** Football down and distance from the scoreboard, when ESPN has a live snap posted. */
+export function situationFromScoreboard(data: unknown, eventId: string, snap: Pick<LiveSnap, "awayId" | "homeId" | "awayAbbr" | "homeAbbr">): LiveSituation | null {
+  const ev = asList(asDict(data).events).map(asDict).find((e) => str(e.id) === eventId);
+  if (!ev) return null;
+  const sit = asDict(asDict(asList(ev.competitions)[0]).situation);
+  const down = num(sit.down);
+  const teamId = str(sit.possession);
+  if (down === null || down < 1 || !teamId) return null;
+  const abbr = teamId === snap.homeId ? snap.homeAbbr : teamId === snap.awayId ? snap.awayAbbr : null;
+  const spot = str(sit.possessionText);
+  return {
+    down,
+    distance: num(sit.distance),
+    yardsToEndzone: yardsFromSpot(spot, abbr),
+    text: str(sit.downDistanceText),
+    short: str(sit.shortDownDistanceText),
+    spot,
+    teamId,
+    redZone: sit.isRedZone === true,
+    source: "scoreboard",
+  };
 }
