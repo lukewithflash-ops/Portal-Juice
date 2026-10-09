@@ -60,7 +60,7 @@ export async function matchRows(rows: SlipRow[]): Promise<ImportLeg[]> {
   return Promise.all(rows.slice(0, 15).map(async (r) => matchRow(r, games, r.kind === "prop" ? await findPlayer(r.subject, games) : null)));
 }
 
-export type VisionResult = { ok: true; rows: SlipRow[]; stake: number | null; text: string } | { ok: false; reason: string };
+export type VisionResult = { ok: true; rows: SlipRow[]; stake: number | null; text: string } | { ok: false; reason: string; status?: number; detail?: string };
 
 function gatewayAuth(oidcHeader: string | null): string | null {
   return process.env.AI_GATEWAY_API_KEY || oidcHeader || process.env.VERCEL_OIDC_TOKEN || null;
@@ -105,7 +105,14 @@ export async function readSlipImage(dataUrl: string, oidcHeader: string | null):
     if (!res.ok) {
       const body = (await res.text()).slice(0, 300);
       console.log(JSON.stringify({ event: "slip.vision", status: res.status, body }));
-      return { ok: false, reason: res.status === 401 || res.status === 403 ? "not-authorized" : res.status === 402 ? "no-credit" : `error-${res.status}` };
+      let detail = "";
+      try {
+        const j = JSON.parse(body) as { error?: { message?: string; type?: string } | string };
+        detail = typeof j.error === "string" ? j.error : [j.error?.type, j.error?.message].filter(Boolean).join(": ");
+      } catch {
+        detail = body;
+      }
+      return { ok: false, status: res.status, detail: detail.replace(/[A-Za-z0-9_-]{32,}/g, "…").slice(0, 240), reason: res.status === 401 || res.status === 403 ? "not-authorized" : res.status === 402 ? "no-credit" : `error-${res.status}` };
     }
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: unknown };
     console.log(JSON.stringify({ event: "slip.vision", status: 200, model: MODEL, usage: data.usage ?? null }));

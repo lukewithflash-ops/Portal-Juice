@@ -30,7 +30,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Use a PNG or JPG under 3 MB." }, { status: 400 });
     }
     const r = await readSlipImage(body.image, req.headers.get("x-vercel-oidc-token"));
-    if (!r.ok) return NextResponse.json({ vision: false, reason: r.reason }, { status: 200 });
+    if (!r.ok) return NextResponse.json({ vision: false, reason: r.reason, status: r.status ?? null, detail: r.detail ?? null }, { status: 200 });
     rows = r.rows;
     stake = r.stake;
     text = r.text;

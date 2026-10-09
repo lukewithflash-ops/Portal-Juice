@@ -115,6 +115,62 @@ export async function subCount(): Promise<number> {
   return Number(await redis(["HLEN", SUBS])) || 0;
 }
 
+/** One-time test alert, approved by the owner on Oct 9, 2026. Runs once from the cron, then is a no-op. */
+const ONCE_KEY = "pj:push:once:alert-20261009";
+const ONCE_RESULT = "pj:push:once:result";
+const OWN_TEST_DEVICE = "77aaae5a5322624dc96649ca"; // the headless browser used to verify push; removed, not sent
+
+export type OnceRow = { device: string; host: string; action: "sent" | "deleted"; code: number | null; error: string | null };
+
+export async function runOnceAlert(): Promise<OnceRow[] | null> {
+  if (!chatEnabled() || !vapidReady()) return null;
+  const go = await redis(["SET", ONCE_KEY, new Date().toISOString(), "EX", 60 * 60 * 24 * 7, "NX"]);
+  if (go !== "OK") return null;
+  const flat = ((await redis(["HGETALL", SUBS])) as string[] | null) ?? [];
+  const out: OnceRow[] = [];
+  for (let i = 0; i + 1 < flat.length; i += 2) {
+    const endpoint = flat[i];
+    const id = await deviceId(endpoint);
+    const host = (() => {
+      try {
+        return new URL(endpoint).host;
+      } catch {
+        return "?";
+      }
+    })();
+    if (id === OWN_TEST_DEVICE) {
+      await redis(["HDEL", SUBS, endpoint]);
+      await redis(["DEL", INBOX + id]);
+      out.push({ device: id.slice(0, 8), host, action: "deleted", code: null, error: null });
+      continue;
+    }
+    let row: Stored;
+    try {
+      row = JSON.parse(flat[i + 1]) as Stored;
+    } catch {
+      continue;
+    }
+    const at = Date.now();
+    const payload = { title: "Portal Juice test alert — alerts are working", body: "Tap to open Portal Juice.", url: "/lines/portfolio", tag: `test:${at}` };
+    const r = await sendTo(row.sub, payload);
+    await toInbox(endpoint, { key: payload.tag, kind: "test", title: payload.title, body: payload.body, url: payload.url, at, pushed: r.ok, code: r.code }).catch(() => {});
+    out.push({ device: id.slice(0, 8), host, action: "sent", code: r.code, error: r.error });
+  }
+  console.log(JSON.stringify({ event: "push.once", rows: out }));
+  await redis(["SET", ONCE_RESULT, JSON.stringify({ at: new Date().toISOString(), rows: out }), "EX", 60 * 60 * 24 * 7]);
+  return out;
+}
+
+export async function onceResult(): Promise<unknown> {
+  if (!chatEnabled()) return null;
+  const raw = (await redis(["GET", ONCE_RESULT])) as string | null;
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** One check per window, whoever asks: cron, a GitHub schedule, or an open app. */
 export async function tryCheck(source: string, windowS = 50): Promise<{ ran: boolean; result?: Awaited<ReturnType<typeof checkPush>> }> {
   if (!chatEnabled()) return { ran: false };
