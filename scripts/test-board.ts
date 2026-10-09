@@ -868,6 +868,19 @@ t("slip import reads props, spreads, moneylines, totals, and stake; skips junk",
   assert.deepEqual(parseSlipRows("Your bets\nShare\nPlace bet"), []);
 });
 
+t("slip import joins name-over-bet layouts from photo text", () => {
+  const ocr = "Bet Slip - 3 Pick Parlay\n\nJosh Allen -115\nOver 245.5 Passing Yards\n\nBuffalo Bills -110\nSpread -2.5\n\nJames Cook -120\nOver 64.5 Rushing Yards\n\nWager: $10.00 To Pay: $59.60";
+  const rows = parseSlipRows(ocr);
+  assert.deepEqual(rows.map((r) => [r.subject, r.kind, r.line, r.selection, r.odds]), [
+    ["Josh Allen", "prop", 245.5, "Over", -115],
+    ["Buffalo Bills", "spread", -2.5, null, -110],
+    ["James Cook", "prop", 64.5, "Over", -120],
+  ]);
+  assert.equal(stakeOf(ocr), 10);
+  const split = parseSlipRows("LeBron James\nUnder 7.5 Rebounds\n+105");
+  assert.equal(split[0].odds, 105);
+});
+
 t("slip import matches teams and players to real slate games, flags the rest", () => {
   const games: SlateGame[] = [
     { league: "nfl", id: "1", start: "2026-10-11T17:00Z", state: "pre", away: { id: "12", abbr: "KC", name: "Kansas City Chiefs" }, home: { id: "2", abbr: "BUF", name: "Buffalo Bills" } },

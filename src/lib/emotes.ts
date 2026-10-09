@@ -93,7 +93,7 @@ export function replaySnap(snap: LiveSnap, n: number): LiveSnap {
     homeScore: last ? String(last.homeScore) : "0",
     clock: lp?.clock ?? null,
     period: lp ? Number(lp.period) || snap.period : snap.period,
-    detail: lp ? `Replay · ${lp.period ? "P" + lp.period : ""} ${lp.clock ?? ""}`.trim() : "Replay",
+    detail: lp ? `Replay · ${/^\d+$/.test(lp.period) ? "Period " + lp.period : lp.period} ${lp.clock ?? ""}`.trim() : "Replay",
     situation:
       lp && lp.down && lp.yardsToEndzone !== null
         ? { down: lp.down, distance: lp.distance, yardsToEndzone: lp.yardsToEndzone, text: lp.downText ?? null, short: null, spot: lp.spot, teamId: lp.teamId, redZone: lp.yardsToEndzone <= 20, source: "play" }

@@ -70,10 +70,41 @@ const clean = (s: string) => s.replace(/[^A-Za-z0-9 .'&@-]/g, " ").replace(/\s+/
  * One row per line that has a name and something to bet on. Handles props ("Josh Allen Over 245.5 Passing Yards -115"),
  * spreads ("Chiefs -3.5 -110"), moneylines ("Lakers ML +150", "Lakers Moneyline"), and totals ("Over 47.5 Total Points").
  */
+const BET_WORDS = /\b(over|under|spread|money\s?line|ml|total|run line|puck line|alt)\b|^\s*[ou]\s?\d|(?:^|\s)[+-]\d{1,2}(?:\.5)?(?:\s|$)/i;
+const PRICE_ONLY = /^\s*([+-]\d{3,4}|even)\s*$/i;
+
+/**
+ * Many books print the name on one line and the bet under it ("Josh Allen  -115" / "Over 245.5 Passing Yards").
+ * Join those pairs into one row of text. Lines that already read as a full bet stay as they are.
+ */
+export function joinSlipLines(raw: string): string[] {
+  const lines = raw.split(/\n+/).map((l) => l.replace(/[−–—]/g, "-").replace(/\s+/g, " ").trim()).filter(Boolean);
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const cur = lines[i];
+    const next = lines[i + 1];
+    const head = cur.replace(/(?:^|\s)([+-]\d{3,4}|even)\s*$/i, "").trim();
+    const headIsName = /^[A-Za-z][A-Za-z .'&-]{2,40}$/.test(head) && !BET_WORDS.test(head) && head.split(" ").length <= 5;
+    if (headIsName && next && BET_WORDS.test(next) && !/^[A-Za-z][A-Za-z .'-]+\s+(over|under)\b/i.test(next)) {
+      const price = cur.slice(head.length).trim();
+      let joined = `${head} ${next}${price ? " " + price : ""}`;
+      i++;
+      if (lines[i + 1] && PRICE_ONLY.test(lines[i + 1]) && !price) {
+        joined += " " + lines[i + 1].trim();
+        i++;
+      }
+      out.push(joined);
+    } else if (PRICE_ONLY.test(cur) && out.length && !/[+-]\d{3,4}/.test(out[out.length - 1])) {
+      out[out.length - 1] += " " + cur;
+    } else out.push(cur);
+  }
+  return out;
+}
+
 export function parseSlipRows(raw: string): SlipRow[] {
   const rows: SlipRow[] = [];
   const seen = new Set<string>();
-  for (const chunk of raw.split(/\n+/)) {
+  for (const chunk of joinSlipLines(raw)) {
     let line = chunk.replace(/[−–—]/g, "-").replace(/\s+/g, " ").trim();
     if (line.length < 4) continue;
     // Price: a signed 3+ digit number (+150, -110), or "EVEN".
