@@ -121,4 +121,6 @@ export type Pick = {
   selection?: "Over" | "Under" | null;
   /** Link the slip was read from, if any. */
   link?: string;
+  /** Shared by legs saved together from one slip. */
+  slipId?: string;
 };

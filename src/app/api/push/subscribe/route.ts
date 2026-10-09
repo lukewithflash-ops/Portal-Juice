@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   if (!chatEnabled() || !vapidPublic()) {
     return NextResponse.json({ enabled: false, error: "Push opens when the store is connected." }, { status: 503 });
   }
-  let body: { sub?: { endpoint?: string }; props?: unknown[] };
+  let body: { sub?: { endpoint?: string }; props?: unknown[]; games?: unknown; team?: unknown; prefs?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -19,7 +19,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Bad subscription." }, { status: 400 });
   }
   try {
-    await saveSubscription(body.sub as Parameters<typeof saveSubscription>[0], Array.isArray(body.props) ? body.props : []);
+    await saveSubscription(body.sub as Parameters<typeof saveSubscription>[0], Array.isArray(body.props) ? body.props : [], {
+      games: body.games,
+      team: body.team,
+      prefs: body.prefs,
+    });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ enabled: false, error: "Push opens when the store is connected." }, { status: 503 });

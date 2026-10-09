@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import GameDetailView from "@/components/GameDetailView";
 import GameLive from "@/components/GameLive";
+import FollowStar from "@/components/FollowStar";
 import { getGameDetail } from "@/lib/espn";
 import { leagueById } from "@/lib/slate";
 
@@ -38,9 +39,12 @@ export default async function GamePage({ params }: { params: Promise<Params> }) 
           Games
         </Link>
       </p>
-      <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)]">
-        {game.away.name} at {game.home.name}
-      </h1>
+      <div className="flex items-start justify-between gap-3">
+        <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)]">
+          {game.away.name} at {game.home.name}
+        </h1>
+        <FollowStar league={league} id={id} label={`${game.away.abbr} @ ${game.home.abbr}`} big />
+      </div>
       <p className="mt-1 mb-4 text-sm text-zinc-400">
         {game.leagueLabel}
         {game.state === "in" ? " · Live" : game.state === "post" ? " · Final" : ""}

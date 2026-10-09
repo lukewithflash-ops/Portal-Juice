@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { OddsText } from "@/components/Prefs";
+import FollowStar from "@/components/FollowStar";
 import { useEffect, useState } from "react";
 import { TAGLINE } from "@/lib/site";
 import type { Game, Price } from "@/lib/slate";
@@ -154,6 +155,8 @@ export default function GameTile({
             <TeamLink league={game.league} abbr={game.home.abbr} name={game.home.name} rank={game.home.rank} />
           </h3>
         </div>
+        <div className="flex shrink-0 items-start gap-1.5">
+        {game.state !== "post" ? <FollowStar league={game.league} id={game.id} label={`${game.away.abbr} @ ${game.home.abbr}`} /> : null}
         {game.state === "in" ? (
           <span className="pill pill-win shrink-0">Live{game.clock ? ` ${game.clock}` : ""}</span>
         ) : game.state === "post" ? (
@@ -166,6 +169,7 @@ export default function GameTile({
             </span>
           </span>
         )}
+        </div>
       </div>
 
       {showScore && (

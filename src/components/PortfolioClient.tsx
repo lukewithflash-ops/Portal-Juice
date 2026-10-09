@@ -5,6 +5,8 @@ import AddSlip from "@/components/AddSlip";
 import CountUp from "@/components/CountUp";
 import PickTile from "@/components/PickTile";
 import SharePanel from "@/components/SharePanel";
+import LiveSlips from "@/components/LiveSlips";
+import AlertSettings from "@/components/AlertSettings";
 import { validOdds } from "@/lib/odds";
 import { addPick, getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
 import { UNIT_NOTE, unitHint } from "@/lib/units";
@@ -65,7 +67,9 @@ export default function PortfolioClient() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3">
+      <LiveSlips />
+      <AlertSettings />
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => setFormOpen((v) => !v)}

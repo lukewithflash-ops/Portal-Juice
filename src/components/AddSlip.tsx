@@ -90,8 +90,10 @@ export default function AddSlip() {
       setError("Game id is the ESPN number, or leave it blank.");
       return;
     }
+    const slipId = crypto.randomUUID();
     for (const r of chosen) {
       addPick({
+        slipId,
         id: crypto.randomUUID(),
         sport,
         subject: r.subject.trim(),

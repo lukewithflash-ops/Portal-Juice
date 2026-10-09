@@ -686,6 +686,10 @@ export async function getScores(): Promise<{ fetchedAt: string; scores: ScoreRow
             clock: g.clock,
             awayScore: g.away.score,
             homeScore: g.home.score,
+            awayAbbr: g.away.abbr,
+            homeAbbr: g.home.abbr,
+            awayId: g.away.id,
+            homeId: g.home.id,
           })
         );
       } catch {

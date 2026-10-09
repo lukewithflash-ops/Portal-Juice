@@ -145,6 +145,10 @@ export type ScoreRow = {
   clock: string | null;
   awayScore: string | null;
   homeScore: string | null;
+  awayAbbr: string;
+  homeAbbr: string;
+  awayId: string;
+  homeId: string;
 };
 
 /** Lay fresher scoreboard values over a game from the server render. */

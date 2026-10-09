@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import InstallCapture from "@/components/InstallCapture";
 import { PrefsProvider } from "@/components/Prefs";
 import SiteHeader from "@/components/SiteHeader";
+import LiveBanner from "@/components/LiveBanner";
+import { LiveHubProvider } from "@/components/LiveHub";
 import SiteFooter from "@/components/SiteFooter";
 import { SITE_NAME, SITE_URL, TAGLINE } from "@/lib/site";
 import "./globals.css";
@@ -44,12 +46,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} portal-bg antialiased`}>
         <PrefsProvider>
-          <InstallCapture />
-        <div className="flex min-h-screen flex-col">
-          <SiteHeader />
-          <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-[calc(6.6rem+env(safe-area-inset-top))]">{children}</main>
-          <SiteFooter />
-        </div>
+          <LiveHubProvider>
+            <InstallCapture />
+            <div className="flex min-h-screen flex-col">
+              <SiteHeader />
+              <LiveBanner />
+              <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-[calc(6.6rem+env(safe-area-inset-top)+var(--live-h,0px))]">{children}</main>
+              <SiteFooter />
+            </div>
+          </LiveHubProvider>
         </PrefsProvider>
       </body>
     </html>

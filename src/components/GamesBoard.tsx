@@ -136,7 +136,7 @@ export default function GamesBoard({
         </button>
       </div>
 
-      <div className="sticky top-[calc(6.6rem+env(safe-area-inset-top))] z-30 -mx-4 mb-4 border-b border-purple-500/15 bg-[#030306]/90 px-4 py-2 backdrop-blur">
+      <div className="sticky top-[calc(6.6rem+env(safe-area-inset-top)+var(--live-h,0px))] z-30 -mx-4 mb-4 border-b border-purple-500/15 bg-[#030306]/90 px-4 py-2 backdrop-blur">
         <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Chip active={league === "ALL"} onClick={() => setLeague("ALL")}>
             All

@@ -121,7 +121,7 @@ export default function LiveDesk({ league, id }: { league: string; id: string })
 
 function Box({ box, sort, onSort }: { box: LiveBox; sort: number; onSort: (n: number) => void }) {
   const players = useMemo(() => {
-    const rows = box.players.filter((p) => p.played);
+    const rows = box.players.filter((p) => p.played && p.stats.length > 0);
     if (sort <= 0 || sort > box.columns.length) return rows;
     const idx = sort - 1;
     return [...rows].sort((a, b) => num(b.stats[idx]) - num(a.stats[idx]));

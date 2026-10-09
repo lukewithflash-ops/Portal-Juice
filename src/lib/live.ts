@@ -114,13 +114,27 @@ export function parseLive(data: unknown): LiveSnap | null {
     const names = asList(group.names).map((x) => str(x) || "");
     const headers = columns.length ? columns : names;
     const players: LivePlayer[] = [];
-    for (const aRaw of asList(group.athletes)) {
+    // Football splits players across passing, rushing, receiving… Read everyone once.
+    const listed = new Set<string>();
+    const everyone: unknown[] = [];
+    for (const g of groups) {
+      for (const aRaw of asList(g.athletes)) {
+        const aid = str(asDict(asDict(aRaw).athlete).id);
+        if (!aid || listed.has(aid)) continue;
+        listed.add(aid);
+        everyone.push(aRaw);
+      }
+    }
+    const firstRows = new Set(asList(group.athletes).map((x) => str(asDict(asDict(x).athlete).id)));
+    for (const aRaw of everyone) {
       const a = asDict(aRaw);
       const athlete = asDict(a.athlete);
       const name = str(athlete.displayName) || str(athlete.shortName);
       const id = str(athlete.id);
       if (!name || !id) continue;
-      const stats = asList(a.stats).map((x) => (typeof x === "string" ? x : x == null ? "" : String(x)));
+      const stats = firstRows.has(id)
+        ? asList(a.stats).map((x) => (typeof x === "string" ? x : x == null ? "" : String(x)))
+        : [];
       const statMap: Record<string, string> = {};
       for (const g of groups) {
         const gNames = asList(g.names).map((x) => str(x) || "");
@@ -129,6 +143,16 @@ export function parseLive(data: unknown): LiveSnap | null {
         const cells = asList(row?.stats).map((x) => (typeof x === "string" ? x : x == null ? "" : String(x)));
         gNames.forEach((key, i) => {
           if (key && cells[i] != null && cells[i] !== "") statMap[key] = cells[i];
+        });
+        // ESPN's stable stat keys ("passingYards", "points"). A pair key like
+        // "threePointFieldGoalsMade-threePointFieldGoalsAttempted" also maps its first half.
+        asList(g.keys).forEach((raw, i) => {
+          const key = str(raw);
+          const cell = cells[i];
+          if (!key || cell == null || cell === "") return;
+          if (statMap[key] == null) statMap[key] = cell;
+          const first = key.split(/[-/]/)[0];
+          if (first && first !== key && statMap[first] == null) statMap[first] = cell;
         });
         gLabels.forEach((key, i) => {
           if (key && cells[i] != null && cells[i] !== "" && statMap[key] == null) statMap[key] = cells[i];

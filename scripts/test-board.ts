@@ -17,6 +17,9 @@ import { marketFavorites, biggestMoves, hotTrends, mvpHomework } from "../src/li
 import { playKind, playerFromText, isShotAttempt } from "../src/lib/tracker";
 import { clockSpan, isBigPlay, paceOf, parseLine, scoringRun, statNumber, trackProps } from "../src/lib/tracker";
 import type { LivePlay, LiveSnap } from "../src/lib/live";
+import { gameEvents, legEvents } from "../src/lib/alerts";
+import { groupSlips, legFromPick, unitsNeeded } from "../src/lib/motivation";
+import type { Pick } from "../src/lib/types";
 import { freshestStatus, isBehind, parseLive, statusFromScoreboard, type LiveStatus } from "../src/lib/live";
 
 let n = 0;
@@ -476,6 +479,31 @@ t("football plays read from drives, oldest first, no dupes", () => {
   assert.equal(snap.plays[2].period, "2nd");
 });
 
+t("box stats map ESPN keys so NFL yards props track", () => {
+  const snap = parseLive({
+    ...summaryFixture(),
+    boxscore: {
+      players: [
+        {
+          team: { abbreviation: "DAL" },
+          statistics: [
+            { name: "passing", keys: ["completions/passingAttempts", "passingYards"], labels: ["C/ATT", "YDS"], athletes: [{ athlete: { id: "1", displayName: "Dak Prescott" }, stats: ["12/23", "155"] }] },
+            { name: "rushing", keys: ["rushingAttempts", "rushingYards"], labels: ["CAR", "YDS"], athletes: [{ athlete: { id: "1", displayName: "Dak Prescott" }, stats: ["2", "9"] }] },
+            { name: "receiving", keys: ["receptions", "receivingYards"], labels: ["REC", "YDS"], athletes: [{ athlete: { id: "2", displayName: "CeeDee Lamb" }, stats: ["5", "71"] }] },
+          ],
+        },
+      ],
+    },
+  });
+  const dak = snap?.boxes[0].players[0];
+  assert.equal(dak?.statMap.passingYards, "155");
+  assert.equal(dak?.statMap.rushingYards, "9");
+  assert.equal(dak?.statMap.completions, "12/23");
+  const lamb = snap?.boxes[0].players.find((p) => p.name === "CeeDee Lamb");
+  assert.equal(lamb?.statMap.receivingYards, "71");
+  assert.equal(lamb?.statMap.receptions, "5");
+});
+
 t("scoreboard ahead of summary wins score and clock", () => {
   const snap = parseLive(summaryFixture());
   assert.ok(snap);
@@ -512,6 +540,106 @@ t("final beats live; a stale copy is behind", () => {
   assert.ok(!isBehind(live, null));
   const half: LiveStatus = { state: "in", clock: "0:00", detail: "Halftime", period: 2, awayScore: "50", homeScore: "48" };
   assert.ok(isBehind({ ...half, clock: "0:40", detail: "0:40 - 2nd" }, half));
+});
+
+const legSnap = (pts: string, state: "pre" | "in" | "post" = "in", period = 3, clock = "6:00"): LiveSnap => ({
+  state, clock: state === "in" ? clock : null, detail: "", awayAbbr: "BOS", homeAbbr: "CLE", awayScore: "80", homeScore: "78",
+  awayColor: "#000000", homeColor: "#ffffff", awayId: "2", homeId: "5", provider: null, total: null, totalOpen: null,
+  spreadDetail: null, spreadHome: null, spreadOpen: null, awayMl: null, homeMl: null, homeWin: null, win: [], period,
+  boxes: [{ abbr: "BOS", color: "#000000", columns: ["PTS"], players: [{ id: "9", name: "Jaylen Brown", starter: true, played: true, stats: [pts], statMap: { points: pts, PTS: pts } }] }],
+  plays: [],
+});
+const legPick = (over: Partial<Pick> = {}): Pick => ({
+  id: "k1", sport: "NBA", subject: "Jaylen Brown", line: 24.5, odds: 0, stake: 0, book: "Slip", date: "2026-10-08",
+  status: "open", createdAt: "2026-10-08T23:00:00.000Z", league: "nba", gameId: "401", market: "Points", selection: "Over", slipId: "s1", ...over,
+});
+
+t("units needed: 24.5 at 18 needs 7, 15+ at 12 needs 3", () => {
+  assert.equal(unitsNeeded(24.5, 18), 7);
+  assert.equal(unitsNeeded(15, 12), 3);
+  assert.equal(unitsNeeded(24.5, 25), 0);
+  assert.equal(unitsNeeded(15, 15), 0);
+});
+
+t("over leg reads live progress, to-go, and pace from the clock", () => {
+  const leg = legFromPick(legPick(), legSnap("18"));
+  assert.ok(leg);
+  assert.equal(leg.value, 18);
+  assert.equal(leg.toGo, 6.5);
+  assert.equal(leg.progress, "18 of 24.5 pts · 6.5 to go");
+  // 30 of 48 minutes played: 18 / 30 * 48 = 28.8
+  assert.equal(leg.pace, 28.8);
+  assert.equal(leg.tone, "green");
+  assert.equal(leg.status, "on-track");
+});
+
+t("over leg one away, then cleared with Hit!", () => {
+  const near = legFromPick(legPick(), legSnap("24"));
+  assert.equal(near?.hype, "1 away!");
+  const hit = legFromPick(legPick(), legSnap("26"), 24);
+  assert.equal(hit?.status, "cleared");
+  assert.equal(hit?.tone, "gold");
+  assert.equal(hit?.hype, "Hit!");
+  const jump = legFromPick(legPick(), legSnap("12"), 9);
+  assert.equal(jump?.hype, "+3 just now");
+});
+
+t("under leg: over the line is missed, final under is cleared", () => {
+  const under = legPick({ selection: "Under" });
+  assert.equal(legFromPick(under, legSnap("25"))?.status, "missed");
+  assert.equal(legFromPick(under, legSnap("20", "post"))?.status, "cleared");
+  assert.equal(legFromPick(legPick(), legSnap("20", "post"))?.status, "missed");
+});
+
+t("legs wait before tip and need a game id and market", () => {
+  assert.equal(legFromPick(legPick(), legSnap("0", "pre"))?.status, "waiting");
+  assert.equal(legFromPick(legPick({ gameId: undefined }), legSnap("10")), null);
+  assert.equal(legFromPick(legPick({ market: "" }), legSnap("10")), null);
+  assert.equal(legFromPick(legPick({ subject: "Nobody Here" }), legSnap("10"))?.status, "no-match");
+});
+
+t("slip counts X of Y legs hit", () => {
+  const a = legFromPick(legPick(), legSnap("26"));
+  const b = legFromPick(legPick({ id: "k2", line: 30.5 }), legSnap("26"));
+  const c = legFromPick(legPick({ id: "k3", slipId: "s2" }), legSnap("10"));
+  const slips = groupSlips([a, b, c].filter((x): x is NonNullable<typeof x> => !!x));
+  assert.equal(slips.length, 2);
+  assert.equal(slips[0].hit, 1);
+  assert.equal(slips[0].total, 2);
+});
+
+t("game updates: score, lead change, big play, final; nothing on first look", () => {
+  const a = legSnap("10");
+  assert.deepEqual(gameEvents("nba", "401", null, a), []);
+  const play = (id: string, text: string, points = 0): LivePlay => ({ id, text, clock: "", period: "", scoring: points > 0, points, awayScore: null, homeScore: null, teamId: "5", x: null, y: null, down: null, distance: null, yardsToEndzone: null, spot: null, typeText: "" });
+  const before = { ...a, awayScore: "80", homeScore: "78", plays: [play("1", "Jump ball")] };
+  const after = { ...a, awayScore: "80", homeScore: "81", plays: [play("1", "Jump ball"), play("2", "Max Strus makes 26-foot three point jumper", 3)] };
+  const kinds = gameEvents("nba", "401", before, after).map((e) => e.kind).sort();
+  assert.deepEqual(kinds, ["big", "lead", "score"]);
+  const fin = gameEvents("nba", "401", after, { ...after, state: "post" });
+  assert.deepEqual(fin.map((e) => e.kind), ["final"]);
+  assert.match(fin[0].body, /BOS 80 · 81 CLE/);
+});
+
+t("leg updates: close at 2 and 1 away, cleared once", () => {
+  const l = (pts: string, prev: number | null = null) => legFromPick(legPick(), legSnap(pts), prev)!;
+  assert.deepEqual(legEvents(null, l("23")), []);
+  assert.deepEqual(legEvents(l("20"), l("23")).map((e) => e.kind), ["close"]);
+  assert.equal(legEvents(l("20"), l("23"))[0].title, "2 away!");
+  assert.equal(legEvents(l("23"), l("24"))[0].title, "1 away!");
+  assert.deepEqual(legEvents(l("24"), l("24")), []);
+  const hit = legEvents(l("24"), l("25", 24));
+  assert.deepEqual(hit.map((e) => e.kind), ["cleared"]);
+  assert.equal(hit[0].title, "Hit!");
+  assert.deepEqual(legEvents(l("25"), l("27")), []);
+});
+
+t("live motivation has no money or card wording", () => {
+  const files = ["src/lib/motivation.ts", "src/components/LegMeter.tsx", "src/components/LiveBanner.tsx", "src/components/LiveHub.tsx", "src/components/LiveSlips.tsx", "src/lib/alerts.ts", "src/lib/push.ts", "src/components/AlertSettings.tsx", "src/components/FollowStar.tsx"];
+  for (const f of files) {
+    const src = readFileSync(join(process.cwd(), f), "utf8");
+    assert.ok(!/cash(ed)?\b|payout|paid out|\$\d|pok[eé]mon|\bpack\b|\brips?\b/i.test(src.replace(/no money wording|never paid/gi, "")), f);
+  }
 });
 
 console.log(`\n${n} passed`);
