@@ -254,11 +254,47 @@ function juiceFrom(node: unknown): string | null {
   return american(closeOf(node, "odds")) ?? american(asDict(node).odds);
 }
 
+/**
+ * The point spread as words, e.g. "DET -1.5". Built only from point-spread numbers.
+ * ESPN's `details` is the moneyline in hockey and baseball ("DET -142"), so a price never lands here.
+ * Null when the payload has no point spread.
+ */
+export function spreadText(raw: unknown): string | null {
+  const o = asDict(raw);
+  const ps = asDict(o.pointSpread);
+  const lineOf = (node: unknown) => {
+    const v = asDict(asDict(node).close).line ?? asDict(node).line;
+    const m = String(v ?? "").match(/^\s*([+-]?\d+(?:\.\d+)?)\s*$/);
+    return m ? Number(m[1]) : null;
+  };
+  let home = lineOf(ps.home);
+  if (home === null) {
+    const away = lineOf(ps.away);
+    if (away !== null) home = -away;
+  }
+  if (home === null) home = finiteNumber(o.spread);
+  const homeAbbr = str(asDict(asDict(o.homeTeamOdds).team).abbreviation);
+  const awayAbbr = str(asDict(asDict(o.awayTeamOdds).team).abbreviation);
+  if (home === null) {
+    // Last resort: details, only when it reads like a point spread (|n| < 60), never a price.
+    const m = (str(o.details) ?? "").match(/^([A-Z]{2,5})\s+([+-]?\d+(?:\.\d)?)$/);
+    if (m && Math.abs(Number(m[2])) < 60) return `${m[1]} ${Number(m[2]) > 0 ? "+" : ""}${m[2].replace(/^\+/, "")}`;
+    return null;
+  }
+  if (!Number.isFinite(home) || Math.abs(home) >= 60) return null;
+  if (home === 0) return "Pick’em";
+  const favHome = home < 0;
+  const abbr = favHome ? homeAbbr : awayAbbr;
+  const n = Math.abs(home);
+  return abbr ? `${abbr} -${n}` : `${favHome ? "Home" : "Away"} -${n}`;
+}
+
 export function parsePrice(raw: unknown): Price | null {
   const o = asDict(raw);
   if (!Object.keys(o).length) return null;
-  const provider =
-    str(asDict(o.provider).displayName) || str(asDict(o.provider).name) || str(o.provider) || "ESPN";
+  const provider = (
+    str(asDict(o.provider).displayName) || str(asDict(o.provider).name) || str(o.provider) || "ESPN"
+  ).replace(/^Draft\s*Kings$/i, "DraftKings");
 
   let total = finiteNumber(o.overUnder);
   if (total === null) {
@@ -285,7 +321,7 @@ export function parsePrice(raw: unknown): Price | null {
     american(asDict(asDict(ml.away).close).odds) ??
     american(asDict(o.awayTeamOdds).moneyLine);
 
-  const spreadDetail = str(o.details);
+  const spreadDetail = spreadText(o);
   const openNum = (node: unknown): number | null => {
     const line = str(asDict(asDict(node).open).line) ?? "";
     const m = line.match(/-?\d+(?:\.\d+)?/);

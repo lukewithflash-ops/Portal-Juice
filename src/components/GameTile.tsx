@@ -136,14 +136,11 @@ export default function GameTile({
   yours?: boolean;
 }) {
   const moved = !!(move && (move.total || move.spread));
-  const down =
-    (move?.total && move.total.to < move.total.from) ||
-    (move?.spread && move.spread.to < move.spread.from);
   const showScore = game.state === "in" || game.state === "post";
   const [picksOpen, setPicksOpen] = useState(false);
   return (
     <article
-      className={`foil-tile relative p-4 ${moved ? `line-moved ${down ? "against" : ""}` : ""}`}
+      className={`foil-tile relative p-4 ${moved ? "line-moved neutral" : ""}`}
     >
       <Link
         href={`/games/${game.league}/${game.id}`}
@@ -204,7 +201,7 @@ export default function GameTile({
         ))}
 
       {moved && (
-        <p className={`mt-2 text-[11px] font-semibold ${down ? "text-[color:var(--minus)]" : "text-[color:var(--plus)]"}`}>
+        <p className="mt-2 text-[11px] font-semibold text-[color:var(--flat)]">
           {TAGLINE}{" "}
           {move?.total && (
             <span className="tabular font-medium text-zinc-300">

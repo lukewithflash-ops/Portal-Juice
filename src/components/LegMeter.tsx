@@ -1,6 +1,30 @@
 "use client";
 
-import { TONE_COLOR, type Leg, type SlipLive } from "@/lib/motivation";
+import { useState } from "react";
+import { chanceTone, CHANCE_NOTE, type Chance } from "@/lib/chance";
+import { slipChance, TONE_COLOR, type Leg, type SlipLive } from "@/lib/motivation";
+
+const CHANCE_COLOR = { gold: "var(--gold)", green: "var(--plus)", red: "var(--minus)", flat: "#a1a1aa" } as const;
+
+/** "62% ▲" with the arrow showing which way it last moved. */
+export function ChanceBadge({ chance, size = "sm" }: { chance: Chance | null | undefined; size?: "sm" | "lg" }) {
+  const pct = chance?.pct ?? null;
+  const [seen, setSeen] = useState<{ pct: number | null; dir: number }>({ pct, dir: 0 });
+  if (seen.pct !== pct) setSeen({ pct, dir: seen.pct == null || pct == null ? 0 : Math.sign(pct - seen.pct) });
+  if (pct == null) return null;
+  const color = CHANCE_COLOR[chanceTone(pct)];
+  return (
+    <span
+      key={pct}
+      title={`Chance to hit (${chance?.source}). ${CHANCE_NOTE}`}
+      className={"chance-pop tabular inline-flex items-baseline gap-0.5 font-black " + (size === "lg" ? "text-lg" : "text-[11px]")}
+      style={{ color }}
+    >
+      {pct >= 99.9 ? "100" : pct < 1 && pct > 0 ? "<1" : Math.round(pct)}%
+      {seen.dir > 0 ? <span aria-label="up">▲</span> : seen.dir < 0 ? <span aria-label="down">▼</span> : null}
+    </span>
+  );
+}
 
 const STAMP: Partial<Record<Leg["status"], string>> = { cleared: "Hit!", missed: "Missed" };
 
@@ -14,6 +38,7 @@ export function LegMeter({ leg, mini = false }: { leg: Leg; mini?: boolean }) {
         <div className="flex items-baseline justify-between gap-2 text-[11px]">
           <span className="truncate font-bold text-white">{leg.name}</span>
           <span className="tabular shrink-0 font-black" style={{ color }}>
+            <ChanceBadge chance={leg.chance} />{" "}
             {leg.value ?? "—"}
             <span className="font-semibold text-white/60">/{leg.line}</span>
             {cleared ? " ✓" : ""}
@@ -40,6 +65,9 @@ export function LegMeter({ leg, mini = false }: { leg: Leg; mini?: boolean }) {
             {leg.value ?? "—"}
             <span className="text-xs text-zinc-500">/{leg.line}</span>
           </div>
+          <div className="flex justify-end">
+            <ChanceBadge chance={leg.chance} />
+          </div>
           {STAMP[leg.status] ? (
             <div className="text-[10px] font-black uppercase tracking-wider" style={{ color }}>
               {STAMP[leg.status]}
@@ -63,7 +91,14 @@ export function LegMeter({ leg, mini = false }: { leg: Leg; mini?: boolean }) {
 
 export function SlipCount({ slip }: { slip: SlipLive }) {
   const all = slip.hit === slip.total && slip.total > 0;
+  const combo = slip.total > 1 ? slipChance(slip) : null;
   return (
+    <span className="inline-flex items-center gap-1.5">
+    {combo != null ? (
+      <span className="text-[10px] text-zinc-400" title={`All legs together. Same-game legs move together, so this is rough. ${CHANCE_NOTE}`}>
+        All legs <ChanceBadge chance={{ pct: combo, source: "pace" }} />
+      </span>
+    ) : null}
     <span
       className="tabular rounded-full border px-2 py-0.5 text-[11px] font-black"
       style={{
@@ -72,6 +107,7 @@ export function SlipCount({ slip }: { slip: SlipLive }) {
       }}
     >
       {slip.hit} of {slip.total} legs hit
+    </span>
     </span>
   );
 }

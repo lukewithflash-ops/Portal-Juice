@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { pickEmote, playSound, replaySnap, type Emote } from "@/lib/emotes";
+import { EmoteLayer, SoundToggle } from "@/components/Emotes";
 import DriveFeed from "@/components/DriveFeed";
 import GameChat from "@/components/GameChat";
 import Mark from "@/components/Mark";
-import { MomentBadge, TaggedText, YourPlayersProvider, useYourPlayers } from "@/components/YourPlayers";
+import { BetsDock, MomentBadge, TaggedText, YourPlayersProvider, useYourPlayers } from "@/components/YourPlayers";
 import { mentions } from "@/lib/yourPlayers";
-import MyProps from "@/components/MyProps";
 import { isBehind, type LivePlay, type LiveSnap } from "@/lib/live";
 import { POLL_ERROR_MS, pollDelay, usePoll } from "@/components/usePoll";
 import {
@@ -84,22 +85,59 @@ export default function GameLive({
   home: string;
   props: TrackProp[];
 }) {
-  const [snap, setSnap] = useState<LiveSnap | null>(null);
+  const [live, setLive] = useState<LiveSnap | null>(null);
+  const [replay, setReplay] = useState<number | null>(null);
   const [freshIds, setFreshIds] = useState<string[]>([]);
   const [cinema, setCinema] = useState<LivePlay | null>(null);
+  const [emote, setEmote] = useState<Emote | null>(null);
   const [bump, setBump] = useState<{ away: number; home: number }>({ away: 0, home: 0 });
+  const [edge, setEdge] = useState<{ n: number; color: string } | null>(null);
   const [tab, setTab] = useState<"play" | "lines" | "chat">("play");
   const seen = useRef<Set<string> | null>(null);
   const scores = useRef<{ away: string | null; home: string | null }>({ away: null, home: null });
+  const shownRef = useRef<LiveSnap | null>(null);
 
   const cinemaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const emoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSnap = useRef<LiveSnap | null>(null);
   useEffect(
     () => () => {
       if (cinemaTimer.current) clearTimeout(cinemaTimer.current);
+      if (emoteTimer.current) clearTimeout(emoteTimer.current);
     },
     []
   );
+
+  /** New plays in: fresh rows, big-play cinema, a quick emote, score roll and edge lights. */
+  const react = useCallback((data: LiveSnap, quiet: boolean) => {
+    const prev = shownRef.current;
+    const first = seen.current === null;
+    const prior = seen.current ?? new Set<string>();
+    const added = first ? [] : data.plays.filter((p) => !prior.has(p.id));
+    seen.current = new Set([...prior, ...data.plays.map((p) => p.id)]);
+    setFreshIds(added.map((p) => p.id));
+    const big = [...added].reverse().find(isBigPlay);
+    if (big && !quiet) {
+      setCinema(big);
+      if (cinemaTimer.current) clearTimeout(cinemaTimer.current);
+      cinemaTimer.current = setTimeout(() => setCinema(null), 4300);
+    }
+    const em = pickEmote(league, added, prev, data);
+    if (em) {
+      setEmote(em);
+      playSound(em.kind);
+      if (emoteTimer.current) clearTimeout(emoteTimer.current);
+      emoteTimer.current = setTimeout(() => setEmote(null), 1500);
+    }
+    if (!first) {
+      const awayMoved = data.awayScore !== scores.current.away;
+      const homeMoved = data.homeScore !== scores.current.home;
+      setBump((b) => ({ away: awayMoved ? b.away + 1 : b.away, home: homeMoved ? b.home + 1 : b.home }));
+      if (awayMoved || homeMoved) setEdge((e) => ({ n: (e?.n ?? 0) + 1, color: visible((homeMoved ? data.homeColor : data.awayColor) || "#f5c542") }));
+    }
+    scores.current = { away: data.awayScore, home: data.homeScore };
+    shownRef.current = data;
+  }, [league]);
 
   usePoll(async (signal) => {
     const res = await fetch("/api/live/" + league + "/" + id, { cache: "no-store", signal });
@@ -108,27 +146,40 @@ export default function GameLive({
     // An older copy can come back from a different edge. Never step the game backwards.
     if (isBehind(data, lastSnap.current)) return pollDelay(lastSnap.current?.state);
     lastSnap.current = data;
-    const first = seen.current === null;
-    const prior = seen.current ?? new Set<string>();
-    const added = first ? [] : data.plays.filter((p) => !prior.has(p.id));
-    seen.current = new Set([...prior, ...data.plays.map((p) => p.id)]);
-    setFreshIds(added.map((p) => p.id));
-    const big = [...added].reverse().find(isBigPlay);
-    if (big) {
-      setCinema(big);
-      if (cinemaTimer.current) clearTimeout(cinemaTimer.current);
-      cinemaTimer.current = setTimeout(() => setCinema(null), 4300);
-    }
-    if (!first) {
-      setBump((b) => ({
-        away: data.awayScore !== scores.current.away ? b.away + 1 : b.away,
-        home: data.homeScore !== scores.current.home ? b.home + 1 : b.home,
-      }));
-    }
-    scores.current = { away: data.awayScore, home: data.homeScore };
-    setSnap(data);
+    if (replay === null) react(data, false);
+    setLive(data);
     return pollDelay(data.state);
   }, league + "/" + id);
+
+  // Replay: step through the last plays of a final, one every 1.4s, with the same emotes.
+  const snapAt = useCallback((n: number) => (live ? replaySnap(live, n) : null), [live]);
+  function startReplay() {
+    if (!live) return;
+    const start = Math.max(1, live.plays.length - 40);
+    seen.current = new Set(live.plays.slice(0, start).map((p) => p.id));
+    shownRef.current = snapAt(start);
+    scores.current = { away: shownRef.current?.awayScore ?? null, home: shownRef.current?.homeScore ?? null };
+    setReplay(start);
+  }
+  useEffect(() => {
+    if (replay === null || !live) return;
+    const t = setTimeout(() => {
+      const next = replay + 1;
+      if (next > live.plays.length) {
+        setReplay(null);
+        seen.current = null;
+        react(live, true);
+        return;
+      }
+      const v = snapAt(next);
+      if (v) react(v, false);
+      setReplay(next);
+    }, 1400);
+    return () => clearTimeout(t);
+  }, [replay, live, snapAt, react]);
+
+  const view = replay !== null && live ? replaySnap(live, replay) : live;
+  const snap = view;
 
   const rows = useMemo(() => trackProps(props, snap, league), [props, snap, league]);
   const top = rows.slice(0, 8);
@@ -143,10 +194,9 @@ export default function GameLive({
   const vars = { ["--away" as string]: awayColor, ["--home" as string]: homeColor } as React.CSSProperties;
 
   return (
+    <YourPlayersProvider league={league} gameId={id} snap={view}>
     <div className="game-stage">
       <div className={tab === "chat" ? "max-lg:hidden" : ""}>
-        <YourPlayersProvider league={league} gameId={id} snap={snap}>
-        <MyProps league={league} gameId={id} snap={snap} />
         <div className={tab === "lines" ? "max-lg:hidden" : ""} style={vars}>
           <div className="relative">
           <MomentBadge />
@@ -160,8 +210,23 @@ export default function GameLive({
             cinema={cinema}
             bump={bump}
             freshIds={freshIds}
+            emote={emote}
           />
+          {live?.state === "post" && live.plays.length > 3 ? (
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => (replay === null ? startReplay() : (setReplay(null), (seen.current = null), live && react(live, true)))}
+                className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-black text-white"
+              >
+                {replay === null ? "▶ Replay the finish" : "■ Stop replay"}
+              </button>
+              {replay !== null ? <span className="text-[11px] text-zinc-400">Replay · play {replay} of {live.plays.length}</span> : null}
+            </div>
+          ) : null}
+          {edge ? <div key={edge.n} className="edge-lights" style={{ ["--edge" as string]: edge.color } as React.CSSProperties} aria-hidden /> : null}
           </div>
+          <BetsDock variant="bar" />
           {shown && shown.win.length > 1 ? <Momentum snap={shown} flipped={flipped} /> : null}
           {shown ? <PossessionStrip league={league} snap={shown} run={run} /> : null}
           {bigChips.length ? <BigChips plays={bigChips} snap={shown} /> : null}
@@ -179,9 +244,11 @@ export default function GameLive({
         <div className={tab === "play" ? "max-lg:hidden" : ""}>
           <Tracker top={top} rest={rest} state={snap?.state ?? "pre"} />
         </div>
-        </YourPlayersProvider>
       </div>
-      <div className={tab !== "chat" ? "max-lg:hidden lg:block" : "lg:block"}>
+      <div className={(tab !== "chat" ? "max-lg:hidden " : "") + "lg:sticky lg:top-[calc(6.8rem+env(safe-area-inset-top)+var(--live-h,0px))] lg:block"}>
+        <div className="hidden lg:block">
+          <BetsDock variant="side" />
+        </div>
         <GameChat league={league} id={id} awayColor={awayColor} homeColor={homeColor} />
       </div>
       <div className="mt-3 flex gap-1 lg:hidden">
@@ -206,12 +273,70 @@ export default function GameLive({
         ))}
       </div>
     </div>
+    </YourPlayersProvider>
   );
 }
 
 function teamColor(snap: LiveSnap | null, teamId: string | null, awayColor: string, homeColor: string) {
   if (!teamId || !snap) return "#a1a1aa";
   return teamId === snap.homeId ? homeColor : teamId === snap.awayId ? awayColor : "#a1a1aa";
+}
+
+function logoUrl(league: string, abbr: string, id: string): string | null {
+  if (league === "ncaaf") return id ? `https://a.espncdn.com/i/teamlogos/ncaa/500/${id}.png` : null;
+  if (["nfl", "nba", "mlb", "nhl", "wnba"].includes(league) && abbr) return `https://a.espncdn.com/i/teamlogos/${league}/500/${abbr.toLowerCase()}.png`;
+  return null;
+}
+
+function Dots({ n, of, color }: { n: number; of: number; color: string }) {
+  return (
+    <span className="inline-flex gap-0.5" aria-label={`${n} of ${of}`}>
+      {Array.from({ length: of }, (_, i) => (
+        <span key={i} className="h-1.5 w-1.5 rounded-full" style={{ background: i < n ? color : "rgba(255,255,255,0.18)" }} />
+      ))}
+    </span>
+  );
+}
+
+function BugSide({ league, snap, side, fallback, color, bump }: { league: string; snap: LiveSnap | null; side: "away" | "home"; fallback: string; color: string; bump: number }) {
+  const abbr = (side === "home" ? snap?.homeAbbr : snap?.awayAbbr) || fallback;
+  const teamId = (side === "home" ? snap?.homeId : snap?.awayId) ?? "";
+  const score = (side === "home" ? snap?.homeScore : snap?.awayScore) ?? "—";
+  const logo = logoUrl(league, abbr, teamId);
+  const football = league === "nfl" || league === "ncaaf";
+  const ball = snap?.state === "in" && football && snap.situation?.teamId === teamId;
+  const atBat = snap?.state === "in" && league === "mlb" && snap.bug?.half ? (snap.bug.half === "top" ? side === "away" : side === "home") : false;
+  const tos = side === "home" ? snap?.bug?.homeTimeouts : snap?.bug?.awayTimeouts;
+  const right = side === "home";
+  return (
+    <div className={"tv-team " + (right ? "justify-end text-right" : "")}>
+      {!right ? <span className="h-10 w-1.5 rounded-full" style={{ background: color, boxShadow: `0 0 14px ${color}` }} /> : null}
+      {!right && logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={logo} alt="" width={30} height={30} className="h-7 w-7 object-contain" referrerPolicy="no-referrer" />
+      ) : null}
+      <div>
+        <div className={"flex items-center gap-1 text-xs font-black tracking-wider " + (right ? "justify-end" : "")} style={{ color }}>
+          {right && (ball || atBat) ? <span title={ball ? "Ball" : "At bat"}>{ball ? "🏈" : "⚾"}</span> : null}
+          {abbr}
+          {!right && (ball || atBat) ? <span title={ball ? "Ball" : "At bat"}>{ball ? "🏈" : "⚾"}</span> : null}
+        </div>
+        <span key={side + bump} className={"tv-score " + (bump ? "score-roll" : "")} style={{ ["--flash" as string]: color } as React.CSSProperties}>
+          {score}
+        </span>
+        {football && tos != null && snap?.state === "in" ? (
+          <div className={"mt-0.5 flex " + (right ? "justify-end" : "")}>
+            <Dots n={tos} of={3} color="#f5c542" />
+          </div>
+        ) : null}
+      </div>
+      {right && logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={logo} alt="" width={30} height={30} className="h-7 w-7 object-contain" referrerPolicy="no-referrer" />
+      ) : null}
+      {right ? <span className="h-10 w-1.5 rounded-full" style={{ background: color, boxShadow: `0 0 14px ${color}` }} /> : null}
+    </div>
+  );
 }
 
 function Hero({
@@ -224,6 +349,7 @@ function Hero({
   cinema,
   bump,
   freshIds,
+  emote,
 }: {
   league: string;
   snap: LiveSnap | null;
@@ -234,33 +360,33 @@ function Hero({
   cinema: LivePlay | null;
   bump: { away: number; home: number };
   freshIds: string[];
+  emote: Emote | null;
 }) {
   const live = snap?.state === "in";
+  const bug = snap?.bug;
+  const flashKey = bump.away + bump.home;
+  const lastScorer = bump.home >= bump.away ? homeColor : awayColor;
   return (
     <div className="tv-hero">
-      <div className="tv-bug">
-        <div className="tv-team">
-          <span className="h-10 w-1.5 rounded-full" style={{ background: awayColor, boxShadow: `0 0 14px ${awayColor}` }} />
-          <div>
-            <div className="text-xs font-black tracking-wider" style={{ color: awayColor }}>{snap?.awayAbbr || away}</div>
-            <span key={"a" + bump.away} className={"tv-score " + (bump.away ? "score-bump" : "")}>{snap?.awayScore ?? "—"}</span>
-          </div>
-        </div>
+      <div className="stadium-glow" aria-hidden />
+      <div key={"bug" + flashKey} className={"tv-bug " + (flashKey ? "tv-bug-flash" : "")} style={{ ["--flash" as string]: lastScorer } as React.CSSProperties}>
+        <BugSide league={league} snap={snap} side="away" fallback={away} color={awayColor} bump={bump.away} />
         <div className="text-center">
           <div className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white">
             {live ? <span className="tv-live-dot" aria-hidden /> : null}
             {live ? "Live" : snap?.state === "post" ? "Final" : "Soon"}
+            <SoundToggle />
           </div>
           <div className="tabular mt-0.5 text-sm font-black text-[color:var(--flat)]">{live && snap?.clock ? snap.clock : ""}</div>
           <div className="text-[10px] text-zinc-400">{snap?.detail || ""}</div>
+          {live && league === "mlb" && bug ? (
+            <div className="mt-0.5 flex items-center justify-center gap-1.5 text-[10px] font-black text-white">
+              {bug.balls != null && bug.strikes != null ? <span className="tabular">{bug.balls}-{bug.strikes}</span> : null}
+              {bug.outs != null ? <Dots n={bug.outs} of={3} color="#ff3b5c" /> : null}
+            </div>
+          ) : null}
         </div>
-        <div className="tv-team justify-end text-right">
-          <div>
-            <div className="text-xs font-black tracking-wider" style={{ color: homeColor }}>{snap?.homeAbbr || home}</div>
-            <span key={"h" + bump.home} className={"tv-score " + (bump.home ? "score-bump" : "")}>{snap?.homeScore ?? "—"}</span>
-          </div>
-          <span className="h-10 w-1.5 rounded-full" style={{ background: homeColor, boxShadow: `0 0 14px ${homeColor}` }} />
-        </div>
+        <BugSide league={league} snap={snap} side="home" fallback={home} color={homeColor} bump={bump.home} />
       </div>
       <div className="tv-surface">
         {snap ? (
@@ -269,8 +395,41 @@ function Hero({
           <p className="w-full pb-6 text-center text-sm text-zinc-500">Waiting on the live feed.</p>
         )}
       </div>
+      <EmoteLayer emote={emote} color={teamColor(snap, emote?.teamId ?? null, awayColor, homeColor)} />
       {cinema ? <Cinema play={cinema} color={teamColor(snap, cinema.teamId, awayColor, homeColor)} /> : null}
     </div>
+  );
+}
+
+function Diamond({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: string; homeColor: string }) {
+  const bug = snap.bug;
+  const batting = bug?.half === "bottom" ? homeColor : awayColor;
+  const base = (on: boolean | undefined, x: number, y: number, key: string) => (
+    <rect key={key} x={x - 4} y={y - 4} width="8" height="8" transform={`rotate(45 ${x} ${y})`} fill={on ? batting : "rgba(255,255,255,0.12)"} stroke="#fff" strokeWidth="0.6" style={on ? { filter: `drop-shadow(0 0 4px ${batting})` } : undefined} />
+  );
+  const last = [...snap.plays].reverse().find((p) => p.text);
+  return (
+    <svg viewBox="0 0 120 70" preserveAspectRatio="xMidYMax meet" aria-label="Diamond">
+      <defs>
+        <radialGradient id="grass" cx="50%" cy="100%" r="90%">
+          <stop offset="0" stopColor="#14532d" />
+          <stop offset="1" stopColor="#0a2e18" />
+        </radialGradient>
+      </defs>
+      <path d="M60 68 L5 18 A70 70 0 0 1 115 18 Z" fill="url(#grass)" stroke="rgba(255,255,255,0.25)" strokeWidth="0.4" />
+      <path d="M60 66 L84 42 L60 18 L36 42 Z" fill="#7c4a24" opacity="0.85" />
+      <path d="M60 60 L78 42 L60 24 L42 42 Z" fill="#166534" />
+      <line x1="60" y1="66" x2="5" y2="18" stroke="rgba(255,255,255,0.5)" strokeWidth="0.4" />
+      <line x1="60" y1="66" x2="115" y2="18" stroke="rgba(255,255,255,0.5)" strokeWidth="0.4" />
+      <circle cx="60" cy="43" r="2.2" fill="#a16207" />
+      {base(bug?.onSecond, 60, 20, "2b")}
+      {base(bug?.onThird, 38, 42, "3b")}
+      {base(bug?.onFirst, 82, 42, "1b")}
+      <path d="M57 64 h6 l-3 3 z" fill="#fff" />
+      {!bug ? (
+        <text x="60" y="8" fontSize="4" textAnchor="middle" fill="rgba(255,255,255,0.6)">{last ? "" : "Waiting on the first pitch"}</text>
+      ) : null}
+    </svg>
   );
 }
 
@@ -291,6 +450,7 @@ function Surface({
   if (league === "nba" || league === "wnba" || league === "ncaam")
     return <Court snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} />;
   if (league === "nhl") return <Rink snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} />;
+  if (league === "mlb") return <Diamond snap={snap} awayColor={awayColor} homeColor={homeColor} />;
   return null;
 }
 
@@ -329,6 +489,26 @@ function Field({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: stri
       <rect x="0" y="0" width="10" height="54" fill={offense} opacity="0.55" />
       <rect x="110" y="0" width="10" height="54" fill={defense} opacity="0.55" />
       {redZone ? <rect x="90" y="0" width="20" height="54" fill="rgba(255,59,92,0.22)" /> : null}
+      {Array.from({ length: 99 }, (_, i) => 11 + i).map((x) =>
+        x % 5 === 0 ? null : (
+          <g key={"h" + x} stroke="rgba(255,255,255,0.28)" strokeWidth="0.15">
+            <line x1={x} y1="1" x2={x} y2="2.2" />
+            <line x1={x} y1="20" x2={x} y2="21.2" />
+            <line x1={x} y1="32.8" x2={x} y2="34" />
+            <line x1={x} y1="51.8" x2={x} y2="53" />
+          </g>
+        )
+      )}
+      {teamId ? (
+        <>
+          <text x="5" y="27" fontSize="5" fontWeight="900" textAnchor="middle" fill="rgba(255,255,255,0.75)" transform="rotate(-90 5 27)" letterSpacing="1">
+            {teamId === snap.homeId ? snap.homeAbbr : snap.awayAbbr}
+          </text>
+          <text x="115" y="27" fontSize="5" fontWeight="900" textAnchor="middle" fill="rgba(255,255,255,0.75)" transform="rotate(90 115 27)" letterSpacing="1">
+            {teamId === snap.homeId ? snap.awayAbbr : snap.homeAbbr}
+          </text>
+        </>
+      ) : null}
       {Array.from({ length: 21 }, (_, i) => 10 + i * 5).map((x) => (
         <line key={x} x1={x} y1="0" x2={x} y2="54" stroke="rgba(255,255,255,0.35)" strokeWidth={x % 10 === 0 ? 0.45 : 0.2} />
       ))}

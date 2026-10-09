@@ -7,6 +7,7 @@
 import type { LiveSnap } from "@/lib/live";
 import type { Pick } from "@/lib/types";
 import { clockSpan, liveStat, marketGroups, paceOf, playerByName, type TrackTone } from "@/lib/tracker";
+import { combinedChance, livePropChance, playedShare, pregameChance, type Chance } from "@/lib/chance";
 
 export type LegStatus = "waiting" | "on-track" | "behind" | "cleared" | "missed" | "no-match";
 
@@ -36,6 +37,8 @@ export type Leg = {
   final: boolean;
   /** ESPN athlete id from the box, once matched. */
   athleteId?: string | null;
+  /** Chance to hit, 0–100, with where it came from. Null with nothing to go on. */
+  chance?: Chance | null;
 };
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -71,7 +74,27 @@ function shortMarket(m: string): string {
   return t.toLowerCase();
 }
 
+/** Leg plus its chance to hit (see chance.ts). */
 export function legFromPick(pick: Pick, snap: LiveSnap | null, prevValue: number | null = null): Leg | null {
+  const leg = legCore(pick, snap, prevValue);
+  if (!leg) return leg;
+  return { ...leg, chance: legChance(leg, pick, snap) };
+}
+
+export function legChance(leg: Leg, pick: Pick, snap: LiveSnap | null): Chance | null {
+  if (!snap || snap.state === "pre") return pregameChance(pick.odds);
+  if (leg.value === null) return snap.state === "post" ? null : pregameChance(pick.odds);
+  const span = clockSpan(leg.league, snap.period, snap.clock, snap.state);
+  const played = playedShare(leg.league, span, snap.period, snap.state, snap.bug?.half ?? null);
+  return livePropChance({ value: leg.value, line: leg.line, side: leg.side, played, final: leg.final, market: leg.market });
+}
+
+/** Every leg in a slip has to hit. Null until each leg has a chance. */
+export function slipChance(slip: SlipLive): number | null {
+  return combinedChance(slip.legs.map((l) => l.chance?.pct ?? null));
+}
+
+function legCore(pick: Pick, snap: LiveSnap | null, prevValue: number | null = null): Leg | null {
   if (!pick.market || !pick.gameId || !pick.league) return null;
   if (!marketGroups(pick.market).length || !(pick.line > 0)) return null;
   const side: Leg["side"] = pick.selection === "Under" ? "Under" : "Over";
@@ -186,4 +209,4 @@ export const TONE_COLOR: Record<TrackTone, string> = {
   flat: "#a1a1aa",
 };
 
-export const PACE_NOTE = "Pace is the current rate stretched to a full game. Not a prediction.";
+export const PACE_NOTE = "Pace is the current rate stretched to a full game. Chance to hit: estimate from pace and price. Not a guarantee.";

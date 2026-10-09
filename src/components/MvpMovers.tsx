@@ -55,7 +55,7 @@ export default function MvpMovers({ rows }: { rows: Row[] }) {
               {m.name}
               {m.team ? <span className="text-zinc-500"> · {m.team}</span> : null}
             </span>
-            <span className={`tabular font-bold ${m.delta >= 0 ? "text-[color:var(--plus)]" : "text-[color:var(--minus)]"}`}>
+            <span className={`tabular font-bold ${m.delta < 0 ? "text-[color:var(--plus)]" : m.delta > 0 ? "text-[color:var(--minus)]" : "text-[color:var(--flat)]"}`}>
               {m.from > 0 ? `+${m.from}` : m.from} → {m.odds}
             </span>
           </li>

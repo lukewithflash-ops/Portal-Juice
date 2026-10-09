@@ -9,7 +9,7 @@
  */
 import type { Game } from "@/lib/slate";
 
-export const PORTAL_PICK_LABEL = "Portal Pick · ranked by the numbers. Not a guarantee.";
+export const PORTAL_PICK_LABEL = "Portal Pick · free · one a day. Not a guarantee.";
 export const PORTAL_PICK_RULE =
   "The biggest open-to-now move ESPN posted on a total or spread for a game that has not started. We take the side the market moved toward, at the current number. Graded on the ESPN final.";
 

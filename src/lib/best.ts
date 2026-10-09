@@ -23,6 +23,8 @@ export type LineMove = {
   href: string;
   provider: string;
   homework: string;
+  /** Color for the printed side. Totals have no side: always flat. Spread rows print the home side. */
+  tone: "plus" | "minus" | "flat";
 };
 
 export type HotTrend = Trend & { delta: number; homework: string };
@@ -97,6 +99,7 @@ export function biggestMoves(games: Game[]): LineMove[] {
         label,
         text: `Total ${price.totalOpen} → ${price.total}`,
         delta: price.total - price.totalOpen,
+        tone: "flat",
         href,
         provider: price.provider,
         homework: `Total moved ${fmtNum(price.totalOpen)} → ${fmtNum(price.total)} since open, ${price.total > price.totalOpen ? "up" : "down"} ${fmtNum(Math.abs(price.total - price.totalOpen))} (${price.provider}).`,
@@ -108,6 +111,8 @@ export function biggestMoves(games: Game[]): LineMove[] {
         label,
         text: `Spread ${price.spreadHomeOpen} → ${price.spreadHome}`,
         delta: price.spreadHome - price.spreadHomeOpen,
+        // Home spread up (−3 → −2.5) is a better number for the home side.
+        tone: price.spreadHome > price.spreadHomeOpen ? "plus" : "minus",
         href,
         provider: price.provider,
         homework: `${g.home.abbr} spread moved ${fmtNum(price.spreadHomeOpen)} → ${fmtNum(price.spreadHome)} since open, ${fmtNum(Math.abs(price.spreadHome - price.spreadHomeOpen))} points (${price.provider}).`,

@@ -1,7 +1,7 @@
 /** Pure parsers for a game summary, player props, and MVP futures. No network. */
 
 import { implied, validOdds } from "@/lib/odds";
-import { american, athleteIdFromRef, finiteNumber, parseStories, type Story } from "@/lib/slate";
+import { american, athleteIdFromRef, finiteNumber, parseStories, spreadText, type Story } from "@/lib/slate";
 
 type Dict = Record<string, unknown>;
 const asDict = (v: unknown): Dict => (v && typeof v === "object" ? (v as Dict) : {});
@@ -112,8 +112,9 @@ function closeOdds(node: unknown): string | null {
 export function parseOddsMove(raw: unknown): OddsMove | null {
   const o = asDict(raw);
   if (!Object.keys(o).length) return null;
-  const provider =
-    str(asDict(o.provider).displayName) || str(asDict(o.provider).name) || "ESPN";
+  const provider = (
+    str(asDict(o.provider).displayName) || str(asDict(o.provider).name) || "ESPN"
+  ).replace(/^Draft\s*Kings$/i, "DraftKings");
   const total = finiteNumber(o.overUnder);
   const overOpen = asDict(asDict(asDict(o.total).over).open);
   const totalOpen = lineNum(overOpen.line) ?? finiteNumber(overOpen.line);
@@ -128,7 +129,7 @@ export function parseOddsMove(raw: unknown): OddsMove | null {
     totalOpen: totalOpen !== null && totalOpen !== total ? totalOpen : totalOpen,
     overJuice: american(o.overOdds) ?? closeOdds(asDict(o.total).over),
     underJuice: american(o.underOdds) ?? closeOdds(asDict(o.total).under),
-    spreadDetail: str(o.details),
+    spreadDetail: spreadText(o),
     spreadHome: lineNum(homeClose.line) ?? finiteNumber(o.spread),
     spreadHomeOpen: lineNum(homeOpen.line),
     homeSpread: str(homeClose.line),

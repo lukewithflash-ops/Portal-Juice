@@ -20,17 +20,17 @@ export function PortalPickPanel({
   compact?: boolean;
 }) {
   const shown = pick ? (pick.kind === "total" ? `${pick.side} ${n1(pick.line)}` : `${pick.side} ${signed(pick.line)}`) : null;
-  const edge = pick ? (pick.kind === "total" ? `${n1(pick.open)} → ${n1(pick.line)}` : `${signed(pick.open)} → ${signed(pick.line)}`) : null;
+  const move = pick ? (pick.kind === "total" ? `${n1(pick.open)} → ${n1(pick.line)}` : `${signed(pick.open)} → ${signed(pick.line)}`) : null;
   const rateText = !tracked
     ? "Hit rate starts when the store is connected."
     : record.rate === null
       ? "No graded Portal Picks yet. The hit rate starts with the first final."
-      : `${record.rate}% hit · ${record.hits}–${record.misses}${record.pushes ? `–${record.pushes}` : ""} across ${record.graded} graded`;
+      : `Sample: ${record.hits}–${record.misses}${record.pushes ? `–${record.pushes}` : ""} (${record.graded} graded). A small sample, not proof.`;
   return (
     <section aria-label="Portal Pick" className="gold-edge rounded-2xl">
       <div className="foil-tile p-4">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[10px] font-black uppercase tracking-[0.24em] tone-gold">Portal Pick · Free</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.24em] tone-gold">Portal Pick · free · one a day</span>
           {pick?.result ? (
             <span
               className={
@@ -47,7 +47,7 @@ export function PortalPickPanel({
             <div className="text-[13px] text-zinc-400">{pick.label}</div>
             <div className="big-num text-4xl font-black text-[color:var(--flat)]">{shown}</div>
             <div className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[12px]">
-              <span className="font-bold text-[color:var(--plus)]">Edge: {pick.kind} {edge} since open</span>
+              <span className="font-bold text-[color:var(--flat)]">Line move: {pick.kind} {move} since open</span>
               <span className="text-zinc-500">{pick.provider}</span>
             </div>
             {!compact ? <p className="mt-2 text-[13px] leading-snug text-zinc-300">{pick.homework}</p> : null}
@@ -60,18 +60,6 @@ export function PortalPickPanel({
         <p className="mt-2 text-[11px] text-zinc-500">{PORTAL_PICK_LABEL}</p>
         {!compact ? <p className="mt-1 text-[11px] leading-snug text-zinc-500">Rule: {PORTAL_PICK_RULE}</p> : null}
       </div>
-    </section>
-  );
-}
-
-export function VipPanel() {
-  return (
-    <section aria-label="VIP Portal Picks" className="mt-3 rounded-2xl border border-dashed border-[color:var(--gold)]/40 p-4">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-black uppercase tracking-[0.24em] text-zinc-400">🔒 Best Portal Picks daily · VIP</span>
-        <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold uppercase text-zinc-300">Coming soon</span>
-      </div>
-      <p className="mt-2 text-[12px] text-zinc-500">Opens with accounts. Nothing to buy yet.</p>
     </section>
   );
 }

@@ -81,6 +81,46 @@ export type LiveSituation = {
   source: "scoreboard" | "play";
 };
 
+/** Score bug extras, only what ESPN posts. */
+export type LiveBug = {
+  balls: number | null;
+  strikes: number | null;
+  outs: number | null;
+  onFirst: boolean;
+  onSecond: boolean;
+  onThird: boolean;
+  half: "top" | "bottom" | null;
+  homeTimeouts: number | null;
+  awayTimeouts: number | null;
+};
+
+/** Reads a summary or scoreboard `situation` plus the status detail ("Top 5th"). */
+export function readBug(sitRaw: unknown, detail: string | null): LiveBug | null {
+  const sit = asDict(sitRaw);
+  const on = (v: unknown) => v === true || (!!v && typeof v === "object");
+  const half = /\b(top|mid)\b/i.test(detail ?? "") ? "top" : /\b(bot|bottom|end)\b/i.test(detail ?? "") ? "bottom" : null;
+  const bug: LiveBug = {
+    balls: num(sit.balls),
+    strikes: num(sit.strikes),
+    outs: num(sit.outs),
+    onFirst: on(sit.onFirst),
+    onSecond: on(sit.onSecond),
+    onThird: on(sit.onThird),
+    half,
+    homeTimeouts: num(sit.homeTimeouts),
+    awayTimeouts: num(sit.awayTimeouts),
+  };
+  const any = bug.balls !== null || bug.outs !== null || bug.homeTimeouts !== null || bug.onFirst || bug.onSecond || bug.onThird || half;
+  return any ? bug : null;
+}
+
+export function bugFromScoreboard(data: unknown, eventId: string): LiveBug | null {
+  const ev = asList(asDict(data).events).map(asDict).find((e) => str(e.id) === eventId);
+  if (!ev) return null;
+  const comp = asDict(asList(ev.competitions)[0]);
+  return readBug(comp.situation, str(asDict(asDict(comp.status).type).shortDetail) ?? str(asDict(asDict(ev.status).type).shortDetail));
+}
+
 export type LiveSnap = {
   state: "pre" | "in" | "post";
   clock: string | null;
@@ -110,6 +150,7 @@ export type LiveSnap = {
   /** Football only. Every drive in order, oldest first. */
   drives: LiveDrive[];
   situation: LiveSituation | null;
+  bug?: LiveBug | null;
 };
 
 function colorOf(raw: unknown): string {
@@ -375,6 +416,7 @@ export function parseLive(data: unknown): LiveSnap | null {
     plays,
     drives,
     situation,
+    bug: state === "in" ? readBug(d.situation, str(asDict(asDict(comp.status).type).shortDetail)) : null,
   };
 }
 

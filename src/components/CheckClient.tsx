@@ -94,7 +94,11 @@ export default function CheckClient() {
   useEffect(() => {
     fetch("/api/check/games")
       .then((r) => r.json())
-      .then((d: { games: GameOpt[] }) => setGames(d.games ?? []))
+      .then((d: { games: GameOpt[] }) => {
+        setGames(d.games ?? []);
+        const want = new URLSearchParams(window.location.search).get("g");
+        if (want && (d.games ?? []).some((g) => `${g.league}/${g.id}` === want)) setGameKey(want);
+      })
       .catch(() => setGames([]));
   }, []);
 

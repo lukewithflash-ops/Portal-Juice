@@ -290,7 +290,7 @@ function pitcherPoints(g: GameResearch, side: "home" | "away", pros: Point[], co
   }
   if (mine?.era != null && theirs?.era != null) {
     const gap = r1(theirs.era - mine.era);
-    if (gap >= 0.75) pros.push({ text: `Starter edge: ${mine.name} ${mine.era.toFixed(2)} ERA vs ${theirs.name} ${theirs.era.toFixed(2)}`, weight: 2 });
+    if (gap >= 0.75) pros.push({ text: `Starter gap: ${mine.name} ${mine.era.toFixed(2)} ERA vs ${theirs.name} ${theirs.era.toFixed(2)}`, weight: 2 });
     else if (gap <= -0.75) cons.push({ text: `Starter gap: ${mine.name} ${mine.era.toFixed(2)} ERA vs ${theirs.name} ${theirs.era.toFixed(2)}`, weight: -2 });
   } else if (!mine || !theirs) {
     facts.push({ label: "Starters", value: "Not posted by ESPN yet" });
@@ -343,9 +343,12 @@ function sideLeg(input: LegInput, g: GameResearch, kind: "spread" | "moneyline")
       const open = o.spreadHomeOpen;
       facts.push({ label: "Spread", value: `${g.home.abbr} ${fmtLine(o.spreadHome)}${open != null && open !== o.spreadHome ? ` (opened ${fmtLine(open)})` : ""} · ${o.provider}` });
       if (open != null && open !== o.spreadHome) {
-        const toward = side === "home" ? o.spreadHome < open : o.spreadHome > open;
+        // Judged by the number you get now: a higher number for your side is better (−3 → −2.5).
+        const mineNow = side === "home" ? o.spreadHome : -o.spreadHome;
+        const mineOpen = side === "home" ? open : -open;
+        const better = mineNow > mineOpen;
         const moved = Math.abs(r1(o.spreadHome - open));
-        (toward ? pros : cons).push({ text: `Line moved ${moved} ${toward ? "toward" : "away from"} ${me.abbr} since open (${g.home.abbr} ${fmtLine(open)} → ${fmtLine(o.spreadHome)})`, weight: toward ? 1 : -1 });
+        (better ? pros : cons).push({ text: `Spread moved ${moved} since open (${me.abbr} ${fmtLine(mineOpen)} → ${fmtLine(mineNow)}): a ${better ? "better" : "worse"} number for ${me.abbr} now`, weight: better ? 1 : -1 });
       }
     }
     const ml = side === "home" ? o.homeMl : o.awayMl;
@@ -431,7 +434,8 @@ function totalLeg(input: LegInput, g: GameResearch): LegReport {
     facts.push({ label: "Total", value: `${o.total}${o.totalOpen != null && o.totalOpen !== o.total ? ` (opened ${o.totalOpen})` : ""} · ${o.provider}` });
     if (o.totalOpen != null && o.totalOpen !== o.total) {
       const up = o.total > o.totalOpen;
-      say(up === (pick === "over"), `Total moved ${up ? "up" : "down"} ${r1(Math.abs(o.total - o.totalOpen))} since open (${o.totalOpen} → ${o.total})`);
+      const better = up === (pick === "under");
+      say(better, `Total moved ${up ? "up" : "down"} ${r1(Math.abs(o.total - o.totalOpen))} since open (${o.totalOpen} → ${o.total}): a ${better ? "better" : "worse"} number for the ${pick}`);
     }
   }
   if (line == null) {
@@ -578,8 +582,8 @@ function propLeg(input: LegInput, g: GameResearch, p: PlayerResearch | null): Le
   }
   if (input.openLine != null && input.openLine !== line) {
     const up = line > input.openLine;
-    const good = up === (pick === "over");
-    (good ? pros : cons).push({ text: `Line moved ${up ? "up" : "down"} from ${input.openLine} to ${line}`, weight: good ? 1 : -1 });
+    const good = up === (pick === "under");
+    (good ? pros : cons).push({ text: `Line moved ${up ? "up" : "down"} from ${input.openLine} to ${line}: a ${good ? "better" : "worse"} number for the ${pick}`, weight: good ? 1 : -1 });
   }
   const team = isHome === null ? null : isHome ? g.home : g.away;
   const listed = team?.injuries.find((i) => i.name.toLowerCase() === p.name.toLowerCase());

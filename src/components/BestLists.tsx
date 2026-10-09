@@ -104,7 +104,7 @@ export function MoveList({ rows }: { rows: LineMove[] }) {
           sub={r.provider}
           homework={r.homework}
           metric={`${r.delta > 0 ? "▲" : "▼"} ${Math.abs(Math.round(r.delta * 10) / 10)}`}
-          metricTone={r.delta > 0 ? "plus" : "minus"}
+          metricTone={r.tone}
           metricSub={r.id.endsWith("total") ? "total" : "spread"}
         />
       ))}
@@ -164,7 +164,7 @@ export function MvpList({ rows, provider }: { rows: MvpRow[]; provider: string }
 export function BestStrip({ fav, move, hot }: { fav: Favorite | null; move: LineMove | null; hot: HotTrend | null }) {
   const items = [
     fav ? { key: "fav", group: "Market favorite", href: fav.href, title: `${fav.side} · ${fav.label}`, homework: fav.homework } : null,
-    move ? { key: "move", group: "Biggest move", href: move.href, title: move.label, homework: move.homework, delta: move.delta } : null,
+    move ? { key: "move", group: "Biggest move", href: move.href, title: move.label, homework: move.homework, tone: move.tone } : null,
     hot ? { key: "hot", group: "Hot player", href: `/games/${hot.league}/${hot.gameId}`, title: hot.name, homework: hot.homework } : null,
   ].filter((x) => x !== null);
   if (!items.length) return <p className="text-sm text-zinc-400">Nothing ranked yet today.</p>;
@@ -178,11 +178,11 @@ export function BestStrip({ fav, move, hot }: { fav: Favorite | null; move: Line
             <span
               className={
                 "mt-1 block text-[13px] leading-snug " +
-                ("delta" in it && typeof it.delta === "number"
-                  ? it.delta > 0
-                    ? "text-[color:var(--plus)]"
-                    : "text-[color:var(--minus)]"
-                  : "text-zinc-300")
+                ("tone" in it && it.tone === "plus"
+                  ? "text-[color:var(--plus)]"
+                  : "tone" in it && it.tone === "minus"
+                    ? "text-[color:var(--minus)]"
+                    : "text-zinc-300")
               }
             >
               {it.homework}

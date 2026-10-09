@@ -2,7 +2,7 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { allowedHeadshot } from "@/lib/headshots";
 import { implied } from "@/lib/odds";
-import { freshestStatus, parseLive, situationFromScoreboard, statusFromScoreboard, type LiveSnap } from "@/lib/live";
+import { bugFromScoreboard, freshestStatus, parseLive, situationFromScoreboard, statusFromScoreboard, type LiveSnap } from "@/lib/live";
 import {
   parseMvpMarket,
   parsePropItems,
@@ -668,9 +668,11 @@ export async function getLive(leagueId: string, id: string): Promise<LiveSnap | 
   if (!day) return snap;
   try {
     const board = await memoJson(`${base}/scoreboard?dates=${day}&limit=300`);
-    const merged = freshestStatus(snap, statusFromScoreboard(board, id));
+    const fresh = freshestStatus(snap, statusFromScoreboard(board, id));
+    const bug = bugFromScoreboard(board, id);
+    const merged = bug && fresh.state === "in" ? { ...fresh, bug: { ...(fresh.bug ?? {}), ...bug } } : fresh;
     // Scoreboard was as fresh or fresher: take its down and distance too.
-    if (merged !== snap && merged.drives.length) {
+    if (fresh !== snap && merged.drives.length) {
       const sit = situationFromScoreboard(board, id, merged);
       if (sit) return { ...merged, situation: sit };
     }

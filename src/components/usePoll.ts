@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
-/** Live game: every 5s. Before start: 30s. Final: 60s. */
-export const POLL_LIVE_MS = 5_000;
+/** Live game: every 2.5s (the edge shares one copy per 2s). Before start: 30s. Final: 60s. */
+export const POLL_LIVE_MS = 2_500;
 export const POLL_PRE_MS = 30_000;
 export const POLL_FINAL_MS = 60_000;
 export const POLL_ERROR_MS = 10_000;
@@ -63,12 +63,14 @@ export function usePoll(pull: (signal: AbortSignal) => Promise<number>, key: str
     run();
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", onVisible);
+    window.addEventListener("focus", onVisible);
     return () => {
       dead = true;
       clear();
       ctrl?.abort();
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", onVisible);
+      window.removeEventListener("focus", onVisible);
     };
   }, [key]);
 }

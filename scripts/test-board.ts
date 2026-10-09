@@ -12,10 +12,9 @@ import { impliedChance, parseMvpMarket, parsePropItems, parseWeather, rankByImpl
 import { parseSlipText, safeSlipUrl } from "../src/lib/slip";
 import { choosePortalPick, gradePortalPick, portalRecord } from "../src/lib/portalPick";
 import { rankLeaders, cleanLeg, cleanLeaderHandle } from "../src/lib/leaderRank";
-import { unitHint } from "../src/lib/units";
 import { analyzeLeg, checkHref, hitCount, legFromLogged, legsFromParam, median, parlayMath, recentEra, statFromMarket, windMph, type GameResearch, type LegReport, type PlayerResearch, type TeamResearch } from "../src/lib/breakdown";
 import { logValue, parseGameLog, parseStandings, rankAll } from "../src/lib/researchParse";
-import { baseUnit, pickKind, pickNet, suggestUnits, summarize, winAmount } from "../src/lib/ledger";
+import { pickKind, summarize } from "../src/lib/ledger";
 import { marketFavorites, biggestMoves, hotTrends, mvpHomework } from "../src/lib/best";
 import { playKind, playerFromText, isShotAttempt } from "../src/lib/tracker";
 import { clockSpan, isBigPlay, paceOf, parseLine, scoringRun, statNumber, trackProps } from "../src/lib/tracker";
@@ -28,6 +27,11 @@ import { freshestStatus, isBehind, parseLive, situationFromScoreboard, statusFro
 import { findTeamGames, matchRow, parseSlipRows, stakeOf, teamScore, type SlateGame } from "../src/lib/slipImport";
 import { rankTopPicks } from "../src/lib/topRank";
 import { mentions, tagPlayers } from "../src/lib/yourPlayers";
+
+import { combinedChance, impliedFromAmerican, livePropChance, liveTeamChance, playedShare, poissonAtLeast, pregameChance } from "../src/lib/chance";
+import { juiceDir, lineDir, loggedLineDir, priceDir } from "../src/lib/move";
+import { spreadText } from "../src/lib/slate";
+import { emoteOf, pickEmote, replaySnap } from "../src/lib/emotes";
 
 let n = 0;
 const t = (name: string, fn: () => void) => {
@@ -137,7 +141,7 @@ t("price parser uses only numbers that were sent", () => {
   });
   assert.ok(price);
   assert.equal(price.total, 48.5);
-  assert.equal(price.provider, "Draft Kings");
+  assert.equal(price.provider, "DraftKings");
   assert.equal(price.spreadHome, -8.5);
   assert.equal(price.homeMl, "-500");
   assert.equal(price.awayMl, "+380");
@@ -387,18 +391,6 @@ t("best homework uses only posted numbers and skips missing signals", () => {
 });
 
 
-t("suggested unit comes only from logged stakes", () => {
-  const mk = (stake: number, status: "open" | "win" = "win") => ({ id: String(stake) + status, sport: "NBA", subject: "x", line: 1, odds: 0, stake, book: "b", date: "2026-10-08", status, createdAt: "" }) as Parameters<typeof unitHint>[0][number];
-  assert.equal(unitHint([]), null);
-  assert.equal(unitHint([mk(0)]), null);
-  const h = unitHint([mk(10), mk(20, "open"), mk(30), mk(0)]);
-  assert.ok(h);
-  assert.equal(h.unit, 20);
-  assert.equal(h.count, 3);
-  assert.equal(h.total, 60);
-  assert.equal(h.totalUnits, 3);
-  assert.equal(h.openUnits, 1);
-});
 
 
 t("leaders rank by hit rate with a minimum sample and carry no money fields", () => {
@@ -759,7 +751,7 @@ t("MLB starter edge and line move drive a moneyline", () => {
     odds: { provider: "DK", spreadHome: -1.5, spreadHomeOpen: -1.5, total: 7.5, totalOpen: 8, homeMl: -150, awayMl: 130, homeMlOpen: -135, awayMlOpen: 115, overJuice: -110, underJuice: -110, homeSpreadJuice: 120, awaySpreadJuice: -140 },
   });
   const r = analyzeLeg({ league: "mlb", gameId: "1", kind: "moneyline", side: "home" }, g);
-  assert.ok(r.pros.some((p) => p.text === "Starter edge: Ace 2.50 ERA vs Arm 4.40"));
+  assert.ok(r.pros.some((p) => p.text === "Starter gap: Ace 2.50 ERA vs Arm 4.40"));
   assert.ok(r.pros.some((p) => /Price shortened: -135 → -150/.test(p.text)));
   assert.equal(r.odds, -150);
   assert.ok(Math.abs((r.implied ?? 0) - 0.6) < 1e-9);
@@ -768,9 +760,11 @@ t("MLB starter edge and line move drive a moneyline", () => {
   assert.equal(away.lean, "bad");
   const rec = recentEra(pit("Ace", 2.5));
   assert.deepEqual(rec, { era: 3.18, ip: "11.1", k: 12, starts: 2 });
-  // Total under: the posted move down is a pro for the under.
+  // Total 8 → 7.5: a worse number for the under (con), a better number for the over (pro).
   const u = analyzeLeg({ league: "mlb", gameId: "1", kind: "total", pick: "under" }, g);
-  assert.ok(u.pros.some((p) => /Total moved down 0\.5 since open \(8 → 7\.5\)/.test(p.text)));
+  assert.ok(u.cons.some((p) => /Total moved down 0\.5 since open \(8 → 7\.5\): a worse number for the under/.test(p.text)));
+  const ov = analyzeLeg({ league: "mlb", gameId: "1", kind: "total", pick: "over" }, g);
+  assert.ok(ov.pros.some((p) => /a better number for the over/.test(p.text)));
 });
 
 t("parlay math: product of implied, weakest red and strongest gold, same-game caveat", () => {
@@ -837,36 +831,19 @@ t("research parsers: ranks, standings, game log values", () => {
 });
 
 // ---------- Log ----------
-t("log math: net from stakes and odds, units, hit rate", () => {
+t("log tally is wins, losses, pushes, open only; no profit, units, or sizing on the Log", () => {
   const mk = (stake: number, odds: number, status: "open" | "win" | "loss" | "push", market = "Points") =>
-    ({ id: `${stake}${odds}${status}`, sport: "NBA", subject: "x", line: 1, odds, stake, book: "b", date: "2026-10-08", status, createdAt: "", market }) as Parameters<typeof pickNet>[0];
-  assert.equal(winAmount(110, -110), 100);
-  assert.equal(winAmount(50, 150), 75);
-  assert.equal(winAmount(10, 50), 0);
+    ({ id: `${stake}${odds}${status}`, sport: "NBA", subject: "x", line: 1, odds, stake, book: "b", date: "2026-10-08", status, createdAt: "", market }) as Parameters<typeof summarize>[0][number];
   const picks = [mk(110, -110, "win"), mk(50, 150, "loss"), mk(20, -120, "push"), mk(100, 200, "open", "Spread")];
-  assert.deepEqual(picks.map(pickNet), [100, -50, 0, 0]);
-  const unit = baseUnit(picks, null);
-  assert.equal(unit, 75);
-  assert.equal(baseUnit(picks, 25), 25);
-  const s = summarize(picks, 25);
-  assert.deepEqual([s.won, s.lost, s.push, s.open], [1, 1, 1, 1]);
-  assert.equal(s.hitRate, 0.5);
-  assert.equal(s.net, 50);
-  assert.equal(s.netUnits, 2);
-  assert.equal(s.avgStake, 70);
-  assert.equal(s.avgUnits, 2.8);
-  assert.equal(summarize([], null).hitRate, null);
+  assert.deepEqual(summarize(picks), { won: 1, lost: 1, push: 1, open: 1 });
   assert.equal(pickKind(picks[3]), "team");
   assert.equal(pickKind(picks[0]), "prop");
-});
-
-t("suggested units scale modestly with the lean and cap at 1.5u", () => {
-  assert.equal(suggestUnits(null, "strong"), null);
-  assert.deepEqual(suggestUnits(20, "strong"), { units: 1.5, amount: 30, why: "1.5u: Breakdown strongest lean (capped at 1.5u)" });
-  assert.equal(suggestUnits(20, "good")?.units, 1.25);
-  assert.equal(suggestUnits(20, "bad")?.units, 0.5);
-  assert.equal(suggestUnits(20, null)?.units, 1);
-  for (const l of ["strong", "good", "neutral", "bad", "none"] as const) assert.ok((suggestUnits(10, l)?.units ?? 0) <= 1.5);
+  for (const f of ["src/components/PortfolioClient.tsx", "src/components/LogRow.tsx", "src/lib/ledger.ts"]) {
+    const src = readFileSync(f, "utf8");
+    assert.ok(!/>\s*Net\b|"Net"|Units"|Avg size|Suggested|Returns|unitsText|suggestUnits|winAmount|pickNet|1 unit =/.test(src), f);
+  }
+  const log = readFileSync("src/components/PortfolioClient.tsx", "utf8");
+  assert.ok(log.includes("Log a pick."));
 });
 
 t("log money stays on the device: leaderboard code never reads net or stake", () => {
@@ -938,6 +915,125 @@ t("your players: names tagged in play text, player alert when an over leg moves"
   assert.ok(/11\.5 to hit/.test(pl?.body ?? ""));
   assert.ok(!/cash/i.test(pl?.body ?? ""));
   assert.equal(legEvents({ ...base, value: 13 } as never, { ...base, value: 13 } as never).filter((e) => e.kind === "player").length, 0);
+});
+
+t("spread slot never prints a price: SEA @ DET (NHL 401892465, real ESPN payload)", () => {
+  const ev = JSON.parse(readFileSync("scripts/fixtures/espn-nhl-sea-det-401892465.json", "utf8"));
+  const odds = ev.competitions[0].odds[0];
+  assert.equal(odds.details, "DET -142"); // ESPN's details is the moneyline in hockey
+  const price = parsePrice(odds)!;
+  assert.equal(price.spreadDetail, "DET -1.5");
+  assert.equal(price.homeMl, "-142");
+  assert.equal(price.awayMl, "+120");
+  assert.equal(price.homeSpreadJuice, "+170");
+  assert.equal(price.provider, "DraftKings");
+  assert.ok(!/142|170|205/.test(price.spreadDetail ?? ""));
+  // No point spread in the payload: no spread row at all, never the moneyline.
+  const noSpread = { ...odds, pointSpread: undefined, spread: undefined };
+  assert.equal(spreadText(noSpread), null);
+  assert.equal(parsePrice(noSpread)!.spreadDetail, null);
+  assert.equal(parsePrice(noSpread)!.homeMl, "-142");
+  // MLB run line shape, NFL shape, pick'em.
+  assert.equal(spreadText({ details: "NYY -165", spread: 1.5, homeTeamOdds: { team: { abbreviation: "NYY" } }, awayTeamOdds: { team: { abbreviation: "BOS" } } }), "BOS -1.5");
+  assert.equal(spreadText({ details: "KC -3.5", pointSpread: { home: { close: { line: "+3.5" } } }, homeTeamOdds: { team: { abbreviation: "BUF" } }, awayTeamOdds: { team: { abbreviation: "KC" } } }), "KC -3.5");
+  assert.equal(spreadText({ details: "DAL -8.5" }), "DAL -8.5");
+  assert.equal(spreadText({ details: "DET -142" }), null);
+  assert.equal(spreadText({ spread: 0, homeTeamOdds: { team: { abbreviation: "A" } } }), "Pick’em");
+});
+
+t("move colors by side: better price green, worse red, sideless total flat", () => {
+  assert.equal(juiceDir({ prevJuice: -110, juice: -105 }), 1);
+  assert.equal(juiceDir({ prevJuice: -110, juice: -120 }), -1);
+  assert.equal(juiceDir({ prevJuice: 120, juice: 130 }), 1);
+  assert.equal(juiceDir({ prevJuice: -105, juice: 100 }), 1);
+  assert.equal(priceDir(-110, -110), 0);
+  assert.equal(lineDir({ prevLine: 47.5, line: 46.5, selection: "Over" }), 1);
+  assert.equal(lineDir({ prevLine: 47.5, line: 46.5, selection: "Under" }), -1);
+  assert.equal(lineDir({ prevLine: -3, line: -2.5, selection: null }), 1);
+  assert.equal(lineDir({ prevLine: 3, line: 2.5, selection: null }), -1);
+  assert.equal(loggedLineDir("Under", 46.5, 50.5), 1);
+  assert.equal(loggedLineDir("Over", 46.5, 50.5), -1);
+  const g = { id: "1", league: "nfl", away: { abbr: "A" }, home: { abbr: "H" }, price: { total: 50.5, totalOpen: 46.5, spreadHome: -2.5, spreadHomeOpen: -3, provider: "DraftKings" } };
+  const moves = biggestMoves([g as never]);
+  assert.equal(moves.find((m) => m.id.endsWith("total"))?.tone, "flat");
+  assert.equal(moves.find((m) => m.id.endsWith("spread"))?.tone, "plus");
+  const tile = readFileSync("src/components/GameTile.tsx", "utf8");
+  assert.ok(!/move\.total\.to < move\.total\.from/.test(tile));
+});
+
+t("Portal Pick copy: free, one a day, sample record, no Edge label, no VIP lock", () => {
+  const panel = readFileSync("src/components/PortalPickPanel.tsx", "utf8") + readFileSync("src/lib/portalPick.ts", "utf8");
+  assert.ok(panel.includes("Portal Pick · free · one a day. Not a guarantee."));
+  assert.ok(panel.includes("Sample: "));
+  assert.ok(!/\bEdge\b/.test(panel));
+  assert.ok(!/VIP/.test(panel));
+});
+
+t("chance to hit: price, pace, team picks, combined", () => {
+  assert.ok(Math.abs((impliedFromAmerican(-110) ?? 0) - 0.5238) < 1e-3);
+  assert.equal(impliedFromAmerican(150), 0.4);
+  assert.equal(impliedFromAmerican(50), null);
+  assert.deepEqual(pregameChance(-115), { pct: 53.5, source: "price" });
+  assert.deepEqual(pregameChance(null, { hits: 7, games: 10 }), { pct: 66.7, source: "recent" });
+  assert.equal(pregameChance(-110, { hits: 7, games: 10 })?.source, "price + recent");
+  assert.equal(pregameChance(null), null);
+  assert.ok(Math.abs(poissonAtLeast(1, 1) - 0.6321) < 1e-3);
+  // Halfway, 14 of 24.5 points: on pace (28) so better than a coin flip.
+  const half = livePropChance({ value: 14, line: 24.5, side: "Over", played: 0.5, final: false, market: "PTS" });
+  assert.equal(half.source, "pace");
+  assert.ok(half.pct > 55 && half.pct < 85, String(half.pct));
+  const under = livePropChance({ value: 14, line: 24.5, side: "Under", played: 0.5, final: false, market: "PTS" });
+  assert.ok(Math.abs(half.pct + under.pct - 100) < 0.2);
+  // Way behind late: near zero. Already over: 100. Final miss: 0.
+  assert.ok(livePropChance({ value: 8, line: 24.5, side: "Over", played: 0.6, final: false, market: "PTS" }).pct < 3);
+  assert.equal(livePropChance({ value: 25, line: 24.5, side: "Over", played: 0.6, final: false, market: "PTS" }).pct, 100);
+  assert.equal(livePropChance({ value: 25, line: 24.5, side: "Under", played: 0.6, final: false, market: "PTS" }).pct, 0);
+  assert.equal(livePropChance({ value: 20, line: 24.5, side: "Over", played: 1, final: true, market: "PTS" }).pct, 0);
+  assert.equal(livePropChance({ value: 20, line: 24.5, side: "Under", played: 1, final: true, market: "PTS" }).pct, 100);
+  // More stat → higher chance (monotone).
+  const a = livePropChance({ value: 150, line: 245.5, side: "Over", played: 0.5, final: false, market: "Pass YDS" }).pct;
+  const b = livePropChance({ value: 180, line: 245.5, side: "Over", played: 0.5, final: false, market: "Pass YDS" }).pct;
+  assert.ok(b > a);
+  // Team picks.
+  assert.equal(liveTeamChance({ league: "nba", kind: "moneyline", pick: "away", home: 50, away: 60, played: 0.5, final: false, line: null, homeWin: 23.4 })?.pct, 76.6);
+  assert.equal(liveTeamChance({ league: "nba", kind: "moneyline", pick: "home", home: 50, away: 60, played: 0.5, final: false, line: null })?.pct ?? null, null);
+  const cover = liveTeamChance({ league: "nfl", kind: "spread", pick: "home", home: 14, away: 7, played: 0.5, final: false, line: -3.5, spreadHome: -3.5 })!;
+  assert.ok(cover.pct > 60 && cover.pct < 80, String(cover.pct));
+  assert.equal(liveTeamChance({ league: "nfl", kind: "spread", pick: "home", home: 24, away: 20, played: 1, final: true, line: -3.5 })?.pct, 100);
+  assert.equal(liveTeamChance({ league: "nfl", kind: "total", pick: "over", home: 30, away: 20, played: 0.8, final: false, line: 47.5 })?.pct, 100);
+  assert.equal(combinedChance([50, 50, 100]), 25);
+  assert.equal(combinedChance([50, null]), null);
+  assert.equal(playedShare("nba", { elapsed: 24 * 60, total: 48 * 60 }, 3, "in"), 0.5);
+  assert.equal(playedShare("mlb", null, 5, "in", "bottom"), (4 + 0.5 + 0.25) / 9);
+  const chanceSrc = readFileSync("src/lib/chance.ts", "utf8");
+  assert.ok(chanceSrc.includes("Estimate from pace and price. Not a guarantee."));
+});
+
+t("emotes: one per play type, loudest wins, replay uses only real plays", () => {
+  const pl = (o: Partial<LivePlay>): LivePlay => ({ id: "p", text: "", clock: "", period: "1", scoring: false, points: 0, awayScore: null, homeScore: null, teamId: "1", x: null, y: null, down: null, distance: null, yardsToEndzone: null, spot: null, typeText: "", ...o });
+  assert.equal(emoteOf("nfl", pl({ text: "J.Allen pass to K.Coleman for 32 yards, TOUCHDOWN", scoring: true, points: 6 })), "td");
+  assert.equal(emoteOf("nfl", pl({ text: "T.Bass 45 yard field goal is GOOD", typeText: "Field Goal Good", scoring: true, points: 3 })), "fg");
+  assert.equal(emoteOf("nfl", pl({ text: "J.Allen sacked at BUF 30 for -7 yards", typeText: "Sack" })), "sack");
+  assert.equal(emoteOf("nfl", pl({ text: "pass INTERCEPTED by X", typeText: "Pass Interception Return" })), "turnover");
+  assert.equal(emoteOf("nfl", pl({ text: "J.Cook up the middle for 24 yards", typeText: "Rush", yards: 24 })), "gain");
+  assert.equal(emoteOf("nfl", pl({ text: "J.Cook up the middle for 6 yards", typeText: "Rush", yards: 6, down: 3, distance: 4 })), "first");
+  assert.equal(emoteOf("nba", pl({ text: "Curry makes 26-foot three point jumper", typeText: "Jump Shot", scoring: true, points: 3 })), "three");
+  assert.equal(emoteOf("nba", pl({ text: "Giannis makes dunk", typeText: "Dunk", scoring: true, points: 2 })), "dunk");
+  assert.equal(emoteOf("nba", pl({ text: "Wemby blocks Tatum 's layup", typeText: "Block" })), "block");
+  assert.equal(emoteOf("mlb", pl({ text: "Judge homered to left (412 feet)", scoring: true, points: 1 })), "hr");
+  assert.equal(emoteOf("mlb", pl({ text: "Devers struck out swinging." })), "k");
+  assert.equal(emoteOf("nhl", pl({ text: "Goal scored by Larkin", typeText: "Goal", scoring: true, points: 1 })), "goal");
+  assert.equal(emoteOf("nhl", pl({ text: "Shot saved by Daccord", typeText: "Shot" })), "save");
+  const snap = { plays: [], situation: null } as unknown as LiveSnap;
+  const e = pickEmote("nfl", [pl({ id: "a", text: "rush for 24 yards", typeText: "Rush", yards: 24 }), pl({ id: "b", text: "pass for 10 yards, TOUCHDOWN", scoring: true, points: 6 })], snap, snap);
+  assert.equal(e?.kind, "td");
+  assert.equal(e?.id, "b");
+  const full = { plays: [pl({ id: "1", awayScore: 0, homeScore: 7 }), pl({ id: "2", awayScore: 3, homeScore: 7 }), pl({ id: "3", awayScore: 3, homeScore: 14 })], drives: [], win: [50, 60, 70], state: "post", period: 4 } as unknown as LiveSnap;
+  const r = replaySnap(full, 2);
+  assert.equal(r.plays.length, 2);
+  assert.equal(r.awayScore, "3");
+  assert.equal(r.homeScore, "7");
+  assert.equal(r.state, "in");
 });
 
 console.log(`\n${n} passed`);

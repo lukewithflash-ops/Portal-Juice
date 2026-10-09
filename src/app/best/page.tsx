@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { FavoriteList, MoveList, MvpList, TrendList, BEST_NOTE } from "@/components/BestLists";
 import { biggestMoves, hotTrends, marketFavorites } from "@/lib/best";
 import { getMvpBoard, getSlate, getTrends } from "@/lib/espn";
-import { PortalPickPanel, VipPanel } from "@/components/PortalPickPanel";
+import { PortalPickPanel } from "@/components/PortalPickPanel";
 import { portalPickToday } from "@/lib/portalPickStore";
 import { sportsDate } from "@/lib/slate";
 
@@ -40,7 +40,6 @@ export default async function BestPage() {
 
       <div className="mb-8">
         <PortalPickPanel pick={portal.pick} record={portal.record} tracked={portal.tracked} />
-        <VipPanel />
       </div>
 
       <Group title="Market favorites" how="Shorter moneyline turned into implied chance. Line move added when ESPN sent an open.">
