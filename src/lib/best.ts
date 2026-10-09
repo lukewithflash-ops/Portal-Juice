@@ -11,6 +11,8 @@ export type Favorite = {
   implied: number;
   provider: string;
   href: string;
+  /** One plain sentence built only from the fields above plus any posted open-to-now move. */
+  homework: string;
 };
 
 export type LineMove = {
@@ -20,9 +22,31 @@ export type LineMove = {
   delta: number;
   href: string;
   provider: string;
+  homework: string;
 };
 
-export type HotTrend = Trend & { delta: number };
+export type HotTrend = Trend & { delta: number; homework: string };
+
+export function pct(implied: number): string {
+  return `${Math.round(implied * 100)}%`;
+}
+
+function fmtNum(n: number): string {
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
+}
+
+/** "total moved 48.5 → 49.5 since open" or null when either end is missing or they match. */
+export function moveClause(g: Game): string | null {
+  const p = g.price;
+  if (!p) return null;
+  if (p.total !== null && p.totalOpen !== null && p.total !== p.totalOpen) {
+    return `total moved ${fmtNum(p.totalOpen)} → ${fmtNum(p.total)} since open`;
+  }
+  if (p.spreadHome !== null && p.spreadHomeOpen !== null && p.spreadHome !== p.spreadHomeOpen) {
+    return `${g.home.abbr} spread moved ${fmtNum(p.spreadHomeOpen)} → ${fmtNum(p.spreadHome)} since open`;
+  }
+  return null;
+}
 
 export function marketFavorites(games: Game[]): Favorite[] {
   const rows: Favorite[] = [];
@@ -46,10 +70,15 @@ export function marketFavorites(games: Game[]): Favorite[] {
         implied,
         provider: price.provider,
         href: `/games/${g.league}/${g.id}`,
+        homework: "",
       };
       if (!best || row.implied > best.implied) best = row;
     }
-    if (best) rows.push(best);
+    if (best) {
+      const move = moveClause(g);
+      best.homework = `${best.side} ${pct(best.implied)} implied at ${best.odds} (${price.provider})${move ? `, ${move}` : ""}.`;
+      rows.push(best);
+    }
   }
   rows.sort((a, b) => b.implied - a.implied);
   return rows.slice(0, 5);
@@ -70,6 +99,7 @@ export function biggestMoves(games: Game[]): LineMove[] {
         delta: price.total - price.totalOpen,
         href,
         provider: price.provider,
+        homework: `Total moved ${fmtNum(price.totalOpen)} → ${fmtNum(price.total)} since open, ${price.total > price.totalOpen ? "up" : "down"} ${fmtNum(Math.abs(price.total - price.totalOpen))} (${price.provider}).`,
       });
     }
     if (price.spreadHome !== null && price.spreadHomeOpen !== null && price.spreadHome !== price.spreadHomeOpen) {
@@ -80,6 +110,7 @@ export function biggestMoves(games: Game[]): LineMove[] {
         delta: price.spreadHome - price.spreadHomeOpen,
         href,
         provider: price.provider,
+        homework: `${g.home.abbr} spread moved ${fmtNum(price.spreadHomeOpen)} → ${fmtNum(price.spreadHome)} since open, ${fmtNum(Math.abs(price.spreadHome - price.spreadHomeOpen))} points (${price.provider}).`,
       });
     }
   }
@@ -92,8 +123,22 @@ export function hotTrends(trends: Trend[]): HotTrend[] {
   const rows: HotTrend[] = [];
   for (const t of trends) {
     if (t.seasonAvg === null || t.seasonGames === null || t.seasonGames <= t.games) continue;
-    rows.push({ ...t, delta: Math.round((t.avg - t.seasonAvg) * 10) / 10 });
+    if (!Number.isFinite(t.avg) || t.games < 1) continue;
+    const delta = Math.round((t.avg - t.seasonAvg) * 10) / 10;
+    if (delta <= 0) continue;
+    rows.push({
+      ...t,
+      delta,
+      homework: `${fmtNum(t.avg)} ${t.statLabel} over the last ${t.games} vs ${fmtNum(t.seasonAvg)} across ${t.seasonGames} logged games (+${fmtNum(delta)}).`,
+    });
   }
   rows.sort((a, b) => b.delta - a.delta);
   return rows.slice(0, 5);
+}
+
+/** MVP sentence from the posted price and ESPN's stat line. Null when the price is unusable. */
+export function mvpHomework(row: { implied: number; odds: string; stats: string }, provider: string): string | null {
+  if (!Number.isFinite(row.implied) || row.implied <= 0 || !row.odds) return null;
+  const stats = row.stats?.trim();
+  return `${pct(row.implied)} implied at ${row.odds} (${provider})${stats ? `. Season: ${stats}` : ""}.`;
 }

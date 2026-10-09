@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePrefs, type FavTeam } from "@/components/Prefs";
 import { IMPLIED_TIP } from "@/lib/odds";
 import { LEAGUES, type LeagueId } from "@/lib/slate";
-import { NAV, SITE_NAME, TAGLINE } from "@/lib/site";
+import { MORE_NAV, NAV, SITE_NAME, TAGLINE } from "@/lib/site";
 import type { TeamOption } from "@/lib/team";
 
 export default function SiteHeader() {
@@ -15,6 +15,7 @@ export default function SiteHeader() {
   const [showTagline, setShowTagline] = useState(true);
   const { odds, setOdds, team, setTeam } = usePrefs();
   const [open, setOpen] = useState(false);
+  const [more, setMore] = useState(false);
 
   useEffect(() => {
     if (path !== firstPath.current) {
@@ -78,11 +79,13 @@ export default function SiteHeader() {
         {open ? <TeamPicker team={team} onPick={setTeam} onClose={() => setOpen(false)} /> : null}
         <nav aria-label="Portal Juice" className="-mx-4 mt-1 flex items-center gap-1 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {NAV.map((n) => {
-            const active = n.href === "/lines" ? path === "/lines" : path === n.href || path.startsWith(n.href + "/");
+            const active =
+              n.href === "/lines" ? path === "/lines" : path === n.href || path.startsWith(n.href + "/");
             return (
               <Link
                 key={n.href}
                 href={n.href}
+                onClick={() => setMore(false)}
                 aria-current={active ? "page" : undefined}
                 className={
                   "shrink-0 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold transition-colors " +
@@ -95,7 +98,37 @@ export default function SiteHeader() {
               </Link>
             );
           })}
+          <button
+            type="button"
+            aria-expanded={more}
+            onClick={() => setMore((v) => !v)}
+            className={
+              "shrink-0 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold transition-colors " +
+              (more || MORE_NAV.some((n) => path === n.href || path.startsWith(n.href + "/"))
+                ? "bg-purple-500/20 text-white"
+                : "text-zinc-400 hover:bg-purple-500/10 hover:text-zinc-100")
+            }
+          >
+            More {more ? "▴" : "▾"}
+          </button>
         </nav>
+        {more ? (
+          <div className="-mx-1 mb-2 grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+            {MORE_NAV.map((n) => (
+              <Link
+                key={n.href}
+                href={n.href}
+                onClick={() => setMore(false)}
+                className={
+                  "rounded-lg border border-white/10 px-2 py-2 text-center text-[13px] font-semibold " +
+                  (path === n.href ? "bg-purple-500/20 text-white" : "text-zinc-300")
+                }
+              >
+                {n.label}
+              </Link>
+            ))}
+          </div>
+        ) : null}
       </div>
     </header>
   );

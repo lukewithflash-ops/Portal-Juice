@@ -6,6 +6,7 @@ import CountUp from "@/components/CountUp";
 import PickTile from "@/components/PickTile";
 import { validOdds } from "@/lib/odds";
 import { addPick, getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
+import { UNIT_NOTE, unitHint } from "@/lib/units";
 import { SPORT_LABEL, SPORT_ORDER, type PickStatus, type Sport } from "@/lib/types";
 
 const BOOKS = ["DraftKings", "FanDuel", "BetMGM", "Caesars", "ESPN BET", "BetRivers", "Fanatics", "Hard Rock"];
@@ -24,6 +25,7 @@ export default function PortfolioClient() {
 
   const open = picks.filter((p) => p.status === "open");
   const settled = picks.filter((p) => p.status !== "open");
+  const units = unitHint(picks);
   const count = (s: PickStatus) => picks.filter((p) => p.status === s).length;
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -74,6 +76,35 @@ export default function PortfolioClient() {
         <p className="text-xs text-zinc-500">For picks you already made at a book. Saved on this device only.</p>
       </div>
       <AddSlip />
+
+      <section aria-label="Suggested unit" className="panel mt-4 rounded-2xl p-4">
+        <h2 className="text-[10px] font-bold uppercase tracking-[0.22em] text-purple-200/80">Suggested unit</h2>
+        {units ? (
+          <>
+            <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+              <div>
+                <div className="tabular text-2xl font-black text-[color:var(--gold)]">{units.unit}</div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500">1 unit</div>
+              </div>
+              <div>
+                <div className="tabular text-2xl font-black text-[color:var(--flat)]">{units.totalUnits}u</div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500">Total logged</div>
+              </div>
+              <div>
+                <div className="tabular text-2xl font-black text-[color:var(--flat)]">{units.openUnits}u</div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-500">Open now</div>
+              </div>
+            </div>
+            <p className="mt-2 text-[12px] leading-snug text-zinc-400">
+              1 unit = the median stake across your {units.count} logged {units.count === 1 ? "slip" : "slips"}. Total logged{" "}
+              {units.total} = {units.totalUnits} units.
+            </p>
+          </>
+        ) : (
+          <p className="mt-2 text-sm text-zinc-400">No stakes logged yet. Log a pick with a stake and your unit shows here.</p>
+        )}
+        <p className="mt-2 text-[11px] text-zinc-500">{UNIT_NOTE}</p>
+      </section>
 
       {formOpen && (
         <form onSubmit={onSubmit} className="panel mt-4 grid gap-3 rounded-2xl p-4 sm:grid-cols-2 lg:grid-cols-4" noValidate>

@@ -1,15 +1,24 @@
 import type { Metadata } from "next";
 import { FavoriteList, MoveList, MvpList, TrendList, BEST_NOTE } from "@/components/BestLists";
 import { biggestMoves, hotTrends, marketFavorites } from "@/lib/best";
-import { getMvpBoard, getTrends } from "@/lib/espn";
-import { getSlate } from "@/lib/espn";
+import { getMvpBoard, getSlate, getTrends } from "@/lib/espn";
 
 export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: "Best",
-  description: "Market favorites, line moves, trends, and MVP prices. Ranked by the numbers. Not a guarantee.",
+  description: "Market favorites, line moves, hot players, and MVP prices, each with the numbers behind it. Ranked by the numbers. Not a guarantee.",
 };
+
+function Group({ title, how, children }: { title: string; how: string; children: React.ReactNode }) {
+  return (
+    <section className="mt-8 first:mt-0">
+      <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[color:var(--flat)]">{title}</h2>
+      <p className="mt-0.5 mb-3 text-[12px] text-zinc-500">{how}</p>
+      {children}
+    </section>
+  );
+}
 
 export default async function BestPage() {
   const [slate, trends, mvp] = await Promise.all([getSlate(), getTrends(), getMvpBoard()]);
@@ -17,40 +26,31 @@ export default async function BestPage() {
   const moves = biggestMoves(slate.games);
   const hot = hotTrends(trends.trends);
   return (
-    <>
+    <div className="mx-auto max-w-xl">
       <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)] sm:text-3xl">Best</h1>
-      <p className="mt-1 mb-5 text-sm text-zinc-400">{BEST_NOTE}</p>
-      <p className="mb-6 text-[11px] text-zinc-500">
-        Green is up or above the season line. Gold marks the top of each list. Red is down or below.
+      <p className="mt-1 text-sm text-zinc-400">{BEST_NOTE}</p>
+      <p className="mt-2 mb-6 text-[12px] leading-snug text-zinc-500">
+        Every row shows its homework: the posted price, the line move, or the game log behind the rank. Gold is #1 of each list.
+        Green is up, red is down. Tap a row for the game.
       </p>
 
-      <section>
-        <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-purple-200/80">Market favorites</h2>
-        <p className="mb-2 text-[11px] text-zinc-500">Shorter moneyline by implied chance. {BEST_NOTE}</p>
+      <Group title="Market favorites" how="Shorter moneyline turned into implied chance. Line move added when ESPN sent an open.">
         <FavoriteList rows={favs} />
-      </section>
+      </Group>
 
-      <section className="mt-8">
-        <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-purple-200/80">Line movement</h2>
-        <p className="mb-2 text-[11px] text-zinc-500">Open to current, only when ESPN sent both.</p>
+      <Group title="Biggest moves" how="Open to now on totals and spreads. Only when ESPN sent both numbers.">
         <MoveList rows={moves} />
-      </section>
+      </Group>
 
-      <section className="mt-8">
-        <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-purple-200/80">Hot trends</h2>
-        <p className="mb-2 text-[11px] text-zinc-500">Last 5 minus the season average from the same log.</p>
+      <Group title="Hot players" how="Last 5 average above the longer average from the same ESPN game log. Sample sizes shown.">
         <TrendList rows={hot} />
-      </section>
+      </Group>
 
       {mvp.groups.map((g) => (
-        <section key={g.league} className="mt-8">
-          <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-purple-200/80">
-            {g.leagueLabel} MVP
-          </h2>
-          <p className="mb-2 text-[11px] text-zinc-500">{g.market} · {g.provider}</p>
+        <Group key={g.league} title={`${g.leagueLabel} MVP board`} how={`${g.market} · ${g.provider}. Price turned into implied chance.`}>
           <MvpList rows={g.rows} provider={g.provider} />
-        </section>
+        </Group>
       ))}
-    </>
+    </div>
   );
 }

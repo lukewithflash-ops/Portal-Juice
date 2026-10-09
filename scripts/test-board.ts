@@ -10,6 +10,8 @@ import { lastNAverage, parsePrice, rankGames, sportsDate } from "../src/lib/slat
 import { parseTeamCookie, parseTeamList } from "../src/lib/team";
 import { impliedChance, parseMvpMarket, parsePropItems, parseWeather, rankByImplied } from "../src/lib/detail";
 import { parseSlipText, safeSlipUrl } from "../src/lib/slip";
+import { unitHint } from "../src/lib/units";
+import { marketFavorites, biggestMoves, hotTrends, mvpHomework } from "../src/lib/best";
 import { playKind, playerFromText, isShotAttempt } from "../src/lib/tracker";
 import { clockSpan, isBigPlay, paceOf, parseLine, scoringRun, statNumber, trackProps } from "../src/lib/tracker";
 import type { LivePlay, LiveSnap } from "../src/lib/live";
@@ -348,6 +350,39 @@ t("play graphics read only ESPN text", () => {
   assert.equal(playKind({ ...base, text: "X misses driving layup", typeText: "Driving Layup Shot", scoring: false, points: 0, x: 25, y: 3 }), "miss");
   assert.equal(isShotAttempt({ ...base, text: "X loose ball foul", typeText: "Loose Ball Foul", scoring: false, points: 0, x: 25, y: 2 }), false);
   assert.equal(isShotAttempt({ ...base, text: "X misses driving layup", typeText: "Driving Layup Shot", scoring: false, points: 0, x: 25, y: 3 }), true);
+});
+
+
+t("best homework uses only posted numbers and skips missing signals", () => {
+  const price = { provider: "DraftKings", total: 49.5, overJuice: null, underJuice: null, spreadDetail: null, homeSpread: null, awaySpread: null, homeSpreadJuice: null, awaySpreadJuice: null, homeMl: "-525", awayMl: "+400", spreadHome: null, totalOpen: 48.5, spreadHomeOpen: null };
+  const g = { id: "1", league: "nfl", away: { abbr: "NYG" }, home: { abbr: "DAL" }, price } as unknown as Parameters<typeof marketFavorites>[0][number];
+  const bare = { ...g, id: "2", price: { ...price, homeMl: null, awayMl: null, totalOpen: null } } as typeof g;
+  const favs = marketFavorites([g, bare]);
+  assert.equal(favs.length, 1);
+  assert.equal(favs[0].homework, "DAL 84% implied at -525 (DraftKings), total moved 48.5 → 49.5 since open.");
+  const moves = biggestMoves([g, bare]);
+  assert.equal(moves.length, 1);
+  assert.match(moves[0].homework, /^Total moved 48\.5 → 49\.5 since open, up 1/);
+  const trend = { id: "t", name: "A B", team: "DAL", league: "nfl", leagueLabel: "NFL", matchup: "NYG @ DAL", gameId: "1", headshot: null, statLabel: "REC YDS", avg: 92.4, games: 5, seasonAvg: 70, seasonGames: 12 } as Parameters<typeof hotTrends>[0][number];
+  const hot = hotTrends([trend, { ...trend, id: "short", seasonGames: 5 }, { ...trend, id: "cold", avg: 50 }]);
+  assert.equal(hot.length, 1);
+  assert.equal(hot[0].homework, "92.4 REC YDS over the last 5 vs 70 across 12 logged games (+22.4).");
+  assert.equal(mvpHomework({ implied: 0, odds: "", stats: "" }, "DK"), null);
+  assert.equal(mvpHomework({ implied: 0.2, odds: "+400", stats: "" }, "DK"), "20% implied at +400 (DK).");
+});
+
+
+t("suggested unit comes only from logged stakes", () => {
+  const mk = (stake: number, status: "open" | "win" = "win") => ({ id: String(stake) + status, sport: "NBA", subject: "x", line: 1, odds: 0, stake, book: "b", date: "2026-10-08", status, createdAt: "" }) as Parameters<typeof unitHint>[0][number];
+  assert.equal(unitHint([]), null);
+  assert.equal(unitHint([mk(0)]), null);
+  const h = unitHint([mk(10), mk(20, "open"), mk(30), mk(0)]);
+  assert.ok(h);
+  assert.equal(h.unit, 20);
+  assert.equal(h.count, 3);
+  assert.equal(h.total, 60);
+  assert.equal(h.totalUnits, 3);
+  assert.equal(h.openUnits, 1);
 });
 
 console.log(`\n${n} passed`);

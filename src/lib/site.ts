@@ -9,13 +9,17 @@ export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://portaljuice
 
 export const NAV = [
   { href: "/lines", label: "Lines" },
-  { href: "/best", label: "Best" },
   { href: "/games", label: "Games" },
+  { href: "/best", label: "Best" },
   { href: "/props", label: "Props" },
+  { href: "/lines/portfolio", label: "Log" },
+] as const;
+
+/** Behind the More menu. Routes stay live. */
+export const MORE_NAV = [
   { href: "/mvp", label: "MVP" },
   { href: "/trends", label: "Trends" },
   { href: "/news", label: "News" },
   { href: "/lines/board", label: "Board" },
-  { href: "/lines/portfolio", label: "Log" },
   { href: "/app", label: "App" },
 ] as const;

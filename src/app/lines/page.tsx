@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { FavoriteList, BEST_NOTE } from "@/components/BestLists";
+import { BestStrip, BEST_NOTE } from "@/components/BestLists";
 import GamesBoard from "@/components/GamesBoard";
 import Link from "next/link";
-import { marketFavorites } from "@/lib/best";
+import { biggestMoves, hotTrends, marketFavorites } from "@/lib/best";
 import LineBoard from "@/components/LineBoard";
-import { getSlate } from "@/lib/espn";
+import { getSlate, getTrends } from "@/lib/espn";
 import { getSnapshot } from "@/lib/feed";
 import { isStale } from "@/lib/move";
 
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 export default async function LinesPage() {
-  const [snap, slate] = await Promise.all([getSnapshot(), getSlate()]);
+  const [snap, slate, trends] = await Promise.all([getSnapshot(), getSlate(), getTrends()]);
   // eslint-disable-next-line react-hooks/purity -- request-time staleness check
   const now = Date.now();
   const staleIds = snap.rows.filter((r) => isStale(r, now)).map((r) => r.id);
@@ -32,7 +32,11 @@ export default async function LinesPage() {
           <Link href="/best" className="text-[11px] font-semibold text-[color:var(--gold)]">All lists</Link>
         </div>
         <p className="mb-2 text-[11px] text-zinc-500">{BEST_NOTE}</p>
-        <FavoriteList rows={marketFavorites(slate.games).slice(0, 3)} />
+        <BestStrip
+          fav={marketFavorites(slate.games)[0] ?? null}
+          move={biggestMoves(slate.games)[0] ?? null}
+          hot={hotTrends(trends.trends)[0] ?? null}
+        />
       </section>
       <GamesBoard games={slate.games} fetchedAt={slate.fetchedAt} dayLabel={slate.dayLabel} missing={slate.missing} />
       <div className="mt-10 border-t border-purple-500/15 pt-2">
