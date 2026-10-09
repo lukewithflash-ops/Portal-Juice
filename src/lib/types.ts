@@ -112,4 +112,13 @@ export type Pick = {
   date: string;
   status: PickStatus;
   createdAt: string;
+  /** ESPN league id, when the row is tied to a game. */
+  league?: string;
+  /** ESPN event id. */
+  gameId?: string;
+  /** Market words the user confirmed. Empty means unknown. */
+  market?: string;
+  selection?: "Over" | "Under" | null;
+  /** Link the slip was read from, if any. */
+  link?: string;
 };

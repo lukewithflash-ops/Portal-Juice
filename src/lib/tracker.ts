@@ -284,3 +284,14 @@ export function currentDrive(plays: LivePlay[]): Drive | null {
     redZone: ball <= 20,
   };
 }
+
+export function playerByName(boxes: LiveBox[], subject: string) {
+  const want = subject.toLowerCase().replace(/\s+/g, " ").trim();
+  if (want.length < 2) return null;
+  const all = boxes.flatMap((b) => b.players);
+  return (
+    all.find((p) => p.name.toLowerCase() === want) ??
+    all.find((p) => p.name.toLowerCase().includes(want) || want.includes(p.name.toLowerCase())) ??
+    null
+  );
+}

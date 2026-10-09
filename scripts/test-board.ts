@@ -9,6 +9,7 @@ import { formatPrice } from "../src/lib/odds";
 import { lastNAverage, parsePrice, rankGames, sportsDate } from "../src/lib/slate";
 import { parseTeamCookie, parseTeamList } from "../src/lib/team";
 import { impliedChance, parseMvpMarket, parsePropItems, parseWeather, rankByImplied } from "../src/lib/detail";
+import { parseSlipText, safeSlipUrl } from "../src/lib/slip";
 import { clockSpan, isBigPlay, paceOf, parseLine, scoringRun, statNumber, trackProps } from "../src/lib/tracker";
 import type { LivePlay, LiveSnap } from "../src/lib/live";
 
@@ -319,6 +320,21 @@ t("live versus line uses only a real box cell", () => {
   ]);
   assert.equal(run && run.us, 6);
   assert.equal(run && run.them, 0);
+});
+
+
+t("slip text keeps only what is on the slip", () => {
+  const rows = parseSlipText("Donovan Mitchell Over 24.5 Points -115\nRandom ad copy\nJalen Brunson Under 6.5 Assists");
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].subject, "Donovan Mitchell");
+  assert.equal(rows[0].line, 24.5);
+  assert.equal(rows[0].selection, "Over");
+  assert.equal(rows[0].market, "points");
+  assert.equal(rows[0].odds, -115);
+  assert.equal(rows[1].odds, null);
+  assert.equal(safeSlipUrl("http://example.com"), null);
+  assert.equal(safeSlipUrl("https://127.0.0.1/x"), null);
+  assert.ok(safeSlipUrl("https://example.com/slip"));
 });
 
 console.log(`\n${n} passed`);

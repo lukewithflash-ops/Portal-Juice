@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import GameChat from "@/components/GameChat";
 import Mark from "@/components/Mark";
+import MyProps from "@/components/MyProps";
 import type { LivePlay, LiveSnap } from "@/lib/live";
 import {
   currentDrive,
@@ -69,8 +70,14 @@ export default function GameLive({
   return (
     <div className="game-stage">
       <div className={tab === "chat" ? "max-lg:hidden" : ""}>
+        <MyProps league={league} gameId={id} snap={snap} />
         <div className={tab === "lines" ? "max-lg:hidden" : ""}>
           <ScoreHero snap={snap} away={away} home={home} awayColor={awayColor} homeColor={homeColor} flipped={flipped} />
+          {top.length > 0 ? (
+            <div className="lg:hidden">
+              <Tracker top={top.slice(0, 3)} rest={[]} state={snap?.state ?? "pre"} />
+            </div>
+          ) : null}
           {banner ? <BigBanner play={banner} snap={snap} awayColor={awayColor} homeColor={homeColor} /> : null}
           {snap ? (
             <Stage league={league} snap={snap} awayColor={awayColor} homeColor={homeColor} run={run} />

@@ -18,7 +18,9 @@ export default function PickTile({ pick }: { pick: Pick }) {
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-bold text-[color:var(--flat)]">{pick.subject}</h3>
           <p className="mt-0.5 truncate text-[11px] text-zinc-400">
-            {pick.sport} · {pick.book} · {shortDate(pick.date)} · stake {pick.stake}
+            {pick.sport} · {pick.book} · {shortDate(pick.date)}
+            {pick.market ? ` · ${pick.market}` : ""}
+            {pick.stake > 0 ? ` · stake ${pick.stake}` : ""}
           </p>
         </div>
         <span className={`pill pill-${pick.status}`}>{pick.status}</span>
@@ -27,11 +29,15 @@ export default function PickTile({ pick }: { pick: Pick }) {
       <div className="ticket-rule mt-3 flex items-end justify-between gap-3 pt-3">
         <div>
           <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Odds</div>
-          <CountUp
-            value={pick.odds}
-            kind="odds"
-            className="big-num block text-5xl font-black text-[color:var(--flat)]"
-          />
+          {pick.odds ? (
+            <CountUp
+              value={pick.odds}
+              kind="odds"
+              className="big-num block text-5xl font-black text-[color:var(--flat)]"
+            />
+          ) : (
+            <span className="block text-sm font-bold text-zinc-500">No price</span>
+          )}
         </div>
         <div className="text-right">
           <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Line</div>

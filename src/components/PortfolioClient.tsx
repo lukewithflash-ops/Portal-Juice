@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
+import AddSlip from "@/components/AddSlip";
 import CountUp from "@/components/CountUp";
 import PickTile from "@/components/PickTile";
 import { validOdds } from "@/lib/odds";
@@ -72,6 +73,7 @@ export default function PortfolioClient() {
         </button>
         <p className="text-xs text-zinc-500">For picks you already made at a book. Saved on this device only.</p>
       </div>
+      <AddSlip />
 
       {formOpen && (
         <form onSubmit={onSubmit} className="panel mt-4 grid gap-3 rounded-2xl p-4 sm:grid-cols-2 lg:grid-cols-4" noValidate>

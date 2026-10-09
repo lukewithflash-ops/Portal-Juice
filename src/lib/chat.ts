@@ -53,7 +53,7 @@ export function cleanText(raw: unknown): { ok: true; text: string } | { ok: fals
 
 type RedisResult = { result?: unknown };
 
-async function redis(command: (string | number)[]): Promise<unknown> {
+export async function redis(command: (string | number)[]): Promise<unknown> {
   const env = redisEnv();
   if (!env) throw new Error("no-store");
   const url = env.url;
