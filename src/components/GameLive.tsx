@@ -968,7 +968,7 @@ function GameFeel({ league, snap, awayColor, homeColor }: { league: string; snap
       ) : null}
       {hot ? <div className="clutch-edges" aria-hidden /> : null}
       {hot ? <span className="clutch-tag">{ot ? "Sudden death" : "Clutch time"} ♥</span> : null}
-      <div className="pointer-events-none absolute inset-x-2 top-2 z-[6] flex justify-between gap-2">
+      <div className="pointer-events-none absolute inset-x-3 top-[5.6rem] z-[20] flex justify-between gap-2">
         {run ? (
           <span key={run.label} className={"combo-meter " + (run.fire ? "on-fire" : "")} style={{ ["--combo" as string]: colorOf(run.teamId) } as React.CSSProperties}>
             {run.fire ? "🔥 " : ""}
