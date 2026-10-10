@@ -1,11 +1,16 @@
 import "server-only";
 import { getSlateFor } from "@/lib/espn";
-import { sportsDate } from "@/lib/slate";
-import { matchRow, parseSlipRows, propMarketOf, stakeOf, type FoundPlayer, type ImportLeg, type SlateGame, type SlipKind, type SlipRow } from "@/lib/slipImport";
+import { LEAGUES, sportsDate } from "@/lib/slate";
+import { SPORT_LEAGUES, parseSportScoreboard } from "@/lib/sports";
+import { matchRow, nameClose, parseSlipRows, propMarketOf, stakeOf, type FoundPlayer, type ImportLeg, type SlateGame, type SlipKind, type SlipRow } from "@/lib/slipImport";
 
 const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
 const MODEL = process.env.AI_GATEWAY_MODEL || "google/gemini-2.5-flash";
-const LEAGUE_OF: Record<string, string> = { nfl: "nfl", nba: "nba", mlb: "mlb", nhl: "nhl", "college-football": "ncaaf" };
+/** ESPN search "league" slug → our league id, for every league we cover. */
+const LEAGUE_OF: Record<string, string> = Object.fromEntries([
+  ...LEAGUES.map((l) => [l.slug, l.id]),
+  ...SPORT_LEAGUES.map((l) => [l.path.split("/")[1], l.id]),
+]);
 
 function addDays(day: string, n: number): string {
   const d = new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(4, 6)) - 1, Number(day.slice(6, 8)) + n));
@@ -16,7 +21,36 @@ function addDays(day: string, n: number): string {
 export async function upcomingGames(): Promise<SlateGame[]> {
   const today = sportsDate();
   const slates = await Promise.all([0, 1, 2, 3].map((n) => getSlateFor(addDays(today, n)).catch(() => null)));
-  return slates.flatMap((s) =>
+  const extra = await Promise.all(
+    SPORT_LEAGUES.filter((l) => l.kind === "team" || l.kind === "soccer").map(async (l) => {
+      // Day by day: some ESPN leagues reject a date range.
+      const days = await Promise.all(
+        [0, 1, 2, 3].map(async (n) => {
+          try {
+            const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${l.path}/scoreboard?dates=${addDays(today, n)}`, { signal: AbortSignal.timeout(6000), next: { revalidate: 300 } });
+            return res.ok ? parseSportScoreboard(l, await res.json()).matches : [];
+          } catch {
+            return [];
+          }
+        })
+      );
+      try {
+        return days.flat().map(
+          (m): SlateGame => ({
+            league: l.id,
+            id: m.id,
+            start: m.start,
+            state: m.state,
+            away: { id: m.away.id, abbr: m.away.short, name: m.away.name },
+            home: { id: m.home.id, abbr: m.home.short, name: m.home.name },
+          })
+        );
+      } catch {
+        return [];
+      }
+    })
+  );
+  return [...extra.flat(), ...slates.flatMap((s) =>
     (s?.games ?? []).map((g) => ({
       league: g.league,
       id: g.id,
@@ -25,22 +59,20 @@ export async function upcomingGames(): Promise<SlateGame[]> {
       away: { id: g.away.id, abbr: g.away.abbr, name: g.away.name },
       home: { id: g.home.id, abbr: g.home.abbr, name: g.home.name },
     }))
-  );
+  )];
 }
 
 type SearchItem = { id?: string; displayName?: string; league?: string; teamRelationships?: { core?: { id?: string } }[] };
 
-/** ESPN player search. Prefers a hit whose team plays in the window. */
-export async function findPlayer(name: string, games: SlateGame[]): Promise<FoundPlayer | null> {
-  if (name.trim().length < 3) return null;
+async function searchPlayers(q: string): Promise<FoundPlayer[]> {
   try {
-    const res = await fetch(`https://site.web.api.espn.com/apis/common/v3/search?query=${encodeURIComponent(name.trim())}&limit=8&type=player`, {
+    const res = await fetch(`https://site.web.api.espn.com/apis/common/v3/search?query=${encodeURIComponent(q)}&limit=10&type=player`, {
       signal: AbortSignal.timeout(6000),
       next: { revalidate: 3600 },
     });
-    if (!res.ok) return null;
+    if (!res.ok) return [];
     const data = (await res.json()) as { items?: SearchItem[] };
-    const hits = (data.items ?? [])
+    return (data.items ?? [])
       .map((it) => ({
         id: String(it.id ?? ""),
         name: String(it.displayName ?? ""),
@@ -48,11 +80,25 @@ export async function findPlayer(name: string, games: SlateGame[]): Promise<Foun
         teamId: it.teamRelationships?.[0]?.core?.id ? String(it.teamRelationships[0].core.id) : null,
       }))
       .filter((h) => h.id && h.league);
-    const playing = hits.find((h) => h.teamId && games.some((g) => g.league === h.league && g.state !== "post" && (g.home.id === h.teamId || g.away.id === h.teamId)));
-    return playing ?? hits[0] ?? null;
   } catch {
-    return null;
+    return [];
   }
+}
+
+/**
+ * ESPN player search across every league we cover. Prefers a hit whose team plays in the window.
+ * If the full name finds nothing (a typo, a missing accent), retries by last name and keeps close spellings.
+ */
+export async function findPlayer(name: string, games: SlateGame[]): Promise<FoundPlayer | null> {
+  const q = name.trim();
+  if (q.length < 3) return null;
+  let hits = await searchPlayers(q);
+  if (!hits.length) {
+    const last = q.split(/\s+/).pop() ?? "";
+    if (last.length >= 3) hits = (await searchPlayers(last)).filter((h) => nameClose(h.name, q));
+  }
+  const playing = hits.find((h) => h.teamId && games.some((g) => g.league === h.league && g.state !== "post" && (g.home.id === h.teamId || g.away.id === h.teamId)));
+  return playing ?? hits[0] ?? null;
 }
 
 export async function matchRows(rows: SlipRow[]): Promise<ImportLeg[]> {

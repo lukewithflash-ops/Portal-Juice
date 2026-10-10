@@ -117,7 +117,7 @@ function legCore(pick: Pick, snap: LiveSnap | null, prevValue: number | null = n
   }
   const player = playerByName(snap.boxes, pick.subject);
   base.athleteId = player?.id ?? null;
-  const value = player ? liveStat(player.statMap, pick.market) : null;
+  const value = player ? liveStat(player.statMap, pick.market, snap.plays, player.name) : null;
   const final = state === "post";
   if (value === null) {
     return { ...base, value: null, pace: null, toGo: null, fill: 0, tone: "flat", status: "no-match", progress: `${side} ${line} ${market}`, hype: final ? null : "Not in the box yet", final };

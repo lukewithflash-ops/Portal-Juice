@@ -5,7 +5,10 @@ import { useState } from "react";
 import { checkHref, type LegInput } from "@/lib/breakdown";
 import { pickFromLeg, sportOf } from "@/lib/legPick";
 import { addPick } from "@/lib/pickStore";
-import type { ImportLeg, SlipKind, SlipRow } from "@/lib/slipImport";
+import { STAT_CHOICES, sportGroupOf, type ImportLeg, type SlipKind, type SlipRow } from "@/lib/slipImport";
+import { marketTerms, FANTASY_NOTE } from "@/lib/tracker";
+import { statFromMarket } from "@/lib/breakdown";
+import { leagueById } from "@/lib/slate";
 import { ptTime } from "@/lib/time";
 
 type Item = ImportLeg & { keep: boolean; dirty: boolean };
@@ -135,11 +138,42 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
     }
   }
 
+  /** Name or type changes need a new match. Stat, line, side, and price edits apply right here. */
   const edit = (i: number, patch: Partial<SlipRow>) =>
-    setItems((xs) => (xs ? xs.map((x, j) => (j === i ? { ...x, row: { ...x.row, ...patch }, dirty: true } : x)) : xs));
+    setItems((xs) =>
+      xs
+        ? xs.map((x, j) => {
+            if (j !== i) return x;
+            const row = { ...x.row, ...patch };
+            const needsMatch = "subject" in patch || "kind" in patch || !x.leg;
+            if (needsMatch) return { ...x, row, dirty: true };
+            const leg: LegInput = {
+              ...(x.leg as LegInput),
+              market: row.kind === "prop" ? row.market : (x.leg as LegInput).market,
+              stat: row.kind === "prop" ? statFromMarket(x.game?.league ?? "", row.market) ?? undefined : (x.leg as LegInput).stat,
+              line: row.line,
+              pick: row.selection === "Under" ? "under" : "over",
+              odds: row.odds,
+            };
+            const live = row.kind !== "prop" || marketTerms(row.market).length > 0;
+            const issue =
+              row.kind === "prop" && !row.market
+                ? "Pick the stat. Until then it saves as a manual leg."
+                : row.line == null && row.kind !== "moneyline"
+                  ? "Add the line."
+                  : (row.kind === "prop" || row.kind === "total") && !row.selection
+                    ? "Pick over or under."
+                    : !live
+                      ? "No live meter for this stat. It saves as a manual leg you grade."
+                      : null;
+            return { ...x, row, leg, issue, manual: !live };
+          })
+        : xs
+    );
 
   const kept = items?.filter((x) => x.keep) ?? [];
-  const ready = kept.filter((x) => x.leg && !x.issue && !x.dirty);
+  // Break it down needs a game and a stat the breakdown engine knows. Everything else still tracks.
+  const ready = kept.filter((x) => x.leg && !x.dirty && !!leagueById(x.leg.league) && (x.leg.kind !== "prop" || !!x.leg.stat) && x.leg.line != null);
   const dirty = items?.some((x) => x.dirty) ?? false;
 
   function breakDown() {
@@ -156,6 +190,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
     kept.forEach((x, i) => {
       const extra = { slipId, book: book || "Slip", stake: i === 0 && amount > 0 ? amount : 0, odds: x.row.odds };
       if (x.leg && x.game && !x.dirty) {
+        // Tied to a game: the Log can follow it live when the stat is trackable.
         addPick({ ...pickFromLeg(x.leg, { home: x.game.home, away: x.game.away }, extra), link: link.trim() || undefined });
         return;
       }
@@ -208,14 +243,14 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
           {note ? <p className="text-xs text-zinc-500">{note}</p> : null}
           <ul className="space-y-2">
             {items.map((x, i) => (
-              <li key={i} className={"rounded-xl border p-2 " + (x.issue || !x.leg ? "border-[color:var(--minus)]/50 bg-[color:var(--minus)]/5" : "border-white/10")}>
+              <li key={i} className={"rounded-xl border p-2 " + (x.issue || !x.leg ? "border-[color:var(--gold)]/40 bg-[color:var(--gold)]/5" : "border-white/10")}>
                 <div className="flex items-center justify-between gap-2 text-[11px]">
                   <label className="flex items-center gap-1.5 text-zinc-400">
                     <input type="checkbox" checked={x.keep} onChange={(e) => setItems(items.map((y, j) => (j === i ? { ...y, keep: e.target.checked } : y)))} />
                     Keep
                   </label>
-                  <span className={x.leg && !x.issue ? "font-bold text-[color:var(--plus)]" : "font-bold text-[color:var(--minus)]"}>
-                    {x.game ? `${x.game.away} @ ${x.game.home} · ${ptTime(x.game.start)}` : "Not matched"}
+                  <span className={x.game ? "font-bold text-[color:var(--plus)]" : "font-bold tone-gold"}>
+                    {x.game ? `${x.game.away} @ ${x.game.home} · ${ptTime(x.game.start)}` : "Manual leg"}
                   </span>
                 </div>
                 <div className="mt-1.5 grid grid-cols-6 gap-1.5">
@@ -228,7 +263,23 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                     ))}
                   </select>
                   {x.row.kind === "prop" ? (
-                    <input className="field col-span-6" value={x.row.market} placeholder="Stat" aria-label="Stat" onChange={(e) => edit(i, { market: e.target.value })} />
+                    <select className="field col-span-6" value={x.row.market} aria-label="Stat" onChange={(e) => edit(i, { market: e.target.value })}>
+                      {(() => {
+                        const choices = STAT_CHOICES[sportGroupOf(x.game?.league ?? x.leg?.league ?? "")] ?? STAT_CHOICES.football;
+                        const all = [...new Set([...(x.row.market && !choices.includes(x.row.market) ? [x.row.market] : []), ...choices])];
+                        return (
+                          <>
+                            <option value="">Pick the stat…</option>
+                            {all.map((c) => (
+                              <option key={c} value={c}>
+                                {c === x.row.market && !choices.includes(c) ? `${c} (as printed)` : c}
+                                {c === "fantasy score" ? ` · ${FANTASY_NOTE}` : ""}
+                              </option>
+                            ))}
+                          </>
+                        );
+                      })()}
+                    </select>
                   ) : null}
                   {x.row.kind === "prop" || x.row.kind === "total" ? (
                     <select className="field col-span-2 min-w-0" value={x.row.selection ?? ""} aria-label="Side" onChange={(e) => edit(i, { selection: e.target.value === "Over" || e.target.value === "Under" ? e.target.value : null })}>
@@ -258,7 +309,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                 {x.dirty ? (
                   <p className="mt-1 text-[11px] text-zinc-400">Edited. Tap Match again.</p>
                 ) : x.issue ? (
-                  <p className="mt-1 text-[11px] text-[color:var(--minus)]">⚠ {x.issue}</p>
+                  <p className="mt-1 text-[11px] text-amber-200/90">ⓘ {x.issue}</p>
                 ) : null}
               </li>
             ))}
@@ -288,7 +339,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
           </div>
           {kept.length > ready.length ? (
             <p className="text-[11px] text-zinc-500">
-              {kept.length - ready.length} flagged row{kept.length - ready.length === 1 ? "" : "s"} stay out of the breakdown until fixed. Track it saves them as read.
+              {kept.length - ready.length} row{kept.length - ready.length === 1 ? "" : "s"} can&apos;t be broken down yet. Track it saves every kept row; manual legs are graded by you in the Log.
             </p>
           ) : null}
           {tracked ? (

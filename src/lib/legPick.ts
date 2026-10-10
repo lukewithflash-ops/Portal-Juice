@@ -2,7 +2,7 @@
 import { statLabel, type LegInput } from "@/lib/breakdown";
 import type { Pick, Sport } from "@/lib/types";
 
-const SPORT: Record<string, Sport> = { nfl: "NFL", ncaaf: "NFL", nba: "NBA", wnba: "NBA", mlb: "MLB", nhl: "NHL" };
+const SPORT: Record<string, Sport> = { nfl: "NFL", ncaaf: "NFL", nba: "NBA", wnba: "NBA", ncaam: "NBA", ncaaw: "NBA", mlb: "MLB", nhl: "NHL" };
 
 export function sportOf(league: string): Sport {
   return SPORT[league] ?? "SOCCER";

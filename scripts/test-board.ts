@@ -36,6 +36,8 @@ import { noVig, winPct } from "../src/lib/winPct";
 import { barColors } from "../src/components/WinBar";
 import { chooseLean, leanCandidates } from "../src/lib/gameLean";
 import { parseSportScoreboard, sportLeague, parseMatchFeed } from "../src/lib/sports";
+import { nameClose, propMarketOf } from "../src/lib/slipImport";
+import { liveStat, longestPassFromPlays, marketTerms } from "../src/lib/tracker";
 
 let n = 0;
 const t = (name: string, fn: () => void) => {
@@ -1154,6 +1156,72 @@ t("more sports: tennis and UFC are head-to-head; golf is a leaderboard", () => {
   assert.equal(pga.golf[0].rows[0].pos, "T1");
   assert.equal(pga.golf[0].rows[0].score, "-11");
   assert.deepEqual(parseMatchFeed({ keyEvents: [{ id: "1", text: "Goal! Saka", clock: { displayValue: "12'" }, type: { type: "goal" } }] })[0].clock, "12'");
+});
+
+
+// ---- Slip fix: markets, names, never blocked ----
+t("slip markets: PrizePicks wording maps to a stat", () => {
+  assert.equal(propMarketOf("Longest Rush"), "longest rush");
+  assert.equal(propMarketOf("longest reception"), "longest reception");
+  assert.equal(propMarketOf("Longest Completion"), "longest completion");
+  assert.equal(propMarketOf("Fantasy Score"), "fantasy score");
+  assert.equal(propMarketOf("Rush+Rec Yds"), "rushing + receiving yards");
+  assert.equal(propMarketOf("Pass+Rush Yds"), "passing + rushing yards");
+  assert.equal(propMarketOf("Pts+Rebs+Asts"), "points + rebounds + assists");
+  assert.equal(propMarketOf("Pts+Rebs"), "points + rebounds");
+  assert.equal(propMarketOf("Rebs+Asts"), "rebounds + assists");
+  assert.equal(propMarketOf("3-PT Made"), "3-pointers");
+  assert.equal(propMarketOf("Receiving Targets"), "targets");
+  assert.equal(propMarketOf("Points"), "points");
+});
+
+t("slip names: fuzzy match allows accents, suffixes, initials, a typo", () => {
+  assert.ok(nameClose("Chelsea Gray", "Chelsea Grey"));
+  assert.ok(nameClose("C. Gray", "Chelsea Gray"));
+  assert.ok(nameClose("Kenneth Walker III", "Kenneth Walker"));
+  assert.ok(nameClose("Nikola Jokić", "Nikola Jokic"));
+  assert.ok(!nameClose("Chelsea Gray", "Josh Gray"));
+});
+
+t("live meter: fantasy score, combos, and longest plays from the box", () => {
+  const qb = { passingYards: "250", passingTouchdowns: "2", interceptions: "1", rushingYards: "30", rushingTouchdowns: "0" };
+  // 250*.04 + 2*4 - 1 + 30*.1 = 10 + 8 - 1 + 3 = 20
+  assert.equal(liveStat(qb, "fantasy score"), 20);
+  const wr = { receptions: "6", receivingYards: "84", receivingTouchdowns: "1", longReception: "31", fumblesLost: "1" };
+  // 6 + 8.4 + 6 - 1 = 19.4
+  assert.equal(liveStat(wr, "fantasy score"), 19.4);
+  const hoops = { points: "12", rebounds: "4", assists: "7", steals: "1", blocks: "0", turnovers: "3" };
+  // 12 + 4.8 + 10.5 + 3 + 0 - 3 = 27.3
+  assert.equal(liveStat(hoops, "fantasy score"), 27.3);
+  assert.equal(liveStat(hoops, "points + assists"), 19);
+  assert.equal(liveStat({ rushingYards: "40", receivingYards: "22" }, "rushing + receiving yards"), 62);
+  assert.equal(liveStat({ rushingYards: "40", longRushing: "17" }, "longest rush"), 17);
+  assert.equal(liveStat(wr, "longest reception"), 31);
+  assert.equal(liveStat({ rushingYards: "40" }, "longest rush"), null);
+  const plays = [{ text: "(Shotgun) B.Bachmeier pass short right to C.Smith to ISU 40 for 12 yards" }, { text: "B.Bachmeier pass deep left to J.Doe for 38 yards, TOUCHDOWN" }, { text: "B.Bachmeier pass incomplete deep right to J.Doe" }];
+  assert.equal(longestPassFromPlays(plays, "Bear Bachmeier"), 38);
+  assert.equal(liveStat({ passingYards: "50" }, "longest completion", plays, "Bear Bachmeier"), 38);
+  assert.ok(marketTerms("fantasy score").length > 0);
+  assert.equal(marketTerms("first basket").length, 0);
+});
+
+t("slip import never blocks: unknown players and markets save as manual legs", () => {
+  const games: SlateGame[] = [{ league: "ncaaf", id: "401856826", start: "2026-10-10T02:30Z", state: "pre", away: { id: "66", abbr: "ISU", name: "Iowa State Cyclones" }, home: { id: "252", abbr: "BYU", name: "BYU Cougars" } }];
+  const row = (subject: string, market: string, line: number, sel: "Over" | "Under") => ({ subject, market, line, selection: sel, odds: null, kind: "prop" as const });
+  const a = matchRow(row("Bear Bachmeier", "longest rush", 17.5, "Under"), games, { id: "1", name: "Bear Bachmeier", league: "ncaaf", teamId: "252" });
+  assert.ok(a.leg && a.game, "tied to the game");
+  assert.equal(a.row.market, "longest rush");
+  assert.equal(a.manual, false, "longest rush has a live meter");
+  assert.equal(a.issue, null);
+  const b = matchRow(row("Jaylen Raynor", "fantasy score", 13.5, "Over"), games, { id: "2", name: "Jaylen Raynor", league: "ncaaf", teamId: "66" });
+  assert.ok(b.leg && b.game);
+  assert.equal(b.issue, null);
+  const c = matchRow(row("Chelsea Gray", "points", 7.5, "Over"), games, null);
+  assert.equal(c.leg, null);
+  assert.equal(c.manual, true);
+  assert.match(c.issue ?? "", /manual/);
+  const d = matchRow(row("Bear Bachmeier", "anytime touchdown scorer", 0.5, "Over"), games, { id: "1", name: "Bear Bachmeier", league: "ncaaf", teamId: "252" });
+  assert.ok(d.leg && d.manual, "unknown stat still makes a leg, graded by you");
 });
 
 console.log(`\n${n} passed`);

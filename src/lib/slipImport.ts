@@ -5,6 +5,9 @@
  */
 
 import { statFromMarket, type LegInput } from "@/lib/breakdown";
+import { marketTerms } from "@/lib/tracker";
+
+const liveTrackable = (market: string) => marketTerms(market).length > 0;
 
 export type SlipKind = "prop" | "spread" | "total" | "moneyline";
 
@@ -31,33 +34,91 @@ export type ImportLeg = {
   /** Null when the row is not tied to a game yet. */
   leg: LegInput | null;
   game: { league: string; id: string; away: string; home: string; start: string } | null;
-  /** Why it is flagged, in plain words. Null when it is ready. */
+  /** Why it is flagged, in plain words. Null when it is ready. A flag never blocks saving. */
   issue: string | null;
+  /** True when the leg can be saved but has no live meter: graded by you. */
+  manual?: boolean;
 };
 
 const PROP_MARKETS: [RegExp, string][] = [
-  [/pts\s*\+\s*reb\s*\+\s*ast|points\s*\+\s*rebounds\s*\+\s*assists|\bpra\b/i, "points + rebounds + assists"],
+  [/fantasy\s*(?:score|points|pts)?|\bfpts\b/i, "fantasy score"],
+  [/longest\s+(?:rush|run)|long(?:est)?\s+rush/i, "longest rush"],
+  [/longest\s+(?:reception|catch|rec)/i, "longest reception"],
+  [/longest\s+(?:pass(?:ing)?\s+)?(?:completion|pass)/i, "longest completion"],
+  [/pts\s*\+\s*reb(?:s)?\s*\+\s*ast(?:s)?|points\s*\+\s*rebounds\s*\+\s*assists|\bpra\b/i, "points + rebounds + assists"],
+  [/pts\s*\+\s*reb(?:s)?|points\s*\+\s*rebounds/i, "points + rebounds"],
+  [/pts\s*\+\s*ast(?:s)?|points\s*\+\s*assists/i, "points + assists"],
+  [/reb(?:s|ounds)?\s*\+\s*ast(?:s|ists)?/i, "rebounds + assists"],
+  [/rush(?:ing)?\s*\+\s*rec(?:eiving)?(?:\s+|-)?(?:y(?:ar)?ds?)?/i, "rushing + receiving yards"],
+  [/pass(?:ing)?\s*\+\s*rush(?:ing)?(?:\s+|-)?(?:y(?:ar)?ds?)?/i, "passing + rushing yards"],
   [/pass(?:ing)?(?:\s+|-)?(?:td|touchdown)s?/i, "passing touchdowns"],
+  [/pass(?:ing)?(?:\s+|-)?att(?:empt)?s?/i, "pass attempts"],
   [/pass(?:ing)?(?:\s+|-)?y(?:ar)?ds?/i, "passing yards"],
-  [/rush(?:ing)?(?:\s*\+\s*rec(?:eiving)?)?(?:\s+|-)?y(?:ar)?ds?/i, "rushing yards"],
+  [/rush(?:ing)?(?:\s+|-)?att(?:empt)?s?|\bcarries\b/i, "rush attempts"],
+  [/rush(?:ing)?(?:\s+|-)?y(?:ar)?ds?/i, "rushing yards"],
   [/rec(?:eiving)?(?:\s+|-)?y(?:ar)?ds?/i, "receiving yards"],
-  [/completions?\b/i, "completions"],
-  [/receptions?\b/i, "receptions"],
-  [/3[- ]?(?:pointers?|pt|pts|pm)\b|threes?\b/i, "3-pointers"],
-  [/rebounds?\b|\breb\b/i, "rebounds"],
-  [/assists?\b|\bast\b/i, "assists"],
+  [/completions?\b|\bcmp\b/i, "completions"],
+  [/receptions?\b|\bcatches\b/i, "receptions"],
+  [/targets?\b/i, "targets"],
+  [/interceptions?\b|\bints?\b/i, "interceptions"],
+  [/3[- ]?(?:pointers?|pt|pts|pm)\b|threes?\b|3-?pt made/i, "3-pointers"],
+  [/rebounds?\b|\brebs?\b/i, "rebounds"],
+  [/assists?\b|\basts?\b/i, "assists"],
+  [/steals?\s*\+\s*blocks?|stocks/i, "steals + blocks"],
   [/steals?\b/i, "steals"],
-  [/blocks?\b/i, "blocks"],
+  [/blocks?\b|blocked shots/i, "blocks"],
+  [/turnovers?\b/i, "turnovers"],
   [/strike\s*outs?|\bks?\b(?=.*\d)/i, "strikeouts"],
   [/total bases|\bbases\b/i, "total bases"],
   [/home runs?|\bhr\b/i, "home runs"],
   [/\bhits?\b/i, "hits"],
   [/\brbis?\b/i, "rbis"],
-  [/shots? on goal|\bsog\b/i, "shots on goal"],
+  [/shots? on (?:goal|target)|\bsog\b/i, "shots on goal"],
   [/\bsaves?\b/i, "saves"],
   [/\bgoals?\b/i, "goals"],
   [/\bpoints?\b|\bpts\b/i, "points"],
 ];
+
+/** Stats you can pick when the slip's market wording is not read. Grouped by sport. */
+export const STAT_CHOICES: Record<string, string[]> = {
+  football: ["passing yards", "rushing yards", "receiving yards", "receptions", "targets", "completions", "pass attempts", "rush attempts", "passing touchdowns", "interceptions", "rushing + receiving yards", "passing + rushing yards", "longest rush", "longest reception", "longest completion", "fantasy score"],
+  basketball: ["points", "rebounds", "assists", "3-pointers", "points + rebounds + assists", "points + rebounds", "points + assists", "rebounds + assists", "steals", "blocks", "steals + blocks", "turnovers", "fantasy score"],
+  baseball: ["hits", "total bases", "home runs", "rbis", "strikeouts"],
+  hockey: ["goals", "assists", "points", "shots on goal", "saves"],
+  soccer: ["goals", "assists", "shots on goal", "saves"],
+};
+
+export function sportGroupOf(league: string): string {
+  if (league === "nfl" || league === "ncaaf") return "football";
+  if (["nba", "wnba", "ncaam", "ncaaw"].includes(league)) return "basketball";
+  if (league === "mlb") return "baseball";
+  if (league === "nhl") return "hockey";
+  return "soccer";
+}
+
+const normName = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z ]/g, "").replace(/\b(jr|sr|ii|iii|iv)\b/g, "").replace(/\s+/g, " ").trim();
+
+function lev(a: string, b: string): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+
+/** Same person, allowing accents, suffixes, an initial for the first name, and a typo or two. */
+export function nameClose(a: string, b: string): boolean {
+  const x = normName(a);
+  const y = normName(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const [xf, ...xr] = x.split(" ");
+  const [yf, ...yr] = y.split(" ");
+  const xl = xr.join(" ");
+  const yl = yr.join(" ");
+  if (xl && xl === yl && (xf[0] === yf[0])) return true;
+  return lev(x, y) <= Math.max(1, Math.floor(Math.min(x.length, y.length) / 6));
+}
 
 export function propMarketOf(text: string): string {
   for (const [re, label] of PROP_MARKETS) if (re.test(text)) return label;
@@ -217,9 +278,11 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
   const pool = live.length ? live : games;
   const odds = row.odds;
   if (row.kind === "prop") {
-    if (!player) return { row, leg: null, game: null, issue: "Player not found in today’s or upcoming games. Check the name." };
+    const known = propMarketOf(row.market);
+    if (known) row = { ...row, market: known };
+    if (!player) return { row, leg: null, game: null, manual: true, issue: "Player not found in today’s or upcoming games. Saves as a manual leg you grade." };
     const g = pool.find((x) => x.league === player.league && player.teamId && (x.home.id === player.teamId || x.away.id === player.teamId));
-    if (!g) return { row, leg: null, game: null, issue: `${player.name}’s team has no game in the next few days.` };
+    if (!g) return { row, leg: null, game: null, manual: true, issue: `${player.name}’s team has no game in the next few days. Saves as a manual leg.` };
     const stat = statFromMarket(g.league, row.market);
     const leg: LegInput = {
       league: g.league,
@@ -233,8 +296,17 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
       pick: row.selection === "Under" ? "under" : "over",
       odds,
     };
-    const issue = !stat ? "Pick the stat: we could not read the market." : row.line == null ? "Add the line." : !row.selection ? "Pick over or under." : null;
-    return { row, leg, game: gameRef(g), issue };
+    const tracked = row.market && liveTrackable(row.market);
+    const issue = !row.market
+      ? "Pick the stat. Until then it saves as a manual leg."
+      : row.line == null
+        ? "Add the line."
+        : !row.selection
+          ? "Pick over or under."
+          : !tracked
+            ? "No live meter for this stat. It saves as a manual leg you grade."
+            : null;
+    return { row, leg: { ...leg, athleteName: player.name }, game: gameRef(g), issue, manual: !tracked };
   }
   if (row.kind === "total") {
     const both = findBothTeams(row.subject, pool);

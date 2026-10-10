@@ -173,6 +173,8 @@ export function statLabel(league: string, key: string | undefined): string {
 export function statFromMarket(league: string, market: string): string | null {
   const m = market.toLowerCase();
   if (/points.*rebounds.*assists|pts.*reb.*ast|\bpra\b/.test(m)) return "pra";
+  // Combos, longest plays, and fantasy scores have no single game-log stat.
+  if (/\+|longest|fantasy|target|attempt|carries/.test(m)) return null;
   if (/earned run/.test(m)) return "earnedRuns";
   if (/steal/.test(m)) return "steals";
   if (/block/.test(m)) return "blocks";

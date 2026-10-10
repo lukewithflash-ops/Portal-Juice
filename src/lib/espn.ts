@@ -1,4 +1,5 @@
 import "server-only";
+import { sportLeague } from "@/lib/sports";
 import { unstable_cache } from "next/cache";
 import { allowedHeadshot } from "@/lib/headshots";
 import { implied } from "@/lib/odds";
@@ -652,8 +653,11 @@ function easternDay(iso: string | null): string | null {
 
 export async function getLive(leagueId: string, id: string): Promise<LiveSnap | null> {
   const league = leagueById(leagueId);
-  if (!league || !/^\d+$/.test(id)) return null;
-  const base = `https://site.api.espn.com/apis/site/v2/sports/${league.sport}/${league.slug}`;
+  const extra = league ? null : sportLeague(leagueId);
+  if ((!league && !(extra && (extra.kind === "team" || extra.kind === "soccer"))) || !/^\d+$/.test(id)) return null;
+  const base = league
+    ? `https://site.api.espn.com/apis/site/v2/sports/${league.sport}/${league.slug}`
+    : `https://site.api.espn.com/apis/site/v2/sports/${extra!.path}`;
   let data: unknown;
   try {
     data = await memoJson(`${base}/summary?event=${id}`);

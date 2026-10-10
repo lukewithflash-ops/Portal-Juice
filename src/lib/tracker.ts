@@ -47,30 +47,79 @@ export function statNumber(raw: string | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Groups of aliases. A combo market is several groups summed. */
-export function marketGroups(market: string): string[][] {
+/** One stat in a market: any of these box score keys, times a weight. `opt` terms count as 0 when missing. */
+export type Term = { aliases: string[]; w: number; opt?: boolean; max?: "plays-pass" };
+
+const T = (aliases: string[], w = 1, opt = false): Term => ({ aliases, w, opt });
+
+/** PrizePicks-style fantasy scoring. Football: pass yd 0.04, pass TD 4, INT -1, rush/rec yd 0.1, rec 1, rush/rec TD 6, fumble lost -1. */
+export const FANTASY_FOOTBALL: Term[] = [
+  T(["passingYards"], 0.04, true),
+  T(["passingTouchdowns"], 4, true),
+  T(["interceptions"], -1, true),
+  T(["rushingYards"], 0.1, true),
+  T(["receivingYards"], 0.1, true),
+  T(["receptions"], 1, true),
+  T(["rushingTouchdowns"], 6, true),
+  T(["receivingTouchdowns"], 6, true),
+  T(["fumblesLost"], -1, true),
+];
+/** Basketball: pts 1, reb 1.2, ast 1.5, stl 3, blk 3, TO -1. */
+export const FANTASY_HOOPS: Term[] = [
+  T(["points", "PTS"], 1, true),
+  T(["rebounds", "REB"], 1.2, true),
+  T(["assists", "AST"], 1.5, true),
+  T(["steals", "STL"], 3, true),
+  T(["blocks", "BLK"], 3, true),
+  T(["turnovers", "TO"], -1, true),
+];
+export const FANTASY_NOTE = "PrizePicks-style scoring";
+
+const PTS = T(["points", "PTS"]);
+const REB = T(["rebounds", "REB"]);
+const AST = T(["assists", "AST"]);
+
+/** The box score terms behind a market. Empty when we cannot compute it live. */
+export function marketTerms(market: string): Term[] {
   const m = market.toLowerCase();
-  if (m.includes("points") && m.includes("assists") && m.includes("rebounds")) {
-    return [
-      ["points", "PTS"],
-      ["assists", "AST"],
-      ["rebounds", "REB"],
-    ];
+  if (/fantasy/.test(m)) return [{ aliases: ["fantasy"], w: 1 }];
+  if (/longest/.test(m)) {
+    if (/rush|run/.test(m)) return [T(["longRushing"])];
+    if (/recep|catch/.test(m)) return [T(["longReception"])];
+    if (/pass|complet/.test(m)) return [{ aliases: ["longPassing"], w: 1, max: "plays-pass" }];
+    return [];
   }
-  if (m.includes("points") && m.includes("assists")) return [["points", "PTS"], ["assists", "AST"]];
-  if (m.includes("points") && m.includes("rebounds")) return [["points", "PTS"], ["rebounds", "REB"]];
-  if (m.includes("3-point") || m.includes("three point") || m.includes("3pm")) {
-    return [["threePointFieldGoalsMade", "3PT"]];
-  }
-  if (m.includes("pass") && m.includes("yard")) return [["passingYards"]];
-  if (m.includes("rush") && m.includes("yard")) return [["rushingYards"]];
-  if (m.includes("receiv") && m.includes("yard")) return [["receivingYards"]];
-  if (m.includes("reception")) return [["receptions", "REC"]];
-  if (m.includes("points")) return [["points", "PTS"]];
-  if (m.includes("assist")) return [["assists", "AST"]];
-  if (m.includes("rebound")) return [["rebounds", "REB"]];
-  if (m.includes("goal")) return [["goals"]];
+  if (m.includes("points") && m.includes("assists") && m.includes("rebounds")) return [PTS, AST, REB];
+  if (m.includes("points") && m.includes("assists")) return [PTS, AST];
+  if (m.includes("points") && m.includes("rebounds")) return [PTS, REB];
+  if (m.includes("rebounds") && m.includes("assists")) return [REB, AST];
+  if (m.includes("steals") && m.includes("blocks")) return [T(["steals", "STL"]), T(["blocks", "BLK"])];
+  if (m.includes("3-point") || m.includes("three point") || m.includes("3pm") || m.includes("3-pointers")) return [T(["threePointFieldGoalsMade", "3PT"])];
+  if (/rush/.test(m) && /rec/.test(m) && /yard/.test(m)) return [T(["rushingYards"], 1, true), T(["receivingYards"], 1, true)];
+  if (/pass/.test(m) && /rush/.test(m) && /yard/.test(m)) return [T(["passingYards"], 1, true), T(["rushingYards"], 1, true)];
+  if (m.includes("pass") && m.includes("yard")) return [T(["passingYards"])];
+  if (m.includes("rush") && m.includes("yard")) return [T(["rushingYards"])];
+  if (m.includes("receiv") && m.includes("yard")) return [T(["receivingYards"])];
+  if (/pass(ing)? (td|touchdown)/.test(m)) return [T(["passingTouchdowns"])];
+  if (m.includes("completion")) return [T(["completions"])];
+  if (/pass(ing)? att/.test(m)) return [T(["passingAttempts"])];
+  if (/rush(ing)? att|carries/.test(m)) return [T(["rushingAttempts"])];
+  if (m.includes("reception")) return [T(["receptions", "REC"])];
+  if (m.includes("target")) return [T(["receivingTargets"])];
+  if (m.includes("interception")) return [T(["interceptions"])];
+  if (m.includes("turnover")) return [T(["turnovers", "TO"])];
+  if (m.includes("steal")) return [T(["steals", "STL"])];
+  if (m.includes("block")) return [T(["blocks", "BLK"])];
+  if (m.includes("points")) return [PTS];
+  if (m.includes("assist")) return [AST];
+  if (m.includes("rebound")) return [REB];
+  if (m.includes("goal")) return [T(["goals"])];
   return [];
+}
+
+/** Old shape kept for callers that only need to know a market is trackable. */
+export function marketGroups(market: string): string[][] {
+  return marketTerms(market).map((t) => t.aliases);
 }
 
 function readAlias(map: Record<string, string>, aliases: string[]): number | null {
@@ -80,16 +129,50 @@ function readAlias(map: Record<string, string>, aliases: string[]): number | nul
   return null;
 }
 
-export function liveStat(map: Record<string, string> | undefined, market: string): number | null {
-  const groups = marketGroups(market);
-  if (!groups.length || !map) return null;
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+function sumTerms(map: Record<string, string>, terms: Term[]): number | null {
   let sum = 0;
-  for (const aliases of groups) {
-    const n = readAlias(map, aliases);
-    if (n === null) return null;
-    sum += n;
+  let any = false;
+  for (const t of terms) {
+    const n = readAlias(map, t.aliases);
+    if (n === null) {
+      if (!t.opt) return null;
+      continue;
+    }
+    any = true;
+    sum += n * t.w;
   }
-  return sum;
+  return any ? r2(sum) : null;
+}
+
+/** Longest completion from the play feed, e.g. "J.Allen pass short right to K.Coleman ... for 23 yards". */
+export function longestPassFromPlays(plays: { text: string }[], name: string): number | null {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length < 2) return null;
+  const last = parts[parts.length - 1].replace(/[^A-Za-z'-]/g, "");
+  const tag = new RegExp(`\\b${parts[0][0]}\\.\\s?${last}\\s+pass\\b(?!.*\\bincomplete\\b).*?\\bfor (-?\\d+) yards?`, "i");
+  let best: number | null = null;
+  for (const p of plays) {
+    const m = p.text.match(tag);
+    if (m) best = Math.max(best ?? -99, Number(m[1]));
+  }
+  return best;
+}
+
+export function liveStat(map: Record<string, string> | undefined, market: string, plays?: { text: string }[], name?: string): number | null {
+  const terms = marketTerms(market);
+  if (!terms.length || !map) return null;
+  if (terms[0].aliases[0] === "fantasy") {
+    const hoops = "points" in map || "PTS" in map;
+    return sumTerms(map, hoops ? FANTASY_HOOPS : FANTASY_FOOTBALL);
+  }
+  if (terms[0].max === "plays-pass") {
+    const box = readAlias(map, terms[0].aliases);
+    if (box !== null) return box;
+    return plays && name ? longestPassFromPlays(plays, name) : null;
+  }
+  return sumTerms(map, terms);
 }
 
 function clockSeconds(clock: string | null): number | null {
