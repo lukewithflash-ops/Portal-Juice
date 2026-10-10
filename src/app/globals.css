@@ -591,3 +591,17 @@ html[data-team] .portal-bg::after {
   background: radial-gradient(circle, rgba(124, 58, 237, 0.35), rgba(3, 3, 6, 0) 70%);
   box-shadow: inset 0 0 0 2px rgba(168, 85, 247, 0.6), 0 0 24px rgba(168, 85, 247, 0.45);
 }
+
+/* Brand display face for notifications and big numbers. */
+.font-display { font-family: var(--font-display), var(--font-geist-sans), system-ui, sans-serif; }
+/* Animated emote in toasts and the inbox, one motion per event type (<1s). */
+.toast-emote { display: inline-block; filter: drop-shadow(0 0 6px #a855f7); }
+.portal-toast .toast-emote, .toast-emote[data-kind] { animation: pj-emote-pop 0.7s cubic-bezier(.2,1.6,.4,1) both; }
+.toast-emote[data-kind="big"] { animation: pj-emote-pop 0.5s cubic-bezier(.2,1.6,.4,1) both, pj-emote-shake 0.5s 0.5s ease-in-out 1; }
+.toast-emote[data-kind="cleared"], .toast-emote[data-kind="close"] { filter: drop-shadow(0 0 8px #f5c542); animation: pj-emote-pop 0.6s cubic-bezier(.2,1.6,.4,1) both, pj-emote-bounce 0.6s 0.6s ease-in-out 1; }
+.toast-emote[data-kind="lead"], .toast-emote[data-kind="final"] { animation: pj-emote-spin 0.8s cubic-bezier(.2,1.1,.3,1) both; }
+@keyframes pj-emote-pop { 0% { transform: scale(0.2); opacity: 0; } 60% { transform: scale(1.5); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes pj-emote-shake { 25% { transform: rotate(-14deg); } 75% { transform: rotate(14deg); } }
+@keyframes pj-emote-bounce { 40% { transform: translateY(-5px) scale(1.15); } }
+@keyframes pj-emote-spin { 0% { transform: rotate(-360deg) scale(0.3); opacity: 0; } 100% { transform: rotate(0) scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .toast-emote, .toast-emote[data-kind] { animation: none !important; } }

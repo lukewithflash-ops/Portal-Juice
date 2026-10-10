@@ -1,4 +1,6 @@
 /* eslint-disable @next/next/no-img-element -- next/og renders plain <img> */
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
 export const runtime = "nodejs";
@@ -33,7 +35,15 @@ async function inline(url: string | null): Promise<string | null> {
 }
 
 /** The rich push image: dark portal gradient, glowing ring, team colors, score or player meter. 1200x600. */
+// Brand display face (Orbitron Black, SIL OFL), read once per instance.
+let brandFont: Promise<Buffer | null> | null = null;
+function loadFont() {
+  brandFont ??= readFile(join(process.cwd(), "src/app/api/push/img/Orbitron-Black.ttf")).catch(() => null);
+  return brandFont;
+}
+
 export async function GET(req: Request) {
+  const font = await loadFont();
   const q = new URL(req.url).searchParams;
   const league = (q.get("lg") ?? "").replace(/[^a-z0-9]/g, "").slice(0, 12);
   const kind = (q.get("k") ?? "").replace(/[^a-z]/g, "").slice(0, 10);
@@ -97,8 +107,16 @@ export async function GET(req: Request) {
           color: "#f2eee6",
           position: "relative",
           padding: 36,
+          fontFamily: font ? "Orbitron" : undefined,
         }}
       >
+        {["big", "cleared", "final", "lead", "player"].includes(kind) ? (
+          [[110, 120, 46, "#F5C542"], [1040, 100, 38, "#A855F7"], [180, 430, 30, "#39FF14"], [980, 420, 50, "#F5C542"], [600, 40, 28, "#C084FC"], [80, 280, 24, "#A855F7"], [1110, 300, 26, "#39FF14"]].map(([x, y, sz, c], n) => (
+            <div key={n} style={{ position: "absolute", left: Number(x), top: Number(y), display: "flex", fontSize: Number(sz), color: String(c), textShadow: `0 0 18px ${c}` }}>
+              ✨
+            </div>
+          ))
+        ) : null}
         <div style={{ position: "absolute", left: 0, top: 0, width: 14, height: "100%", background: ac, boxShadow: `0 0 40px ${ac}` }} />
         <div style={{ position: "absolute", right: 0, top: 0, width: 14, height: "100%", background: hc, boxShadow: `0 0 40px ${hc}` }} />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 28, fontWeight: 800, color: "#c4b5fd" }}>
@@ -157,6 +175,6 @@ export async function GET(req: Request) {
         )}
       </div>
     ),
-    { width: 1200, height: 600, emoji: "twemoji", headers: { "Cache-Control": "public, max-age=86400, immutable" } }
+    { width: 1200, height: 600, emoji: "twemoji", fonts: font ? [{ name: "Orbitron", data: font, weight: 900, style: "normal" }] : undefined, headers: { "Cache-Control": "public, max-age=86400, immutable" } }
   );
 }

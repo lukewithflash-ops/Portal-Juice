@@ -123,13 +123,14 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
         setMoments((m) => {
           const next = { ...m };
           for (const a of moments) {
-            const k = a.url.replace(/^\/games\//, "");
+            const k = a.url.replace(/^\/(games|sports)\//, "");
             next[k] = { ...(a.player as NonNullable<GameAlert["player"]>), at: a.at, body: a.body };
           }
           return next;
         });
       }
       setToasts((t) => [...out, ...t].slice(0, 3));
+      if (out.some((a) => a.kind === "big" || a.kind === "final" || a.kind === "lead")) playSignature();
       addToInbox(out.map((a) => ({ key: a.key, kind: a.kind, title: a.title, body: a.body, url: a.url, at: a.at })));
     }
   });
@@ -319,8 +320,8 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
             >
               <span className="portal-ring" aria-hidden />
               <span className="min-w-0">
-                <span className="block font-black" style={{ color: t.kind === "close" || t.kind === "cleared" ? "var(--gold)" : undefined }}>
-                  {ICON[t.kind]} {t.title}
+                <span className="font-display block font-black tracking-wide" style={{ color: t.kind === "close" || t.kind === "cleared" ? "var(--gold)" : undefined }}>
+                  <span className="toast-emote" data-kind={t.kind} aria-hidden>{ICON[t.kind]}</span> {t.title}
                 </span>
                 <span className="block text-xs text-zinc-300">{t.body}</span>
               </span>

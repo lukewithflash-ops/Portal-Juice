@@ -14,7 +14,7 @@ import {
 } from "@/lib/inbox";
 import { currentEndpoint, pushState, sendTestPush } from "@/lib/pushClient";
 
-const ICON: Record<string, string> = { score: "🔢", lead: "🔁", big: "💥", close: "🔥", cleared: "🏆", final: "🏁", player: "⭐", test: "🔔" };
+const ICON: Record<string, string> = { tile: "📺", score: "🔢", lead: "🔁", big: "💥", close: "🔥", cleared: "🏆", final: "🏁", player: "⭐", test: "🔔" };
 
 function ago(at: number) {
   const s = Math.max(0, Math.round((Date.now() - at) / 1000));
@@ -115,9 +115,9 @@ export default function Bell() {
                     }}
                     className={"flex gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5 " + (x.at > seen ? "bg-white/[0.04]" : "")}
                   >
-                    <span aria-hidden>{ICON[x.kind] ?? "•"}</span>
+                    <span className="toast-emote" data-kind={x.kind} aria-hidden>{ICON[x.kind] ?? "•"}</span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-white">{x.title}</span>
+                      <span className="font-display block truncate text-[13px] font-bold tracking-wide text-white">{x.title}</span>
                       <span className="block text-xs text-zinc-400">{x.body}</span>
                     </span>
                     <span className="shrink-0 text-[10px] text-zinc-500">{ago(x.at)}</span>
