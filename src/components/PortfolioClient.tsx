@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import AddSlip from "@/components/AddSlip";
 import LogRow from "@/components/LogRow";
 import { useLiveHub } from "@/components/LiveHub";
 import { useLogLooks } from "@/components/useLogLeans";
 import { checkHref, legFromLogged, type LegInput } from "@/lib/breakdown";
+import SlipSummary from "@/components/SlipSummary";
 import { pickKind, summarize } from "@/lib/ledger";
 import SharePanel from "@/components/SharePanel";
 import LiveSlips from "@/components/LiveSlips";
@@ -62,11 +62,11 @@ export default function PortfolioClient() {
   const slipChecks = useMemo(() => {
     const m = new Map<string, LegInput[]>();
     for (const p of picks) {
-      if (p.status !== "open" || !p.slipId) continue;
+      if (!p.slipId) continue;
       const l = legFromLogged(p);
       if (l) m.set(p.slipId, [...(m.get(p.slipId) ?? []), l]);
     }
-    return [...m.entries()].filter(([, ls]) => ls.length > 1);
+    return [...m.entries()];
   }, [picks]);
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -192,11 +192,9 @@ export default function PortfolioClient() {
           ))}
         </div>
         {slipChecks.length ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {slipChecks.map(([id, ls]) => (
-              <Link key={id} href={checkHref(ls)} className="rounded-lg border border-purple-400/50 px-2.5 py-1 text-[11px] font-bold text-purple-100 hover:bg-purple-500/20">
-                Break down {ls.length}-leg slip →
-              </Link>
+          <div className="mt-3 space-y-2">
+            {slipChecks.slice(0, 8).map(([id, ls], i) => (
+              <SlipSummary key={id} legs={ls} href={checkHref(ls)} auto={i < 4} />
             ))}
           </div>
         ) : null}

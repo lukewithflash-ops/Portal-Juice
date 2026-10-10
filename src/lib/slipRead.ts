@@ -22,7 +22,7 @@ export async function upcomingGames(): Promise<SlateGame[]> {
   const today = sportsDate();
   const slates = await Promise.all([0, 1, 2, 3].map((n) => getSlateFor(addDays(today, n)).catch(() => null)));
   const extra = await Promise.all(
-    SPORT_LEAGUES.filter((l) => l.kind === "team" || l.kind === "soccer").map(async (l) => {
+    SPORT_LEAGUES.filter((l) => l.kind !== "golf").map(async (l) => {
       // Day by day: some ESPN leagues reject a date range.
       const days = await Promise.all(
         [0, 1, 2, 3].map(async (n) => {

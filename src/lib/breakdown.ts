@@ -131,6 +131,33 @@ export type LegReport = {
 
 export const LEAN_NOTE = "Ranked by the numbers. Not a guarantee.";
 
+const EXTRA_LABEL: Record<string, string> = {
+  fantasy: "Fantasy score (PrizePicks-style scoring)",
+  longRushing: "Longest rush",
+  longReception: "Longest reception",
+  longPassing: "Longest completion",
+  rushRecYds: "Rush + rec yards",
+  passRushYds: "Pass + rush yards",
+  pr: "Pts + reb",
+  pa: "Pts + ast",
+  ra: "Reb + ast",
+  stocks: "Steals + blocks",
+  receivingTargets: "Targets",
+  passingAttempts: "Pass attempts",
+  rushingAttempts: "Rush attempts",
+  interceptions: "Interceptions",
+  turnovers: "Turnovers",
+  shotsOnTarget: "Shots on target",
+  totalGoals: "Goals",
+  pra: "Pts + reb + ast",
+  points: "Points",
+  totalRebounds: "Rebounds",
+  assists: "Assists",
+  threePointFieldGoalsMade: "3-pointers made",
+  steals: "Steals",
+  blocks: "Blocks",
+};
+
 export const STAT_OPTIONS: Record<string, { key: string; label: string }[]> = {
   nba: [
     { key: "points", label: "Points" },
@@ -163,18 +190,45 @@ export const STAT_OPTIONS: Record<string, { key: string; label: string }[]> = {
     { key: "RBIs", label: "RBIs" },
   ],
 };
+STAT_OPTIONS.nfl = [
+  ...STAT_OPTIONS.nfl,
+  ...["rushRecYds", "passRushYds", "longRushing", "longReception", "longPassing", "passingAttempts", "rushingAttempts", "receivingTargets", "interceptions", "fantasy"]
+    .filter((k) => !STAT_OPTIONS.nfl.some((o) => o.key === k))
+    .map((key) => ({ key, label: EXTRA_LABEL[key] })),
+];
+STAT_OPTIONS.nba = [
+  ...STAT_OPTIONS.nba,
+  ...["pr", "pa", "ra", "stocks", "turnovers", "fantasy"].filter((k) => !STAT_OPTIONS.nba.some((o) => o.key === k)).map((key) => ({ key, label: EXTRA_LABEL[key] })),
+];
 STAT_OPTIONS.ncaaf = STAT_OPTIONS.nfl;
+STAT_OPTIONS.wnba = STAT_OPTIONS.nba;
+STAT_OPTIONS.ncaam = STAT_OPTIONS.nba;
+STAT_OPTIONS.ncaaw = STAT_OPTIONS.nba;
 
 export function statLabel(league: string, key: string | undefined): string {
-  return STAT_OPTIONS[league]?.find((s) => s.key === key)?.label ?? key ?? "Stat";
+  return STAT_OPTIONS[league]?.find((s) => s.key === key)?.label ?? (key ? EXTRA_LABEL[key] : undefined) ?? key ?? "Stat";
 }
 
 /** Map an ESPN prop market name to a stat key. */
 export function statFromMarket(league: string, market: string): string | null {
   const m = market.toLowerCase();
   if (/points.*rebounds.*assists|pts.*reb.*ast|\bpra\b/.test(m)) return "pra";
-  // Combos, longest plays, and fantasy scores have no single game-log stat.
-  if (/\+|longest|fantasy|target|attempt|carries/.test(m)) return null;
+  // Combos, longest plays, and fantasy scores: computed per game from the log.
+  if (/fantasy/.test(m)) return "fantasy";
+  if (/longest/.test(m)) return /rush|run/.test(m) ? "longRushing" : /recep|catch/.test(m) ? "longReception" : "longPassing";
+  if (/rush.*\+.*rec|rush.*rec.*yard/.test(m)) return "rushRecYds";
+  if (/pass.*\+.*rush/.test(m)) return "passRushYds";
+  if (/points.*\+.*rebounds|pts.*\+.*reb/.test(m)) return "pr";
+  if (/points.*\+.*assists|pts.*\+.*ast/.test(m)) return "pa";
+  if (/rebounds.*\+.*assists|reb.*\+.*ast/.test(m)) return "ra";
+  if (/steals.*\+.*blocks|stocks/.test(m)) return "stocks";
+  if (/target/.test(m)) return "receivingTargets";
+  if (/pass.*attempt/.test(m)) return "passingAttempts";
+  if (/rush.*attempt|carries/.test(m)) return "rushingAttempts";
+  if (/interception/.test(m)) return "interceptions";
+  if (/turnover/.test(m)) return "turnovers";
+  if (/shots? on (goal|target)|\bsog\b/.test(m) && league !== "nhl") return "shotsOnTarget";
+  if (/goal/.test(m) && league !== "nhl") return "totalGoals";
   if (/earned run/.test(m)) return "earnedRuns";
   if (/steal/.test(m)) return "steals";
   if (/block/.test(m)) return "blocks";
@@ -249,11 +303,17 @@ function sideOf(g: GameResearch, side: "home" | "away") {
   return side === "home" ? { me: g.home, opp: g.away } : { me: g.away, opp: g.home };
 }
 
+/** "4-1" or, with draws, "1-1-3" (W-L-D). */
+function wlt(t: TeamResearch): string {
+  const w = t.form.filter((f) => f.result === "W").length;
+  const l = t.form.filter((f) => f.result === "L").length;
+  const d = t.form.length - w - l;
+  return d ? `${w}-${l}-${d}` : `${w}-${l}`;
+}
+
 function formFacts(t: TeamResearch, facts: Fact[]) {
   if (t.form.length) {
-    const w = t.form.filter((f) => f.result === "W").length;
-    const l = t.form.filter((f) => f.result === "L").length;
-    facts.push({ label: `${t.abbr} last ${t.form.length}`, value: `${w}-${l} · ${t.form.map((f) => `${f.result} ${f.pf}-${f.pa}`).join(", ")}` });
+    facts.push({ label: `${t.abbr} last ${t.form.length}`, value: `${wlt(t)} · ${t.form.map((f) => `${f.result} ${f.pf}-${f.pa}`).join(", ")}` });
   }
   if (t.ppg) facts.push({ label: `${t.abbr} scoring`, value: `${t.ppg.value} per game (${ord(t.ppg.rank)} of ${t.ppg.of})` });
   if (t.papg) facts.push({ label: `${t.abbr} allowed`, value: `${t.papg.value} per game (${ord(t.papg.rank)} fewest of ${t.papg.of})` });
@@ -322,7 +382,7 @@ function netRating(t: TeamResearch): number | null {
   return t.ppg && t.papg ? r1(t.ppg.value - t.papg.value) : null;
 }
 
-function finalize(base: Omit<LegReport, "score" | "lean">): LegReport {
+export function finalize(base: Omit<LegReport, "score" | "lean">): LegReport {
   const score = [...base.pros, ...base.cons].reduce((s, p) => s + p.weight, 0);
   return { ...base, score, lean: leanOf(score, base.pros, base.cons) };
 }
@@ -372,8 +432,8 @@ function sideLeg(input: LegInput, g: GameResearch, kind: "spread" | "moneyline")
   const meForm = me.form.filter((f) => f.result === "W").length;
   const oppForm = opp.form.filter((f) => f.result === "W").length;
   if (me.form.length >= 4 && opp.form.length >= 4) {
-    if (meForm - oppForm >= 2) pros.push({ text: `Form: ${me.abbr} ${meForm}-${me.form.length - meForm} last ${me.form.length} vs ${opp.abbr} ${oppForm}-${opp.form.length - oppForm}`, weight: 1 });
-    else if (oppForm - meForm >= 2) cons.push({ text: `Form: ${me.abbr} ${meForm}-${me.form.length - meForm} last ${me.form.length} vs ${opp.abbr} ${oppForm}-${opp.form.length - oppForm}`, weight: -1 });
+    if (meForm - oppForm >= 2) pros.push({ text: `Form: ${me.abbr} ${wlt(me)} last ${me.form.length} vs ${opp.abbr} ${wlt(opp)}`, weight: 1 });
+    else if (oppForm - meForm >= 2) cons.push({ text: `Form: ${me.abbr} ${wlt(me)} last ${me.form.length} vs ${opp.abbr} ${wlt(opp)}`, weight: -1 });
   }
 
   const nm = netRating(me);
@@ -508,6 +568,11 @@ function propLeg(input: LegInput, g: GameResearch, p: PlayerResearch | null): Le
   const base = { title, sub: g.label, league: g.league, gameId: g.id, sameGameKey: `${g.league}/${g.id}`, implied: input.odds != null ? implied(input.odds) : null, odds: input.odds ?? null, mark: { abbr: p?.team ?? "", img: p?.headshot ?? null, logo: false } };
   if (!p || !p.games.length) {
     facts.push({ label: "Game log", value: "Not enough data: ESPN has no game log for this player and stat" });
+    for (const t of [g.away, g.home]) {
+      if (!t.id) continue;
+      const bits = [t.record ? `${t.record}` : null, t.form.length ? `last ${t.form.length}: ${t.form.map((f) => f.result).join("")}` : null, t.ppg ? `${t.ppg.value} scored per game` : null, t.papg ? `${t.papg.value} allowed per game (${ord(t.papg.rank)} fewest of ${t.papg.of})` : null].filter(Boolean);
+      if (bits.length) facts.push({ label: t.abbr, value: bits.join(" · ") });
+    }
     return finalize({ ...base, facts, pros, cons });
   }
   if (line == null) {
@@ -591,6 +656,30 @@ function propLeg(input: LegInput, g: GameResearch, p: PlayerResearch | null): Le
   const listed = team?.injuries.find((i) => i.name.toLowerCase() === p.name.toLowerCase());
   if (listed) cons.push({ text: `${p.name} is on the ESPN injury report (${listed.status})`, weight: /out/i.test(listed.status) ? -3 : -1 });
   return finalize({ ...base, facts, pros, cons });
+}
+
+/** A leg we could not research. It still shows, so the rest of the parlay breaks down. */
+export function thinReport(input: LegInput, title: string, reason: string, sub = "No game found"): LegReport {
+  return finalize({
+    title,
+    sub,
+    league: input.league,
+    gameId: input.gameId,
+    sameGameKey: `${input.league}/${input.gameId || title}`,
+    facts: [{ label: "Data", value: `Not enough data: ${reason}` }],
+    pros: [],
+    cons: [],
+    implied: input.odds != null ? implied(input.odds) : null,
+    odds: input.odds ?? null,
+  });
+}
+
+/** A short title for any leg, from what it carries. */
+export function roughTitle(l: LegInput): string {
+  const pick = l.pick === "under" ? "under" : "over";
+  if (l.kind === "prop") return `${l.athleteName ?? "Player"} ${pick} ${l.line ?? ""} ${l.stat ? statLabel(l.league, l.stat).toLowerCase() : l.market ?? ""}`.replace(/\s+/g, " ").trim();
+  if (l.kind === "total") return `${pick === "over" ? "Over" : "Under"} ${l.line ?? ""}`.trim();
+  return `${l.team ?? (l.side === "away" ? "Away" : "Home")} ${l.kind === "spread" ? l.line ?? "" : "ML"}`.trim();
 }
 
 export function analyzeLeg(input: LegInput, g: GameResearch, player: PlayerResearch | null = null): LegReport {
@@ -689,8 +778,12 @@ export function legFromLogged(p: {
   line: number;
   odds: number;
 }): LegInput | null {
-  if (!p.league || !p.gameId) return null;
   const m = (p.market ?? "").toLowerCase();
+  // Manual legs (no game) still break down: the server finds the player by name.
+  if (!p.league || !p.gameId) {
+    if (/spread|money|^ml$|total/.test(m)) return { league: p.league ?? "", gameId: "", kind: /spread/.test(m) ? "spread" : /total/.test(m) ? "total" : "moneyline", team: p.subject, line: p.line, pick: p.selection === "Under" ? "under" : "over", odds: Number.isFinite(p.odds) && Math.abs(p.odds) >= 100 ? p.odds : null };
+    return { league: p.league ?? "", gameId: "", kind: "prop", athleteName: p.subject, market: p.market, line: p.line, pick: p.selection === "Under" ? "under" : "over", odds: Number.isFinite(p.odds) && Math.abs(p.odds) >= 100 ? p.odds : null };
+  }
   const odds = Number.isFinite(p.odds) && Math.abs(p.odds) >= 100 ? p.odds : null;
   const pick = p.selection === "Under" ? "under" : "over";
   if (/spread|run line|puck line/.test(m)) return { league: p.league, gameId: p.gameId, kind: "spread", team: p.subject, line: p.line, odds };

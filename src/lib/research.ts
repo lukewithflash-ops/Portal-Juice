@@ -4,6 +4,17 @@ import { getJson, getGameDetail } from "@/lib/espn";
 import type { FormGame, GameResearch, PitcherResearch, PlayerResearch, TeamResearch } from "@/lib/breakdown";
 import { americanNumber, parseOddsMove, parseSummaryDetail } from "@/lib/detail";
 import { leagueById, type League } from "@/lib/slate";
+import { sportLeague } from "@/lib/sports";
+
+/** Core leagues, plus the extra team and soccer leagues, in one shape. */
+export function resolveLeague(id: string): League | null {
+  const core = leagueById(id);
+  if (core) return core;
+  const x = sportLeague(id);
+  if (!x || (x.kind !== "team" && x.kind !== "soccer")) return null;
+  const [sport, slug] = x.path.split("/");
+  return { id: x.id, label: x.label, sport, slug, leaderCats: [] } as unknown as League;
+}
 import { allowedHeadshot } from "@/lib/headshots";
 import { parseGameLog, parseStandings, rankAll, type StandRow } from "@/lib/researchParse";
 
@@ -162,7 +173,7 @@ function priceNum(raw: string | null | undefined): number | null {
 
 /** Everything the rules need for one game. Real ESPN numbers only. */
 export async function researchGame(leagueId: string, id: string): Promise<GameResearch | null> {
-  const league = leagueById(leagueId);
+  const league = resolveLeague(leagueId);
   if (!league || !/^\d+$/.test(id)) return null;
   let summary: Dict;
   try {
@@ -270,7 +281,7 @@ export async function researchGame(leagueId: string, id: string): Promise<GameRe
 }
 
 export async function researchPlayer(leagueId: string, athleteId: string, stat: string, gameStart?: string): Promise<PlayerResearch | null> {
-  const league = leagueById(leagueId);
+  const league = resolveLeague(leagueId);
   if (!league || !/^\d+$/.test(athleteId)) return null;
   const [ath, log] = await Promise.allSettled([getJson(`${web(league)}/athletes/${athleteId}`), getJson(`${web(league)}/athletes/${athleteId}/gamelog`)]);
   if (log.status !== "fulfilled") return null;

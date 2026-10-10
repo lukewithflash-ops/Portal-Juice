@@ -8,7 +8,6 @@ import { addPick } from "@/lib/pickStore";
 import { STAT_CHOICES, sportGroupOf, type ImportLeg, type SlipKind, type SlipRow } from "@/lib/slipImport";
 import { marketTerms, FANTASY_NOTE } from "@/lib/tracker";
 import { statFromMarket } from "@/lib/breakdown";
-import { leagueById } from "@/lib/slate";
 import { ptTime } from "@/lib/time";
 
 type Item = ImportLeg & { keep: boolean; dirty: boolean };
@@ -172,12 +171,26 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
     );
 
   const kept = items?.filter((x) => x.keep) ?? [];
-  // Break it down needs a game and a stat the breakdown engine knows. Everything else still tracks.
-  const ready = kept.filter((x) => x.leg && !x.dirty && !!leagueById(x.leg.league) && (x.leg.kind !== "prop" || !!x.leg.stat) && x.leg.line != null);
+  // Break it down takes every kept row. Rows without a game go as manual legs; the server reads what it can.
+  const asLeg = (x: Item): LegInput =>
+    x.leg && !x.dirty
+      ? { ...x.leg, market: x.row.kind === "prop" ? x.row.market : x.leg.market }
+      : {
+          league: x.game?.league ?? "",
+          gameId: x.game?.id ?? "",
+          kind: x.row.kind,
+          athleteName: x.row.kind === "prop" ? x.row.subject : undefined,
+          team: x.row.kind === "prop" ? undefined : x.row.subject,
+          market: x.row.kind === "prop" ? x.row.market : undefined,
+          line: x.row.line,
+          pick: x.row.selection === "Under" ? "under" : "over",
+          odds: x.row.odds,
+        };
+  const ready = kept;
   const dirty = items?.some((x) => x.dirty) ?? false;
 
   function breakDown() {
-    const legs = ready.map((x) => x.leg as LegInput).slice(0, 6);
+    const legs = ready.map(asLeg).slice(0, 6);
     if (!legs.length) return;
     if (onBreakDown) onBreakDown(legs);
     else window.location.href = checkHref(legs);
@@ -337,11 +350,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
               {tracked ? "Tracked ✓" : "Track it"}
             </button>
           </div>
-          {kept.length > ready.length ? (
-            <p className="text-[11px] text-zinc-500">
-              {kept.length - ready.length} row{kept.length - ready.length === 1 ? "" : "s"} can&apos;t be broken down yet. Track it saves every kept row; manual legs are graded by you in the Log.
-            </p>
-          ) : null}
+          <p className="text-[11px] text-zinc-500">Break it down works without saving. Track it is optional: it saves the slip to your Log.</p>
           {tracked ? (
             <p className="text-xs text-zinc-300">
               Saved to your <Link href="/lines/portfolio" className="underline">Log</Link>.

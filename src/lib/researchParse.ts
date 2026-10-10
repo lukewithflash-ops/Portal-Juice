@@ -67,6 +67,42 @@ export function logValue(names: string[], stats: unknown[], key: string): number
     if (typeof raw === "string" && /^\d+-\d+$/.test(raw)) return Number(raw.split("-")[0]);
     return num(raw);
   };
+  const sum = (...ks: string[][]) => {
+    let t = 0;
+    for (const alts of ks) {
+      const v = alts.map(cell).find((x) => x !== null) ?? null;
+      if (v === null) return null;
+      t += v;
+    }
+    return t;
+  };
+  const opt = (k: string) => cell(k) ?? 0;
+  if (key === "pr") return sum(["points"], ["totalRebounds", "rebounds"]);
+  if (key === "pa") return sum(["points"], ["assists"]);
+  if (key === "ra") return sum(["totalRebounds", "rebounds"], ["assists"]);
+  if (key === "stocks") return sum(["steals"], ["blocks"]);
+  if (key === "rushRecYds") {
+    if (cell("rushingYards") === null && cell("receivingYards") === null) return null;
+    return opt("rushingYards") + opt("receivingYards");
+  }
+  if (key === "passRushYds") {
+    if (cell("passingYards") === null && cell("rushingYards") === null) return null;
+    return opt("passingYards") + opt("rushingYards");
+  }
+  if (key === "fantasy") {
+    // PrizePicks-style scoring, computed per game from the game log.
+    if (names.includes("points")) {
+      if (cell("points") === null) return null;
+      return Math.round((opt("points") + 1.2 * (cell("totalRebounds") ?? opt("rebounds")) + 1.5 * opt("assists") + 3 * opt("steals") + 3 * opt("blocks") - opt("turnovers")) * 10) / 10;
+    }
+    const keys = ["passingYards", "rushingYards", "receivingYards", "receptions"];
+    if (keys.every((k) => cell(k) === null)) return null;
+    return (
+      Math.round(
+        (0.04 * opt("passingYards") + 4 * opt("passingTouchdowns") - opt("interceptions") + 0.1 * opt("rushingYards") + 0.1 * opt("receivingYards") + opt("receptions") + 6 * opt("rushingTouchdowns") + 6 * opt("receivingTouchdowns") - opt("fumblesLost")) * 100
+      ) / 100
+    );
+  }
   if (key === "pra") {
     const p = cell("points");
     const r = cell("totalRebounds") ?? cell("rebounds");

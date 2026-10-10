@@ -809,7 +809,7 @@ t("check links round-trip; logged picks map to legs", () => {
   assert.equal(legFromLogged({ ...base, subject: "NY", market: "Spread", line: -3.5 })?.kind, "spread");
   assert.equal(legFromLogged({ ...base, subject: "NY", market: "Moneyline" })?.kind, "moneyline");
   assert.equal(legFromLogged({ ...base, subject: "BOS @ NY", market: "Total", selection: "Under", line: 221.5 })?.pick, "under");
-  assert.equal(legFromLogged({ subject: "x", line: 1, odds: -110 }), null);
+  assert.equal(legFromLogged({ subject: "x", line: 1, odds: -110 })?.gameId, "", "no game: still a manual leg");
 });
 
 t("research parsers: ranks, standings, game log values", () => {
@@ -1222,6 +1222,33 @@ t("slip import never blocks: unknown players and markets save as manual legs", (
   assert.match(c.issue ?? "", /manual/);
   const d = matchRow(row("Bear Bachmeier", "anytime touchdown scorer", 0.5, "Over"), games, { id: "1", name: "Bear Bachmeier", league: "ncaaf", teamId: "252" });
   assert.ok(d.leg && d.manual, "unknown stat still makes a leg, graded by you");
+});
+
+
+// ---- Breakdown for every market ----
+t("breakdown markets: game-log math for combos, fantasy, longest", () => {
+  const fb = ["completions", "passingAttempts", "passingYards", "completionPct", "passingTouchdowns", "interceptions", "longPassing", "sacks", "QBRating", "adjQBR", "rushingAttempts", "rushingYards", "yardsPerRushAttempt", "rushingTouchdowns", "longRushing"];
+  const row = ["11", "24", "62", "45.8", "0", "0", "13", "1", "67.5", "44.9", "15", "66", "4.4", "2", "21"];
+  // 62*.04 + 0 + 0 + 66*.1 + 2*6 = 2.48 + 6.6 + 12 = 21.08
+  assert.equal(logValue(fb, row, "fantasy"), 21.08);
+  assert.equal(logValue(fb, row, "longRushing"), 21);
+  assert.equal(logValue(fb, row, "longPassing"), 13);
+  assert.equal(logValue(fb, row, "passRushYds"), 128);
+  assert.equal(logValue(fb, row, "rushRecYds"), 66);
+  const bb = ["minutes", "points", "totalRebounds", "assists", "steals", "blocks", "turnovers", "fieldGoalsMade-fieldGoalsAttempted", "fieldGoalPct", "threePointFieldGoalsMade-threePointFieldGoalsAttempted"];
+  const br = ["39", "19", "3", "6", "2", "0", "4", "7-15", "46.7", "3-8"];
+  // 19 + 3.6 + 9 + 6 + 0 - 4 = 33.6
+  assert.equal(logValue(bb, br, "fantasy"), 33.6);
+  assert.equal(logValue(bb, br, "pa"), 25);
+  assert.equal(logValue(bb, br, "stocks"), 2);
+  assert.equal(logValue(bb, br, "threePointFieldGoalsMade"), 3);
+  assert.equal(statFromMarket("ncaaf", "longest rush"), "longRushing");
+  assert.equal(statFromMarket("ncaaf", "fantasy score"), "fantasy");
+  assert.equal(statFromMarket("nfl", "rushing + receiving yards"), "rushRecYds");
+  assert.equal(statFromMarket("wnba", "points + assists"), "pa");
+  assert.equal(statFromMarket("epl", "shots on goal"), "shotsOnTarget");
+  const manual = legFromLogged({ subject: "Chelsea Gray", market: "points", selection: "Over", line: 7.5, odds: 0 });
+  assert.ok(manual && manual.kind === "prop" && manual.gameId === "", "a manual leg still breaks down");
 });
 
 console.log(`\n${n} passed`);
