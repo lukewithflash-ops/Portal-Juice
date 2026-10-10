@@ -1,4 +1,4 @@
-import { convertToModelMessages, createGateway, createUIMessageStreamResponse, isStepCount, streamText, toUIMessageStream, type UIMessage } from "ai";
+import { convertToModelMessages, createGateway, gateway as oidcGateway, createUIMessageStreamResponse, isStepCount, streamText, toUIMessageStream, type UIMessage } from "ai";
 import { NextResponse } from "next/server";
 import { askTools } from "@/lib/askTools";
 import { chatEnabled, redis } from "@/lib/chat";
@@ -48,9 +48,8 @@ export async function POST(req: Request) {
   if (!messages.length) return NextResponse.json({ error: "Ask a question." }, { status: 400 });
   const rl = await allowed(ipOf(req));
   if (!rl.ok) return NextResponse.json({ error: "You've hit 20 questions this hour. Try again in a bit." }, { status: 429 });
-  const apiKey = process.env.AI_GATEWAY_API_KEY || req.headers.get("x-vercel-oidc-token") || process.env.VERCEL_OIDC_TOKEN;
-  if (!apiKey) return NextResponse.json({ error: "Ask Portal AI is not set up." }, { status: 503 });
-  const gateway = createGateway({ apiKey });
+  // An API key if one is set; otherwise the project's Vercel OIDC token (the default gateway provider reads it).
+  const gateway = process.env.AI_GATEWAY_API_KEY ? createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY }) : oidcGateway;
   const context = typeof body.context === "string" && body.context.trim() ? body.context.slice(0, 8000) : null;
   const today = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date());
   const system = SYSTEM.replace("{TODAY}", today) + (context ? `\n\nContext from the user's screen (real breakdown data from Portal Juice; cite it):\n${context}` : "");
@@ -70,7 +69,7 @@ export async function POST(req: Request) {
     const e = err as { message?: string; statusCode?: number; type?: string };
     const msg = String(e?.message ?? err).slice(0, 240);
     console.log(JSON.stringify({ event: "ask.error", model: ASK_MODEL, status: e?.statusCode ?? null, type: e?.type ?? null, msg }));
-    if (/credit|billing|verification|payment/i.test(msg)) return "Ask Portal AI is paused: the AI Gateway needs credits on the Vercel team.";
+    if (/customer_verification|add a (credit )?card|insufficient (funds|credits)/i.test(msg)) return "Ask Portal AI is paused: the AI Gateway needs credits on the Vercel team.";
     return `Ask Portal AI hit an error (${e?.statusCode ?? "?"}: ${msg.slice(0, 120)}). Try again.`;
   };
   return createUIMessageStreamResponse({ stream: toUIMessageStream({ stream: result.stream, onError }), headers: { "X-RateLimit-Remaining": String(rl.left) } });
