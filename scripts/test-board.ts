@@ -40,7 +40,6 @@ import { nameClose, propMarketOf } from "../src/lib/slipImport";
 import { styleAlert, gameOf } from "../src/lib/pushStyle";
 import { clutch, heatCheck, otLabel, periodFromText, runMeter } from "../src/lib/gameFeel";
 import { gameRoute } from "../src/lib/gameRoute";
-import { existsSync } from "node:fs";
 import { LEAGUES } from "../src/lib/slate";
 import { SPORT_LEAGUES } from "../src/lib/sports";
 import { fightFx, golfFx, tennisFx } from "../src/lib/matchFx";
