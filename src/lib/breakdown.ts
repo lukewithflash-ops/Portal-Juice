@@ -709,6 +709,8 @@ export function parlayMath(reports: LegReport[]): ParlayReport {
   let strongest: number | null = null;
   if (reports.length > 1) {
     reports.forEach((r, i) => {
+      // A leg with no data is not "weakest" or "strongest": it just has no read.
+      if (r.lean === "none") return;
       if (weakest === null || r.score < reports[weakest].score) weakest = i;
       if (strongest === null || r.score > reports[strongest].score) strongest = i;
     });
