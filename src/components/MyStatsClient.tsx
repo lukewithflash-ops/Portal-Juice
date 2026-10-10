@@ -86,7 +86,7 @@ export default function MyStatsClient() {
             <div className="tabular text-3xl font-black text-[color:var(--flat)]">{rec(s.all)}</div>
             <div className="text-[11px] text-zinc-400">W-L{s.all.p ? "-P" : ""} · {s.all.open} open · Win % = W ÷ (W + L)</div>
             <div className="mt-1 text-sm font-black" style={{ color: current > 0 ? "var(--plus)" : current < 0 ? "var(--minus)" : "#a1a1aa" }}>
-              {current > 0 ? `🔥 ${current} straight wins` : current < 0 ? `${-current} straight losses` : "No streak"}
+              {current > 0 ? current === 1 ? "Won the last one" : `🔥 ${current} straight wins` : current < 0 ? current === -1 ? "Lost the last one" : `${-current} straight losses` : "No streak"}
             </div>
             <div className="text-[11px] text-zinc-500">Longest: {longestWin} W · {longestLoss} L</div>
           </div>
