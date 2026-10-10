@@ -6,7 +6,7 @@ import { chatEnabled, redis } from "@/lib/chat";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const ASK_MODEL = process.env.ASK_MODEL || "google/gemini-3.1-flash-lite";
+const ASK_MODEL = process.env.ASK_MODEL || "google/gemini-2.5-flash";
 const PER_HOUR = 20;
 
 const SYSTEM = `You are Ask Portal AI, the assistant inside Portal Juice (a sports lines, live scores, and pick-tracking site).
