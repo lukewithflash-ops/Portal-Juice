@@ -1,7 +1,7 @@
 "use client";
 
 import { clutch, heatCheck, isHuge, otLabel, runMeter } from "@/lib/gameFeel";
-import { playCrowd } from "@/lib/emotes";
+import { playCrowd, playSignature } from "@/lib/emotes";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { pickEmote, playSound, replaySnap, type Emote } from "@/lib/emotes";
@@ -127,6 +127,7 @@ export default function GameLive({
         setShake((n) => n + 1);
         playCrowd(0.9);
       }
+      playSignature();
       setCinema(big);
       if (cinemaTimer.current) clearTimeout(cinemaTimer.current);
       cinemaTimer.current = setTimeout(() => setCinema(null), 4300);

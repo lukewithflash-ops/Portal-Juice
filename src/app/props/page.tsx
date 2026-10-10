@@ -55,7 +55,7 @@ export default async function PropsPage() {
               <ul className="space-y-1.5">
                 {g.props.map((p) => (
                   <li key={`${g.game.id}-${p.athleteId}-${p.market}`} className="foil-tile flex items-center gap-2 px-3 py-2">
-                    <Mark team={p.team} headshotUrl={p.headshot} label={p.name} size={32} />
+                    <Mark team={p.team} headshotUrl={p.headshot} label={p.name} size={32} league={g.game.league} />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-bold text-[color:var(--flat)]">{p.name}</div>
                       <div className="truncate text-[11px] text-zinc-500">{p.market}</div>

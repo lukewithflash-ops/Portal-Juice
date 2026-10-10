@@ -185,3 +185,51 @@ export function playCrowd(level = 0.5) {
     /* no audio */
   }
 }
+
+/**
+ * Portal Juice signature: a rising filtered whoosh into a bright two-note chime (~0.9s).
+ * Original synthesis, no samples. Plays only with sound on. Also spins the header portal ring.
+ */
+export function playSignature() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event("pj-portal"));
+  if (!soundOn()) return;
+  try {
+    ctx = ctx ?? new AudioContext();
+    const c = ctx;
+    const at = c.currentTime;
+    const len = Math.floor(c.sampleRate * 0.5);
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const bp = c.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.Q.value = 3;
+    bp.frequency.setValueAtTime(300, at);
+    bp.frequency.exponentialRampToValueAtTime(3200, at + 0.45);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.09, at + 0.3);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+    src.connect(bp).connect(g).connect(c.destination);
+    src.start(at);
+    src.stop(at + 0.52);
+    [1318.5, 1975.5].forEach((f, i) => {
+      const o = c.createOscillator();
+      const og = c.createGain();
+      const t0 = at + 0.42 + i * 0.11;
+      o.type = "sine";
+      o.frequency.setValueAtTime(f, t0);
+      og.gain.setValueAtTime(0.0001, t0);
+      og.gain.exponentialRampToValueAtTime(0.1, t0 + 0.01);
+      og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.45);
+      o.connect(og).connect(c.destination);
+      o.start(t0);
+      o.stop(t0 + 0.5);
+    });
+  } catch {
+    /* no audio */
+  }
+}

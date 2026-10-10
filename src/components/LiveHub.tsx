@@ -1,5 +1,7 @@
 "use client";
 
+import { playSignature } from "@/lib/emotes";
+
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { usePrefs } from "@/components/Prefs";
@@ -222,7 +224,10 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
     }
     const { prefs: on } = state.current;
     const raf = requestAnimationFrame(() => {
-      if (cleared && on.cleared) setParty({ id: cleared.pickId + Date.now(), leg: cleared });
+      if (cleared && on.cleared) {
+        setParty({ id: cleared.pickId + Date.now(), leg: cleared });
+        playSignature();
+      }
       if (alerts.length) push.current(alerts.filter((a) => a.kind !== "cleared"));
       for (const a of alerts)
         if (a.kind === "cleared" && !fired.current.has(a.key)) {

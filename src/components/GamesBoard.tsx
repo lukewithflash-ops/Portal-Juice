@@ -1,5 +1,7 @@
 "use client";
 
+import MascotSlot from "@/components/MascotSlot";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import MatchRow from "@/components/MatchRow";
 import GolfBoardView from "@/components/GolfBoardView";
@@ -186,7 +188,7 @@ export default function GamesBoard({
         <h2 className="text-xs font-bold uppercase tracking-[0.22em] text-purple-200/80">Popular</h2>
         <p className="mt-1 mb-3 text-[11px] leading-relaxed text-zinc-500">{POPULAR_SIGNAL}</p>
         {popular.length === 0 ? (
-          <p className="panel rounded-xl px-4 py-5 text-sm text-zinc-400">No games from ESPN for this day.</p>
+          <p className="panel flex items-center gap-3 rounded-xl px-4 py-5 text-sm text-zinc-400"><MascotSlot size={44} pose="empty" />No games today. Check tomorrow.</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {popular.map((g) => (
@@ -215,7 +217,7 @@ export default function GamesBoard({
           Today <span className="tabular text-zinc-500">{filtered.length}</span>
         </h2>
         {filtered.length === 0 ? (
-          <p className="panel rounded-xl px-4 py-5 text-sm text-zinc-400">No games from ESPN for this day.</p>
+          <p className="panel flex items-center gap-3 rounded-xl px-4 py-5 text-sm text-zinc-400"><MascotSlot size={44} pose="empty" />No games today. Check tomorrow.</p>
         ) : (
           <div className="grid gap-2">
             {filtered.map((g) => (

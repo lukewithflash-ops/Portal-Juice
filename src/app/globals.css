@@ -568,3 +568,26 @@ html[data-team] .portal-bg::after {
   .screen-shake, .arcade-pop, .ot-intro, .ot-intro span, .clutch-edges, .clutch-tag, .combo-meter, .heat-check, .level-up::after, .match-flash { animation: none !important; }
   .arcade-pop, .ot-intro { display: none; }
 }
+
+/* Portal ring: spins open and glows on launch and big moments (two names so a repeat restarts it). */
+.portal-spin { animation: pj-portal-open 1.1s cubic-bezier(.2,1.1,.3,1); }
+.portal-spin2 { animation: pj-portal-open2 1.1s cubic-bezier(.2,1.1,.3,1); }
+@keyframes pj-portal-open {
+  0% { transform: scale(0.4) rotate(-200deg); filter: drop-shadow(0 0 0 #a855f7) brightness(1); }
+  55% { transform: scale(1.25) rotate(20deg); filter: drop-shadow(0 0 14px #a855f7) drop-shadow(0 0 26px #39ff14) brightness(1.6); }
+  100% { transform: scale(1) rotate(0); filter: none; }
+}
+@keyframes pj-portal-open2 {
+  0% { transform: scale(0.4) rotate(-200deg); filter: brightness(1); }
+  55% { transform: scale(1.25) rotate(20deg); filter: drop-shadow(0 0 14px #a855f7) drop-shadow(0 0 26px #39ff14) brightness(1.6); }
+  100% { transform: scale(1) rotate(0); filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .portal-spin, .portal-spin2 { animation: none; filter: drop-shadow(0 0 8px #a855f7); }
+}
+/* Mascot slot: reserved space for the future Portal Juice mascot art. */
+.mascot-slot {
+  position: relative; display: flex; align-items: center; justify-content: center; border-radius: 999px;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.35), rgba(3, 3, 6, 0) 70%);
+  box-shadow: inset 0 0 0 2px rgba(168, 85, 247, 0.6), 0 0 24px rgba(168, 85, 247, 0.45);
+}

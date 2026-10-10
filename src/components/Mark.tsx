@@ -13,7 +13,10 @@ export default function Mark({
   label,
   size = 52,
   contain = false,
+  league,
 }: {
+  /** With a pro league, a missing headshot falls back to the real ESPN team logo, not initials. */
+  league?: string | null;
   team: string;
   headshotUrl?: string | null;
   label?: string;
@@ -23,6 +26,14 @@ export default function Mark({
 }) {
   const accent = teamAccent(team);
   const [broken, setBroken] = useState(false);
+  const PRO = ["nfl", "nba", "mlb", "nhl", "wnba"];
+  const teamLogo = !headshotUrl && league && PRO.includes(league) && /^[A-Za-z]{2,4}$/.test(team) ? `https://a.espncdn.com/i/teamlogos/${league}/500/${team.toLowerCase()}.png` : null;
+  if (teamLogo && !broken) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={teamLogo} alt={team} width={size} height={size} className="shrink-0 rounded-full bg-white/5 object-contain p-1" style={{ width: size, height: size, border: `1.5px solid ${accent}` }} referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+    );
+  }
   if (headshotUrl && !broken) {
     return (
       // eslint-disable-next-line @next/next/no-img-element

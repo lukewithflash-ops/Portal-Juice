@@ -15,6 +15,23 @@ export default function SiteHeader() {
   const firstPath = useRef(path);
   const [showTagline, setShowTagline] = useState(true);
   const { odds, setOdds, team, setTeam } = usePrefs();
+  // Portal ring spins open on launch (once a session) and on big moments.
+  const [spinN, setSpinN] = useState(0);
+  useEffect(() => {
+    const go = () => setSpinN((n) => n + 1);
+    let first = false;
+    try {
+      first = !sessionStorage.getItem("pj-launched");
+      sessionStorage.setItem("pj-launched", "1");
+    } catch {}
+    const t = first ? setTimeout(go, 0) : null;
+    window.addEventListener("pj-portal", go);
+    return () => {
+      if (t) clearTimeout(t);
+      window.removeEventListener("pj-portal", go);
+    };
+  }, []);
+  const spin = spinN ? (spinN % 2 ? "portal-spin" : "portal-spin2") : "";
   const [open, setOpen] = useState(false);
   const [more, setMore] = useState(false);
 
@@ -41,10 +58,10 @@ export default function SiteHeader() {
         <div className="flex items-center gap-2 sm:gap-3">
           <Link href="/lines" className="flex shrink-0 items-center gap-1.5 sm:gap-2.5" aria-label={SITE_NAME + " — Lines"}>
             {team ? (
-              <span className="brand-mask h-7 w-9 shrink-0 sm:h-9 sm:w-11" aria-hidden />
+              <span className={"brand-mask h-7 w-9 shrink-0 sm:h-9 sm:w-11 " + spin} aria-hidden />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src="/brand/swirl-mark.png" alt="" width={44} height={37} className="h-7 w-auto shrink-0 mix-blend-screen sm:h-9" aria-hidden />
+              <img src="/brand/swirl-mark.png" alt="" width={44} height={37} className={"h-7 w-auto shrink-0 mix-blend-screen sm:h-9 " + spin} aria-hidden />
             )}
             {team?.logo ? (
               // eslint-disable-next-line @next/next/no-img-element

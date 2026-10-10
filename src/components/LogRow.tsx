@@ -46,7 +46,7 @@ export default function LogRow({
   return (
     <li className={`foil-tile list-none overflow-hidden ${pick.status === "win" ? "gold-edge" : ""}`} style={{ borderLeft: `3px solid ${color}` }}>
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left">
-        <Mark team={look?.mark?.abbr ?? ""} headshotUrl={look?.mark?.img ?? null} label={pick.subject} size={36} contain={look?.mark?.logo ?? false} />
+        <Mark team={look?.mark?.abbr ?? ""} headshotUrl={look?.mark?.img ?? null} label={pick.subject} size={36} league={pick.league} contain={look?.mark?.logo ?? false} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             {live ? <span className="h-1.5 w-1.5 flex-none animate-pulse rounded-full bg-[color:var(--minus)]" aria-label="Live" /> : null}
