@@ -1,5 +1,6 @@
 "use client";
 
+import { gameRoute } from "@/lib/gameRoute";
 import Link from "next/link";
 import { useState } from "react";
 import Mark from "@/components/Mark";
@@ -96,7 +97,7 @@ export default function LogRow({
                 </Link>
               ) : null}
               {pick.league && pick.gameId ? (
-                <Link href={`/games/${pick.league}/${pick.gameId}`} className="text-[11px] text-zinc-400 hover:text-white">
+                <Link href={gameRoute(pick.league, pick.gameId)} className="text-[11px] text-zinc-400 hover:text-white">
                   Game
                 </Link>
               ) : null}

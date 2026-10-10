@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
+import { gameRoute } from "@/lib/gameRoute";
 import GameDetailView from "@/components/GameDetailView";
 import GameLive from "@/components/GameLive";
 import FollowStar from "@/components/FollowStar";
@@ -33,9 +34,9 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 
 export default async function GamePage({ params }: { params: Promise<Params> }) {
   const { league, id } = await params;
-  if (!leagueById(league)) notFound();
-  const bundle = await getGameDetail(league, id);
-  if (!bundle) notFound();
+  if (!leagueById(league)) redirect(gameRoute(league, id));
+  const bundle = await getGameDetail(league, id).catch(() => null);
+  if (!bundle) redirect("/games");
   const { game } = bundle;
   const win = winPct({
     state: game.state,

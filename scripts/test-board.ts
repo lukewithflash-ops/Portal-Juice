@@ -39,6 +39,10 @@ import { parseSportScoreboard, sportLeague, parseMatchFeed } from "../src/lib/sp
 import { nameClose, propMarketOf } from "../src/lib/slipImport";
 import { styleAlert, gameOf } from "../src/lib/pushStyle";
 import { clutch, heatCheck, otLabel, periodFromText, runMeter } from "../src/lib/gameFeel";
+import { gameRoute } from "../src/lib/gameRoute";
+import { existsSync } from "node:fs";
+import { LEAGUES } from "../src/lib/slate";
+import { SPORT_LEAGUES } from "../src/lib/sports";
 import { fightFx, golfFx, tennisFx } from "../src/lib/matchFx";
 import { liveStat, longestPassFromPlays, marketTerms } from "../src/lib/tracker";
 
@@ -1315,6 +1319,23 @@ t("game feel: overtime labels past regulation, clutch, runs, heat checks", () =>
   assert.equal(periodFromText("OT", "wnba"), 5);
   assert.equal(periodFromText("2OT", "nba"), 6);
   assert.equal(periodFromText("3rd", "wnba"), 3);
+});
+
+
+t("game links: every listed league resolves to a route that exists", () => {
+  const routes: Record<string, string> = { games: "src/app/games/[league]/[id]/page.tsx", sports: "src/app/sports/[league]/[id]/page.tsx" };
+  const all = [...LEAGUES.map((l) => l.id), ...SPORT_LEAGUES.map((l) => l.id)];
+  assert.ok(all.includes("wnba") && all.includes("epl") && all.includes("atp") && all.includes("ufc") && all.includes("pga"));
+  for (const id of all) {
+    const url = gameRoute(id, "401918300");
+    const m = url.match(/^\/(games|sports)\/([a-z0-9]+)\/401918300$/);
+    assert.ok(m, `${id} → ${url}`);
+    assert.ok(existsSync(routes[m![1]]), url);
+    assert.equal(gameOf(url), `${id}/401918300`);
+  }
+  assert.equal(gameRoute("wnba", "1"), "/sports/wnba/1");
+  assert.equal(gameRoute("nfl", "1"), "/games/nfl/1");
+  assert.equal(gameRoute("nope", "1"), "/games");
 });
 
 console.log(`\n${n} passed`);

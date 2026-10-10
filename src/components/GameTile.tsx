@@ -1,5 +1,6 @@
 "use client";
 
+import { gameRoute } from "@/lib/gameRoute";
 import Link from "next/link";
 import { OddsText } from "@/components/Prefs";
 import FollowStar from "@/components/FollowStar";
@@ -145,7 +146,7 @@ export default function GameTile({
       className={`foil-tile relative p-4 ${moved ? "line-moved neutral" : ""}`}
     >
       <Link
-        href={`/games/${game.league}/${game.id}`}
+        href={gameRoute(game.league, game.id)}
         aria-label={`${game.away.abbr} at ${game.home.abbr}`}
         className="absolute inset-0 z-0 rounded-2xl"
       />
@@ -228,7 +229,7 @@ export default function GameTile({
 
       <div className="mt-3 flex items-center justify-between text-[11px]">
         <span className="flex items-center gap-3">
-          <Link href={`/games/${game.league}/${game.id}`} className="relative z-10 font-semibold text-purple-200/90 hover:text-white">
+          <Link href={gameRoute(game.league, game.id)} className="relative z-10 font-semibold text-purple-200/90 hover:text-white">
             Game
           </Link>
           {game.state !== "post" ? (

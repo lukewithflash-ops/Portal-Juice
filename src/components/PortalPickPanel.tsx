@@ -1,3 +1,4 @@
+import { gameRoute } from "@/lib/gameRoute";
 import Link from "next/link";
 import { PORTAL_PICK_LABEL, PORTAL_PICK_RULE, type PortalPick, type PortalRecord } from "@/lib/portalPick";
 
@@ -43,7 +44,7 @@ export function PortalPickPanel({
           ) : null}
         </div>
         {pick ? (
-          <Link href={`/games/${pick.league}/${pick.gameId}`} className="mt-2 block">
+          <Link href={gameRoute(pick.league, pick.gameId)} className="mt-2 block">
             <div className="text-[13px] text-zinc-400">{pick.label}</div>
             <div className="big-num text-4xl font-black text-[color:var(--flat)]">{shown}</div>
             <div className="mt-1 flex flex-wrap items-baseline gap-x-3 text-[12px]">

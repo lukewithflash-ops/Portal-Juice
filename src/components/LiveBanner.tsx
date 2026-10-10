@@ -1,5 +1,6 @@
 "use client";
 
+import { gameRoute } from "@/lib/gameRoute";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LegMeter } from "@/components/LegMeter";
@@ -169,7 +170,7 @@ function GameStrip({
   const other = lift(game.fav ? (favHome ? s?.awayColor : s?.homeColor) ?? "#39ff14" : s?.awayColor ?? "#39ff14");
   const last = s?.plays.length ? s.plays[s.plays.length - 1] : null;
   const hit = game.legs.filter((l) => l.status === "cleared").length;
-  const href = `/games/${game.league}/${game.id}`;
+  const href = gameRoute(game.league, game.id);
   const legsShown = game.legs.filter((l) => l.value !== null).slice(0, 2);
 
   return (

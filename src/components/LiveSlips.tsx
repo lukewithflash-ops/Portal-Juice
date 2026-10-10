@@ -1,4 +1,5 @@
 "use client";
+import { gameRoute } from "@/lib/gameRoute";
 
 import Link from "next/link";
 import { LegMeter, SlipCount } from "@/components/LegMeter";
@@ -29,7 +30,7 @@ export default function LiveSlips() {
                   {games.map((g) => {
                     const s = snaps[g];
                     return (
-                      <Link key={g} href={`/games/${g}`} className="mr-2 font-bold text-zinc-200 hover:text-white">
+                      <Link key={g} href={gameRoute(g.split("/")[0], g.split("/")[1] ?? "")} className="mr-2 font-bold text-zinc-200 hover:text-white">
                         {s ? `${s.awayAbbr} ${s.awayScore ?? 0}-${s.homeScore ?? 0} ${s.homeAbbr} · ${s.state === "in" ? s.detail : s.state === "post" ? "Final" : "Not started"}` : "Game"}
                       </Link>
                     );

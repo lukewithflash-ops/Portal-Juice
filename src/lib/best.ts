@@ -1,3 +1,4 @@
+import { gameRoute } from "@/lib/gameRoute";
 /** Rankings from numbers we already have. Not a recommendation. */
 
 import { americanNumber, impliedChance } from "@/lib/detail";
@@ -71,7 +72,7 @@ export function marketFavorites(games: Game[]): Favorite[] {
         odds: s.odds,
         implied,
         provider: price.provider,
-        href: `/games/${g.league}/${g.id}`,
+        href: gameRoute(g.league, g.id),
         homework: "",
       };
       if (!best || row.implied > best.implied) best = row;
@@ -92,7 +93,7 @@ export function biggestMoves(games: Game[]): LineMove[] {
     const price = g.price;
     if (!price) continue;
     const label = `${g.away.abbr} @ ${g.home.abbr}`;
-    const href = `/games/${g.league}/${g.id}`;
+    const href = gameRoute(g.league, g.id);
     if (price.total !== null && price.totalOpen !== null && price.total !== price.totalOpen) {
       rows.push({
         id: `${g.id}-total`,

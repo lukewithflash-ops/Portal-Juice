@@ -1,3 +1,4 @@
+import { gameRoute } from "@/lib/gameRoute";
 import Link from "next/link";
 import { OddsText } from "@/components/Prefs";
 import Mark from "@/components/Mark";
@@ -223,7 +224,7 @@ export default function GameDetailView({ bundle }: { bundle: DetailBundle }) {
           <ul className="space-y-1.5 text-sm">
             {detail.form.map((f) => (
               <li key={`${f.team}-${f.id}`}>
-                <Link href={`/games/${game.league}/${f.id}`} className="flex justify-between gap-3 hover:text-white">
+                <Link href={gameRoute(game.league, f.id)} className="flex justify-between gap-3 hover:text-white">
                   <span className="text-zinc-300">
                     {f.team} {f.label}
                   </span>

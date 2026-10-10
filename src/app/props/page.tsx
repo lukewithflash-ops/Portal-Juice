@@ -1,3 +1,4 @@
+import { gameRoute } from "@/lib/gameRoute";
 import type { Metadata } from "next";
 import Link from "next/link";
 import Mark from "@/components/Mark";
@@ -34,7 +35,7 @@ export default async function PropsPage() {
             <section key={g.game.id}>
               <div className="mb-2 flex items-baseline justify-between gap-3">
                 <h2 className="text-sm font-black text-[color:var(--flat)]">
-                  <Link href={`/games/${g.game.league}/${g.game.id}`} className="hover:text-white">
+                  <Link href={gameRoute(g.game.league, g.game.id)} className="hover:text-white">
                     {g.game.away.abbr} @ {g.game.home.abbr}
                   </Link>
                   <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
@@ -44,7 +45,7 @@ export default async function PropsPage() {
                 </h2>
                 {g.total > g.props.length ? (
                   <Link
-                    href={`/games/${g.game.league}/${g.game.id}`}
+                    href={gameRoute(g.game.league, g.game.id)}
                     className="shrink-0 text-[11px] font-semibold text-purple-200/80"
                   >
                     {g.total} lines

@@ -1,3 +1,4 @@
+import { gameRoute } from "@/lib/gameRoute";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -48,7 +49,7 @@ export default async function TeamPage({ params }: { params: Promise<Params> }) 
         {page.next ? (
           <p className="mt-2 text-sm text-[color:var(--flat)]">
             {page.next.id ? (
-              <Link href={`/games/${page.league}/${page.next.id}`} className="hover:text-white">{page.next.label}</Link>
+              <Link href={gameRoute(page.league, page.next.id)} className="hover:text-white">{page.next.label}</Link>
             ) : page.next.label}
             <span className="ml-2 text-zinc-400">{ptDayTime(page.next.start)}</span>
           </p>
@@ -66,7 +67,7 @@ export default async function TeamPage({ params }: { params: Promise<Params> }) 
             {page.recent.map((g) => (
               <li key={g.id || g.start + g.label} className="foil-tile px-3 py-2.5 text-sm">
                 {g.id ? (
-                  <Link href={`/games/${page.league}/${g.id}`} className="flex items-center justify-between gap-3 hover:text-white">
+                  <Link href={gameRoute(page.league, g.id)} className="flex items-center justify-between gap-3 hover:text-white">
                     <span className="text-[color:var(--flat)]">{g.label}</span>
                     <span className="tabular text-zinc-300">{g.score}</span>
                   </Link>

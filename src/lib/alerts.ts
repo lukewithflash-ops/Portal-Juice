@@ -1,3 +1,4 @@
+import { gameRoute } from "@/lib/gameRoute";
 /**
  * Game and leg updates worth a heads-up. Pure: compares two real snapshots.
  * Used by the in-app toasts and by closed-app push. No money wording.
@@ -95,7 +96,7 @@ export function periodName(league: string, n: number): string {
 /** Updates between two pulls of one game. Nothing fires on the first look. */
 export function gameEvents(league: string, id: string, prev: LiveSnap | null, next: LiveSnap): GameAlert[] {
   if (!prev) return [];
-  const url = `/games/${league}/${id}`;
+  const url = gameRoute(league, id);
   const g = `${league}/${id}`;
   const out: GameAlert[] = [];
   if (prev.state !== "post" && next.state === "post") {
@@ -126,7 +127,7 @@ export function gameEvents(league: string, id: string, prev: LiveSnap | null, ne
 /** Updates for one logged leg. */
 export function legEvents(prev: Leg | null, next: Leg): GameAlert[] {
   if (!prev) return [];
-  const url = `/games/${next.league}/${next.gameId}`;
+  const url = gameRoute(next.league, next.gameId);
   const out: GameAlert[] = [];
   const meter = { name: next.name, athleteId: next.athleteId ?? null, value: next.value, line: next.line, market: next.market, side: next.side };
   if (prev.status !== "cleared" && next.status === "cleared") {

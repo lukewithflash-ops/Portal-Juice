@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
+import { gameRoute } from "@/lib/gameRoute";
 import MatchRow from "@/components/MatchRow";
 import MatchFx from "@/components/MatchFx";
 import GameLive from "@/components/GameLive";
@@ -21,9 +22,9 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 export default async function MatchPage({ params }: { params: Promise<Params> }) {
   const { league, id } = await params;
   const l = sportLeague(league);
-  if (!l) notFound();
+  if (!l) redirect(gameRoute(league, id));
   const page = await getMatch(league, id).catch(() => null);
-  if (!page) notFound();
+  if (!page) redirect(`/games?league=${league}`);
   const { match: m, feed, stats } = page;
   return (
     <>

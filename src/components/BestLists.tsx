@@ -1,3 +1,4 @@
+import { gameRoute } from "@/lib/gameRoute";
 import Link from "next/link";
 import { OddsText } from "@/components/Prefs";
 import Mark from "@/components/Mark";
@@ -120,7 +121,7 @@ export function TrendList({ rows }: { rows: HotTrend[] }) {
         <Row
           key={r.id}
           rank={i + 1}
-          href={`/games/${r.league}/${r.gameId}`}
+          href={gameRoute(r.league, r.gameId)}
           title={r.name}
           sub={`${r.team} · ${r.matchup}`}
           homework={r.homework}
@@ -165,7 +166,7 @@ export function BestStrip({ fav, move, hot }: { fav: Favorite | null; move: Line
   const items = [
     fav ? { key: "fav", group: "Market favorite", href: fav.href, title: `${fav.side} · ${fav.label}`, homework: fav.homework } : null,
     move ? { key: "move", group: "Biggest move", href: move.href, title: move.label, homework: move.homework, tone: move.tone } : null,
-    hot ? { key: "hot", group: "Hot player", href: `/games/${hot.league}/${hot.gameId}`, title: hot.name, homework: hot.homework } : null,
+    hot ? { key: "hot", group: "Hot player", href: gameRoute(hot.league, hot.gameId), title: hot.name, homework: hot.homework } : null,
   ].filter((x) => x !== null);
   if (!items.length) return <p className="text-sm text-zinc-400">Nothing ranked yet today.</p>;
   return (
