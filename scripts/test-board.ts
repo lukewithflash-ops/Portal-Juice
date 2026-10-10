@@ -1346,7 +1346,7 @@ t("live tile: per-game tag, quiet, title and prop body, cadence", () => {
   assert.equal(c.renotify, false);
   assert.equal(c.title, "🏈 DAL 21-14 TB · 7:31 3rd");
   assert.equal(c.body, "Lamb 48/64.5 · Prescott 155/224.5");
-  assert.match(c.image ?? "", /ms=Lamb~48~64.5~O/);
+  assert.ok(decodeURIComponent(c.image ?? "").includes("ms=Lamb~48~64.5~O|Prescott"));
   assert.equal(c.tag, styleAlert({ kind: "final", key: "k", title: "Final", body: "", url: "/games/nfl/1" }, scene, null).tag);
   assert.equal(tileDue(null, "a", "in", 0), true);
   assert.equal(tileDue({ sig: "a", at: 0 }, "a", "in", 100_000), false);
