@@ -19,6 +19,7 @@ export const NAV = [
 export const MORE_NAV = [
   { href: "/check", label: "Breakdown" },
   { href: "/ask", label: "Ask Portal AI" },
+  { href: "/lines/stats", label: "My stats" },
   { href: "/mvp", label: "MVP" },
   { href: "/trends", label: "Trends" },
   { href: "/news", label: "News" },

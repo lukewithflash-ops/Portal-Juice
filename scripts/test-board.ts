@@ -40,6 +40,7 @@ import { nameClose, propMarketOf } from "../src/lib/slipImport";
 import { styleAlert, gameOf, liveTile, tileDue } from "../src/lib/pushStyle";
 import { clutch, heatCheck, otLabel, periodFromText, runMeter } from "../src/lib/gameFeel";
 import { gameRoute } from "../src/lib/gameRoute";
+import { myStats, streaks, tally } from "../src/lib/myStats";
 import { LEAGUES } from "../src/lib/slate";
 import { SPORT_LEAGUES } from "../src/lib/sports";
 import { fightFx, golfFx, tennisFx } from "../src/lib/matchFx";
@@ -1355,6 +1356,18 @@ t("live tile: per-game tag, quiet, title and prop body, cadence", () => {
   assert.equal(tileDue({ sig: "a", at: 0 }, "b", "in", 60_000), true);
   assert.equal(tileDue({ sig: "a", at: 0 }, "a", "post", 1), true);
   assert.equal(tileDue({ sig: "a", at: 0, final: true }, "a", "post", 1), false);
+});
+
+
+t("my stats: W/(W+L), streaks, groups, no money fields", () => {
+  const mk = (i: number, status: "win" | "loss" | "push" | "open", extra: Partial<Pick> = {}): Pick => ({ id: String(i), sport: "NBA", subject: "X", line: 7.5, odds: -110, stake: 0, book: "DraftKings", date: `2026-10-0${i}`, status, createdAt: `2026-10-0${i}T00:00:00Z`, market: "points", selection: "Over", ...extra });
+  const ps = [mk(1, "win"), mk(2, "win"), mk(3, "loss", { selection: "Under" }), mk(4, "push"), mk(5, "win", { market: "rebounds" }), mk(6, "open")];
+  assert.deepEqual(tally(ps), { w: 3, l: 1, p: 1, open: 1, pct: 75 });
+  assert.deepEqual(streaks(ps), { current: 1, longestWin: 2, longestLoss: 1 });
+  const s = myStats(ps);
+  assert.equal(s.bySide.find((g) => g.key === "Unders")?.t.l, 1);
+  assert.equal(s.last20.length, 5);
+  assert.ok(!JSON.stringify(s).match(/profit|units|net/i));
 });
 
 console.log(`\n${n} passed`);

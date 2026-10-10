@@ -334,6 +334,7 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
     const out: GameAlert[] = [];
     const tileLegs = new Map<string, TileLeg[]>();
     const alerted = new Set<string>();
+    const recapReady: PushProp[] = [];
     const liveCount = (row.props ?? []).filter((p) => snaps.get(`${p.league}/${p.gameId}`)?.state === "in").length;
     for (const g of gamesFor[i]) out.push(...(events.get(`${g.league}/${g.id}`) ?? []));
     for (const p of row.props ?? []) {
@@ -350,6 +351,7 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
       const leg = legFromPick(asPick(p), snap, prevLeg?.value ?? null);
       if (!leg) continue;
       const gkey = `${p.league}/${p.gameId}`;
+      if (snap.state === "post") recapReady.push(p);
       tileLegs.set(gkey, [...(tileLegs.get(gkey) ?? []), { name: leg.name, value: leg.value, line: leg.line, side: leg.side }]);
       out.push(...legEvents(prevLeg, leg));
       await redis(["HSET", LEGS, key, JSON.stringify({ status: leg.status, value: leg.value, line: leg.line, side: leg.side })]);
@@ -382,6 +384,20 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
       else {
         failed += 1;
         if (r.code === 404 || r.code === 410) break;
+      }
+    }
+    // "Your recap is ready": once per settled pick, when finals are on.
+    if (prefs.final) {
+      for (const p of recapReady.slice(0, 3)) {
+        const once = await redis(["SET", `pj:push:sent:${tail}:recap:${p.id}`, "1", "EX", 604800, "NX"]);
+        if (once !== "OK") continue;
+        const title = `✨ Your recap is ready · ${p.subject}`.slice(0, 80);
+        const body = `Portal AI broke down ${p.selection ? p.selection + " " : ""}${p.line} ${p.market}. Tap to read.`.slice(0, 140);
+        const r = await sendTo(row.sub, { title, body, url: "/lines/portfolio", tag: `pj:recap:${p.id}`, renotify: false, icon: APP_ICON, badge: BADGE, vibrate: [60], actions: [{ action: "open", title: "Read it" }], game: null, image: null });
+        codes[String(r.code)] = (codes[String(r.code)] ?? 0) + 1;
+        await toInbox(row.endpoint, { key: `recap:${p.id}`, kind: "final", title, body, url: "/lines/portfolio", at: Date.now(), pushed: r.ok, code: r.code }).catch(() => {});
+        if (r.ok) sent += 1;
+        else failed += 1;
       }
     }
     // Live tile on the lock screen: one quiet notification per followed game, replaced in place.

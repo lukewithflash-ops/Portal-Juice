@@ -1,6 +1,7 @@
 "use client";
 
 import { gameRoute } from "@/lib/gameRoute";
+import PortalRecap from "@/components/PortalRecap";
 import Link from "next/link";
 import { useState } from "react";
 import Mark from "@/components/Mark";
@@ -90,6 +91,7 @@ export default function LogRow({
                 </button>
               ))}
             </div>
+            {pick.league && pick.gameId && (pick.status !== "open" || leg?.final) ? <PortalRecap pick={pick} /> : null}
             <div className="flex items-center gap-3">
               {legIn ? (
                 <Link href={checkHref([legIn])} className="text-[11px] font-bold text-purple-200/90 hover:text-white">
