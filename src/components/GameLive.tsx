@@ -219,7 +219,6 @@ export default function GameLive({
         <div className={tab === "lines" ? "max-lg:hidden" : ""} style={vars}>
           <div key={"shake" + shake} className={"relative " + (shake ? "screen-shake" : "")}>
           <MomentBadge />
-          <GameFeel league={league} snap={snap} awayColor={awayColor} homeColor={homeColor} />
           {pop ? (
             <span key={"pop" + pop.n} className={"arcade-pop " + (pop.side === "home" ? "right-[12%]" : "left-[12%]")} style={{ ["--pop" as string]: pop.side === "home" ? homeColor : awayColor } as React.CSSProperties} aria-hidden>
               {pop.text}
@@ -237,6 +236,7 @@ export default function GameLive({
             freshIds={freshIds}
             emote={emote}
           />
+          <GameFeel league={league} snap={snap} awayColor={awayColor} homeColor={homeColor} />
           {live?.state === "post" && live.plays.length > 3 ? (
             <div className="mt-2 flex items-center justify-between gap-2">
               <button
