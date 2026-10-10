@@ -3,8 +3,8 @@
 import { useState } from "react";
 import type { Pick } from "@/lib/types";
 
-type R = { text: string; result: "hit" | "miss" | "push" | "unknown"; value: number | null; line: number; facts: string[] } | { error: string };
-const KEY = "pj-recap:";
+type R = { v?: number; wrong?: string[]; next?: string[]; text: string; result: "hit" | "miss" | "push" | "unknown"; value: number | null; line: number; facts: string[] } | { error: string };
+const KEY = "pj-recap3:";
 
 /** Post-game recap from Portal AI, from the real box score and the numbers on the pick. Cached on device and server. */
 export default function PortalRecap({ pick, auto = false }: { pick: Pick; auto?: boolean }) {
@@ -55,6 +55,23 @@ export default function PortalRecap({ pick, auto = false }: { pick: Pick; auto?:
         <span>{r.result === "hit" ? "Hit" : r.result === "miss" ? "Miss" : r.result === "push" ? "Push" : ""}{r.value != null ? ` · ${r.value}/${r.line}` : ""}</span>
       </div>
       <p className="mt-1 text-[13px] leading-snug text-zinc-100">{r.text}</p>
+      {r.wrong?.length ? (
+        <div className="mt-2">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[color:var(--minus)]">{r.result === "hit" ? "What almost went wrong" : "What went wrong"}</div>
+          <ul className="mt-0.5 space-y-0.5 text-[12px] text-zinc-200">
+            {r.wrong.map((w) => <li key={w}>▸ {w}</li>)}
+          </ul>
+        </div>
+      ) : null}
+      {r.next?.length ? (
+        <div className="mt-2">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[color:var(--plus)]">Next time</div>
+          <ul className="mt-0.5 space-y-0.5 text-[12px] text-zinc-200">
+            {r.next.map((w) => <li key={w}>✓ {w}</li>)}
+          </ul>
+        </div>
+      ) : null}
+      <p className="mt-1 text-[10px] text-zinc-500">Pick numbers are season-to-date, figured after the game. Not a guarantee.</p>
       {r.facts.length ? <p className="mt-1 text-[10px] text-zinc-500">Box: {r.facts.join(" · ")}</p> : null}
     </div>
   );

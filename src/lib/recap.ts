@@ -10,22 +10,27 @@ import type { Pick } from "@/lib/types";
 
 const MODEL = process.env.ASK_MODEL || "google/gemini-2.5-flash";
 
-export type Recap = { text: string; result: "hit" | "miss" | "push" | "unknown"; value: number | null; line: number; at: number; facts: string[] };
+export type Recap = { v?: number; wrong?: string[]; next?: string[]; text: string; result: "hit" | "miss" | "push" | "unknown"; value: number | null; line: number; at: number; facts: string[] };
 
 const SYSTEM = `You write a short post-game recap of ONE logged pick for Portal Juice.
-Rules: use ONLY the numbers in the JSON. 2 to 4 short sentences, plain text, no lists, no markdown.
-Say whether it hit or missed and by how much. Give the key reason with numbers from the box line (minutes, shots, usage, game script, final score, defense facts).
-Then one sentence comparing what the numbers before the game said (the lean, pros/cons) with what happened.
-No blame, no "should have", no guarantees, no money, no stakes, no betting advice. Confident, punchy voice. If a number is missing, don't invent it.`;
+Use ONLY numbers in the JSON. Never invent a number. Plain text inside JSON strings, no markdown.
+Return ONLY a JSON object: {"recap": string, "wrong": string[], "next": string[]}
+- recap: 2 to 4 short sentences. Hit or miss and by how much, the key reason with numbers from the box line (minutes, shots, usage, final score), then one sentence comparing the numbers on the pick (lean, pros/cons) with what happened. Say the pick numbers are season-to-date.
+- wrong: only when needsWhy is true, else []. 1 to 3 specific causes, each backed by a number in the JSON: minutes vs their average, shots/targets/touches, game script or blowout (final margin vs pregame spread), foul trouble (PF), early exit (low minutes), defense matchup, pace/total vs the posted total, line moved before tip (open vs close). Skip causes the data can't show.
+- next: only when needsWhy is true, else []. 1 to 2 concrete takeaways tied to those numbers, e.g. "Check minutes when the spread is over 10: blowouts cut starters' time." or "The hit-rate numbers leaned under: 1 of last 10 over this line." or "The total moved 3 points down before tip. Treat that as a signal."
+No blame, no "you should have", no guarantees, no money, no stakes, no betting advice. Confident, punchy voice.`;
 
 export function recapKey(p: Pick): string {
-  return `pj:recap2:${p.league ?? "x"}/${p.gameId ?? "x"}/${p.subject.toLowerCase()}/${(p.market ?? "").toLowerCase()}/${p.line}/${p.selection ?? ""}`;
+  return `pj:recap3:${p.league ?? "x"}/${p.gameId ?? "x"}/${p.subject.toLowerCase()}/${(p.market ?? "").toLowerCase()}/${p.line}/${p.selection ?? ""}`;
 }
 
 export async function buildRecap(p: Pick): Promise<Recap | { error: string }> {
   if (chatEnabled()) {
     const hit = (await redis(["GET", recapKey(p)]).catch(() => null)) as string | null;
-    if (hit) return JSON.parse(hit) as Recap;
+    if (hit) {
+      const r = JSON.parse(hit) as Recap;
+      if (r.v === 3) return r;
+    }
   }
   const snap = p.league && p.gameId ? await getLive(p.league, p.gameId).catch(() => null) : null;
   if (!snap || snap.state !== "post") return { error: "The game isn't final yet." };
@@ -46,8 +51,19 @@ export async function buildRecap(p: Pick): Promise<Recap | { error: string }> {
     playerValue: value,
     margin: value == null ? null : Math.round((value - p.line) * 10) / 10,
     boxLine: box ? { team: row!.abbr, starter: row!.pl.starter, ...box } : null,
+    needsWhy: false as boolean,
+    gameScript: {
+      finalMarginHome: (Number(snap.homeScore) || 0) - (Number(snap.awayScore) || 0),
+      finalTotal: (Number(snap.homeScore) || 0) + (Number(snap.awayScore) || 0),
+      pregameSpreadHome: snap.spreadHome,
+      spreadOpenHome: snap.spreadOpen,
+      postedTotal: snap.total,
+      totalOpen: snap.totalOpen,
+    },
     numbersOnThePick: rep ? { lean: rep.lean, score: rep.score, facts: rep.facts.slice(0, 6), pros: rep.pros.slice(0, 3).map((x) => x.text), cons: rep.cons.slice(0, 3).map((x) => x.text) } : null,
   };
+  const close = value != null && Math.abs(value - p.line) <= Math.max(1.5, p.line * 0.1);
+  facts.needsWhy = result === "miss" || (result === "hit" && close);
   const gw = process.env.AI_GATEWAY_API_KEY ? createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY }) : oidcGateway;
   let text: string;
   try {
@@ -57,7 +73,17 @@ export async function buildRecap(p: Pick): Promise<Recap | { error: string }> {
     console.log(JSON.stringify({ event: "recap.error", msg: String((e as Error).message).slice(0, 160) }));
     return { error: "Portal AI is busy. Try again in a minute." };
   }
-  const out: Recap = { text, result, value, line: p.line, at: Date.now(), facts: box ? Object.entries(box).slice(0, 8).map(([k, v]) => `${k} ${v}`) : [] };
+  let wrong: string[] = [];
+  let next: string[] = [];
+  try {
+    const j = JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, "")) as { recap?: string; wrong?: string[]; next?: string[] };
+    text = String(j.recap ?? "").trim();
+    wrong = (j.wrong ?? []).map(String).slice(0, 3);
+    next = (j.next ?? []).map(String).slice(0, 2);
+  } catch {
+    /* plain text answer: keep it */
+  }
+  const out: Recap = { v: 3, wrong, next, text, result, value, line: p.line, at: Date.now(), facts: box ? Object.entries(box).slice(0, 8).map(([k, v]) => `${k} ${v}`) : [] };
   if (chatEnabled() && /[.!?]$/.test(text)) await redis(["SET", recapKey(p), JSON.stringify(out), "EX", 60 * 60 * 24 * 30]).catch(() => {});
   return out;
 }

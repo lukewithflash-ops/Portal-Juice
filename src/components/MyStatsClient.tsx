@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useSyncExternalStore } from "react";
 import MascotSlot from "@/components/MascotSlot";
+import { StyleSection, TipDeck } from "@/components/StatsExtras";
 import { myStats, type Group, type Tally } from "@/lib/myStats";
 import { getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
 import { SPORT_LABEL, type Sport } from "@/lib/types";
@@ -74,6 +75,7 @@ export default function MyStatsClient() {
   const { current, longestWin, longestLoss } = s.streak;
   return (
     <div className="grid gap-3 sm:grid-cols-2">
+      <TipDeck picks={picks} />
       <section className="foil-tile p-4 sm:col-span-2">
         <div className="flex items-center gap-4">
           <div className="portal-ring-stat flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-full" style={{ boxShadow: `0 0 0 4px #7c3aed, 0 0 26px #a855f7, inset 0 0 20px #7c3aed` }}>
@@ -115,6 +117,7 @@ export default function MyStatsClient() {
           </div>
         </section>
       ) : null}
+      <StyleSection picks={picks} />
       <Rows title="By sport" groups={s.bySport} label={(k) => SPORT_LABEL[k as Sport] ?? k} />
       <Rows title="Props vs team picks" groups={s.byKind} />
       <Rows title="Over vs under" groups={s.bySide} />

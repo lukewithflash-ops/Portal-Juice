@@ -5,6 +5,7 @@ import { useState } from "react";
 import { checkHref, type LegInput } from "@/lib/breakdown";
 import { pickFromLeg, sportOf } from "@/lib/legPick";
 import { addPick } from "@/lib/pickStore";
+import { StatTipLine } from "@/components/StatsExtras";
 import { STAT_CHOICES, sportGroupOf, type ImportLeg, type SlipKind, type SlipRow } from "@/lib/slipImport";
 import { marketTerms, FANTASY_NOTE } from "@/lib/tracker";
 import { statFromMarket } from "@/lib/breakdown";
@@ -294,6 +295,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                       })()}
                     </select>
                   ) : null}
+                  {x.row.kind === "prop" && x.row.market ? <StatTipLine market={x.row.market} /> : null}
                   {x.row.kind === "prop" || x.row.kind === "total" ? (
                     <select className="field col-span-2 min-w-0" value={x.row.selection ?? ""} aria-label="Side" onChange={(e) => edit(i, { selection: e.target.value === "Over" || e.target.value === "Under" ? e.target.value : null })}>
                       <option value="">—</option>

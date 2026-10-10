@@ -41,6 +41,7 @@ import { styleAlert, gameOf, liveTile, tileDue } from "../src/lib/pushStyle";
 import { clutch, heatCheck, otLabel, periodFromText, runMeter } from "../src/lib/gameFeel";
 import { gameRoute } from "../src/lib/gameRoute";
 import { myStats, streaks, tally } from "../src/lib/myStats";
+import { personalTips, slipRecord, splits, statRecord, statTip, styleReport } from "../src/lib/tips";
 import { LEAGUES } from "../src/lib/slate";
 import { SPORT_LEAGUES } from "../src/lib/sports";
 import { fightFx, golfFx, tennisFx } from "../src/lib/matchFx";
@@ -1368,6 +1369,32 @@ t("my stats: W/(W+L), streaks, groups, no money fields", () => {
   assert.equal(s.bySide.find((g) => g.key === "Unders")?.t.l, 1);
   assert.equal(s.last20.length, 5);
   assert.ok(!JSON.stringify(s).match(/profit|units|net/i));
+});
+
+
+t("tips and style: real splits only, 5+ settled, W-L and %, no money", () => {
+  const mk = (i: number, status: "win" | "loss" | "push" | "open", extra: Partial<Pick> = {}): Pick => ({ id: String(i), sport: "NBA", subject: "X", line: 7.5, odds: -110, stake: 0, book: "DraftKings", date: "2026-10-01", status, createdAt: new Date(Date.UTC(2026, 9, 1, i)).toISOString(), market: "rebounds", selection: "Under", ...extra });
+  const few = [mk(1, "win"), mk(2, "loss")];
+  assert.equal(styleReport(few).enough, false);
+  assert.equal(styleReport(few).need, 8);
+  assert.deepEqual(personalTips(few), []);
+  const ps: Pick[] = [];
+  for (let i = 0; i < 7; i++) ps.push(mk(i, i < 6 ? "win" : "loss"));
+  for (let i = 10; i < 16; i++) ps.push(mk(i, i < 12 ? "win" : "loss", { market: "points", selection: "Over", odds: 120 }));
+  const s = styleReport(ps);
+  assert.equal(s.enough, true);
+  assert.match(s.summary, /^Under-leaning prop player, strongest on rebounds/);
+  assert.ok(s.pros.some((p) => p.label === "Unders" && p.t.w === 6 && p.t.l === 1));
+  assert.ok(s.cons.some((p) => p.label === "Overs" && p.t.w === 2 && p.t.l === 4));
+  assert.ok(splits(ps).every((x) => x.t.w + x.t.l >= 5));
+  const tips = personalTips(ps);
+  assert.ok(tips.includes("Your unders hit 86% vs overs 33%."));
+  assert.ok(tips.some((t) => t.startsWith("Your best stat is rebounds, 6-1")));
+  assert.ok(!JSON.stringify([s, tips]).match(/\$|profit|units|money/i));
+  const slips = [mk(30, "win", { slipId: "a" }), mk(31, "loss", { slipId: "a" }), mk(32, "win", { slipId: "a" }), mk(33, "win", { slipId: "a" })];
+  assert.deepEqual(slipRecord(slips, 4), { w: 0, l: 1, p: 0, open: 0, pct: 0 });
+  assert.equal(statTip("longest rush"), "One big run decides it. Check carries and the run-game role.");
+  assert.equal(statRecord(ps, "Rebounds"), "You're 6-1 on rebounds (86%).");
 });
 
 console.log(`\n${n} passed`);

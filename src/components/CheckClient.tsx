@@ -17,6 +17,7 @@ import {
 import { americanNumber } from "@/lib/detail";
 import { ptTime } from "@/lib/time";
 import Mark from "@/components/Mark";
+import { StatTipLine } from "@/components/StatsExtras";
 import SlipImport from "@/components/SlipImport";
 import AskChat from "@/components/AskChat";
 
@@ -360,6 +361,7 @@ export default function CheckClient() {
                   </option>
                 ))}
               </select>
+              {stat ? <StatTipLine market={(STAT_OPTIONS[game.league] ?? []).find((o) => o.key === stat)?.label ?? stat} /> : null}
             </div>
           </div>
         ) : null}
