@@ -527,7 +527,7 @@ export function LeanMeter({ r }: { r: LegReport }) {
     <div>
       <div className="flex items-baseline justify-between">
         <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: c }}>
-          {LEAN_WORD[r.lean]}
+          {r.verdict ?? LEAN_WORD[r.lean]}
         </span>
         {r.lean !== "none" ? (
           <span className="tabular text-[11px] text-zinc-500">
@@ -574,8 +574,8 @@ function LegPanel({ r, flag }: { r: LegReport; flag: "weakest" | "strongest" | n
         </div>
         <LeanMeter r={r} />
         <div className="grid gap-3 sm:grid-cols-2">
-          <PointList title="Pros" tone="plus" items={r.pros.map((p) => p.text)} empty="No pros from the numbers." />
-          <PointList title="Cons" tone="minus" items={r.cons.map((p) => p.text)} empty="No cons from the numbers." />
+          <PointList title="Pros" tone="plus" start={1} items={r.pros.map((p) => p.text)} empty="No pros from the numbers." />
+          <PointList title="Cons" tone="minus" start={r.pros.length + 1} items={r.cons.map((p) => p.text)} empty="No cons from the numbers." />
         </div>
         <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="text-[12px] font-semibold text-purple-200/80">
           {open ? "Hide the numbers" : `The numbers (${r.facts.length})`}
@@ -595,7 +595,7 @@ function LegPanel({ r, flag }: { r: LegReport; flag: "weakest" | "strongest" | n
   );
 }
 
-function PointList({ title, tone, items, empty }: { title: string; tone: "plus" | "minus"; items: string[]; empty: string }) {
+function PointList({ title, tone, items, empty, start = 1 }: { title: string; tone: "plus" | "minus"; items: string[]; empty: string; start?: number }) {
   const color = tone === "plus" ? "var(--plus)" : "var(--minus)";
   return (
     <div>
@@ -607,7 +607,7 @@ function PointList({ title, tone, items, empty }: { title: string; tone: "plus" 
           {items.map((t, i) => (
             <li key={i} className="flex gap-1.5 text-[13px] leading-snug text-zinc-200">
               <span className="font-black" style={{ color }}>
-                {tone === "plus" ? "+" : "−"}
+                {start + i}.{tone === "plus" ? "+" : "−"}
               </span>
               <span>{t}</span>
             </li>

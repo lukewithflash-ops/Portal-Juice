@@ -1,3 +1,4 @@
+import { sportLeague } from "@/lib/sports";
 /**
  * Pick breakdown. Pure rules over real numbers gathered from ESPN.
  * Every pro and con quotes the numbers it came from. No invented text, no money wording.
@@ -127,12 +128,18 @@ export type LegReport = {
   odds: number | null;
   /** Face or logo for the row. */
   mark?: { abbr: string; img: string | null; logo: boolean };
+  /** "Lean over · moderate", "Thin data (1 factor)", "Not enough data". */
+  verdict?: string;
+  /** The side this leg is on, in words ("over", "under", "DAL"). */
+  pickWord?: string;
+  /** Games behind the numbers, when it is a player log. */
+  sample?: number | null;
 };
 
 export const LEAN_NOTE = "Ranked by the numbers. Not a guarantee.";
 
 const EXTRA_LABEL: Record<string, string> = {
-  fantasy: "Fantasy score (PrizePicks-style scoring)",
+  fantasy: "Fantasy score (PrizePicks-style)",
   longRushing: "Longest rush",
   longReception: "Longest reception",
   longPassing: "Longest completion",
@@ -252,6 +259,8 @@ export function statFromMarket(league: string, market: string): string | null {
 }
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
+const HOOPS_LEAGUES = new Set(["nba", "wnba", "ncaam", "ncaaw"]);
+const sportKind = (league: string) => sportLeague(league)?.kind ?? null;
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 const fmtLine = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 const fmtOdds = (n: number) => (n > 0 ? `+${n}` : `${n}`);
@@ -292,7 +301,7 @@ export function windMph(weather: string | null): number | null {
 }
 
 function leanOf(score: number, pros: Point[], cons: Point[]): Lean {
-  if (pros.length + cons.length < 2) return "none";
+  if (pros.length + cons.length < 1) return "none";
   if (score >= 3 && pros.length >= 3) return "strong";
   if (score >= 1) return "good";
   if (score <= -1) return "bad";
@@ -382,9 +391,24 @@ function netRating(t: TeamResearch): number | null {
   return t.ppg && t.papg ? r1(t.ppg.value - t.papg.value) : null;
 }
 
+const FLIP: Record<string, string> = { over: "under", under: "over" };
+
+/** One clear line: direction plus confidence from how many factors agree, with a sample note. */
+export function verdictOf(score: number, pros: Point[], cons: Point[], pickWord: string | undefined, sample: number | null | undefined): string {
+  const n = pros.length + cons.length;
+  if (n === 0) return "Not enough data";
+  const word = pickWord ?? "this side";
+  const dir = score > 0 ? `Lean ${word}` : score < 0 ? (FLIP[word] ? `Lean ${FLIP[word]}` : `Lean against ${word}`) : "Toss-up";
+  const sampleNote = sample != null ? ` · ${sample} game${sample === 1 ? "" : "s"} of data` : "";
+  if (n < 3) return `Thin data (${n} factor${n === 1 ? "" : "s"}) · ${dir.toLowerCase()}${sampleNote}`;
+  const agree = Math.max(pros.length, cons.length) / n;
+  const conf = n >= 5 && agree >= 0.75 && Math.abs(score) >= 3 ? "strong" : agree >= 0.6 && Math.abs(score) >= 2 ? "moderate" : "slight";
+  return `${dir} · ${score === 0 ? "split" : conf} (${Math.max(pros.length, cons.length)} of ${n} factors agree)${sampleNote}`;
+}
+
 export function finalize(base: Omit<LegReport, "score" | "lean">): LegReport {
   const score = [...base.pros, ...base.cons].reduce((s, p) => s + p.weight, 0);
-  return { ...base, score, lean: leanOf(score, base.pros, base.cons) };
+  return { ...base, score, lean: leanOf(score, base.pros, base.cons), verdict: verdictOf(score, base.pros, base.cons, base.pickWord, base.sample) };
 }
 
 function sideLeg(input: LegInput, g: GameResearch, kind: "spread" | "moneyline"): LegReport {
@@ -469,6 +493,7 @@ function sideLeg(input: LegInput, g: GameResearch, kind: "spread" | "moneyline")
       : `${me.abbr} moneyline`;
   return finalize({
     title,
+    pickWord: me.abbr,
     sub: g.label,
     league: g.league,
     gameId: g.id,
@@ -544,6 +569,7 @@ function totalLeg(input: LegInput, g: GameResearch): LegReport {
   formFacts(g.home, facts);
   return finalize({
     title: `${pick === "over" ? "Over" : "Under"} ${line ?? ""}`.trim(),
+    pickWord: pick,
     sub: g.label,
     league: g.league,
     gameId: g.id,
@@ -564,8 +590,8 @@ function propLeg(input: LegInput, g: GameResearch, p: PlayerResearch | null): Le
   const pros: Point[] = [];
   const cons: Point[] = [];
   const label = statLabel(g.league, input.stat);
-  const title = `${input.athleteName ?? p?.name ?? "Player"} ${pick === "over" ? "over" : "under"} ${line ?? ""} ${label.toLowerCase()}`.replace(/\s+/g, " ").trim();
-  const base = { title, sub: g.label, league: g.league, gameId: g.id, sameGameKey: `${g.league}/${g.id}`, implied: input.odds != null ? implied(input.odds) : null, odds: input.odds ?? null, mark: { abbr: p?.team ?? "", img: p?.headshot ?? null, logo: false } };
+  const title = `${input.athleteName ?? p?.name ?? "Player"} ${pick === "over" ? "over" : "under"} ${line ?? ""} ${/[A-Z]{2}|\(/.test(label) ? label : label.toLowerCase()}`.replace(/\s+/g, " ").trim();
+  const base: Omit<LegReport, "score" | "lean" | "facts" | "pros" | "cons"> = { pickWord: pick, title, sub: g.label, league: g.league, gameId: g.id, sameGameKey: `${g.league}/${g.id}`, implied: input.odds != null ? implied(input.odds) : null, odds: input.odds ?? null, mark: { abbr: p?.team ?? "", img: p?.headshot ?? null, logo: false } };
   if (!p || !p.games.length) {
     facts.push({ label: "Game log", value: "Not enough data: ESPN has no game log for this player and stat" });
     for (const t of [g.away, g.home]) {
@@ -585,76 +611,132 @@ function propLeg(input: LegInput, g: GameResearch, p: PlayerResearch | null): Le
   const last5 = vals.slice(0, 5);
   const last10 = vals.slice(0, 10);
   if (last5.length < 3) {
-    facts.push({ label: "Game log", value: `Not enough data: ${vals.length} games logged` });
-    return finalize({ ...base, facts, pros, cons });
+    facts.push({ label: "Game log", value: `Only ${vals.length} game${vals.length === 1 ? "" : "s"} logged` });
   }
   const avg = (xs: number[]) => r1(xs.reduce((s, x) => s + x, 0) / xs.length);
-  const c10 = hitCount(last10, line, pick);
-  const c5 = hitCount(last5, line, pick);
-  facts.push({ label: `Last ${last10.length}`, value: `${last10.join(", ")} (newest first)` });
-  facts.push({ label: `Last ${last5.length} avg / median`, value: `${avg(last5)} / ${median(last5)}` });
-  if (last10.length > last5.length) facts.push({ label: `Last ${last10.length} avg / median`, value: `${avg(last10)} / ${median(last10)}` });
-  if (vals.length > last10.length) facts.push({ label: `Season (${vals.length} games)`, value: `${avg(vals)} avg` });
   const word = pick === "over" ? "Over" : "Under";
-  const rate10 = c10.hit / c10.n;
-  if (rate10 >= 0.6) pros.push({ text: `${word} ${line} in ${c10.hit} of last ${c10.n} (avg ${avg(last10)}, median ${median(last10)})`, weight: rate10 >= 0.8 ? 2 : 1 });
-  else if (rate10 <= 0.4) cons.push({ text: `${word} ${line} in only ${c10.hit} of last ${c10.n} (avg ${avg(last10)}, median ${median(last10)})`, weight: rate10 <= 0.2 ? -2 : -1 });
-  const gap5 = (avg(last5) - line) / Math.max(1, line);
-  if (Math.abs(gap5) >= 0.1) {
-    const good = (gap5 > 0) === (pick === "over");
-    (good ? pros : cons).push({ text: `Last ${last5.length} avg ${avg(last5)} vs line ${line} (${c5.hit} of ${c5.n} ${word.toLowerCase()})`, weight: good ? 1 : -1 });
-  }
-  const season = avg(vals);
-  if (vals.length >= 8 && Math.abs(season - line) / Math.max(1, line) >= 0.1) {
-    const good = (season > line) === (pick === "over");
-    (good ? pros : cons).push({ text: `Season avg ${season} over ${vals.length} games vs ${line}`, weight: good ? 1 : -1 });
-  }
-  const isHome = p.teamId && g.home.id ? p.teamId === g.home.id : null;
-  if (isHome !== null) {
-    const split = p.games.filter((x) => x.home === isHome).map((x) => x.value);
-    if (split.length >= 4) {
-      const sa = avg(split);
-      facts.push({ label: `${isHome ? "Home" : "Road"} split`, value: `${sa} avg over ${split.length} games` });
-      if (Math.abs(sa - line) / Math.max(1, line) >= 0.12) {
-        const good = (sa > line) === (pick === "over");
-        (good ? pros : cons).push({ text: `${isHome ? "Home" : "Road"} avg ${sa} over ${split.length} games vs ${line}`, weight: good ? 1 : -1 });
-      }
+  const over = pick === "over";
+  const push = (good: boolean, text: string, w = 1) => (good ? pros : cons).push({ text, weight: good ? w : -w });
+  base.sample = vals.length;
+  if (last10.length) {
+    const c10 = hitCount(last10, line, pick);
+    facts.push({ label: `Last ${last10.length}`, value: `${last10.join(", ")} (newest first)` });
+    facts.push({ label: `Last ${last10.length} avg / median`, value: `${avg(last10)} / ${median(last10)}` });
+    // 1. Hit rate: one line with avg and median (no restating it as a second factor).
+    const rate = c10.hit / c10.n;
+    if (c10.n >= 3 && (rate >= 0.6 || rate <= 0.4)) {
+      push(rate >= 0.6, `${word} ${line} in ${c10.hit} of last ${c10.n} (avg ${avg(last10)}, median ${median(last10)})`, rate >= 0.8 || rate <= 0.2 ? 2 : 1);
     }
   }
+  // 2. Trend: recent form vs season.
+  if (vals.length >= 8 && last5.length === 5) {
+    const season = avg(vals);
+    const recent = avg(last5);
+    facts.push({ label: `Season (${vals.length} games)`, value: `${season} avg` });
+    const move = (recent - season) / Math.max(1, Math.abs(season));
+    if (Math.abs(move) >= 0.15) push((recent > season) === over, `Trending ${recent > season ? "up" : "down"}: last 5 avg ${recent} vs season ${season}`);
+    else if (Math.abs(season - line) / Math.max(1, line) >= 0.1) push((season > line) === over, `Season avg ${season} over ${vals.length} games vs ${line}`);
+  }
+  const isHome = p.teamId && g.home.id ? p.teamId === g.home.id : null;
+  const team = isHome === null ? null : isHome ? g.home : g.away;
   const opp = isHome === null ? null : isHome ? g.away : g.home;
+  // 3. Home/road split.
+  if (isHome !== null) {
+    const split = p.games.filter((x) => x.home === isHome).map((x) => x.value);
+    if (split.length >= 3) {
+      const sa = avg(split);
+      facts.push({ label: `${isHome ? "Home" : "Road"} split`, value: `${sa} avg over ${split.length} games` });
+      if (Math.abs(sa - line) / Math.max(1, line) >= 0.12) push((sa > line) === over, `${isHome ? "Home" : "Road"} avg ${sa} over ${split.length} games vs ${line}`);
+    }
+  }
+  // 4. Last meeting with this opponent, if it is in the log.
+  if (opp) {
+    const met = p.games.filter((x) => x.opp && (x.opp === opp.abbr || x.opp === opp.name));
+    if (met.length) {
+      const v = met.map((x) => x.value);
+      const hits = hitCount(v, line, pick);
+      facts.push({ label: `vs ${opp.abbr}`, value: `${v.join(", ")} (newest first)` });
+      push(hits.hit / hits.n >= 0.5, `vs ${opp.abbr} before: ${v.slice(0, 3).join(", ")} (${hits.hit} of ${hits.n} ${word.toLowerCase()})`);
+    }
+  }
+  // 5. Opponent defense against this stat.
   if (opp) {
     const key = input.stat ?? "";
+    const pos = (p.position ?? "").toUpperCase();
+    const football = g.league === "nfl" || g.league === "ncaaf";
     const allowed =
-      /passing/i.test(key) ? { r: opp.passAllowed, what: "pass yds" } :
-      /rushing/i.test(key) ? { r: opp.rushAllowed, what: "rush yds" } :
-      /receiv|reception/i.test(key) ? { r: opp.passAllowed, what: "pass yds" } :
-      /points|pra|goals|shots|assists|rebounds|threePoint/i.test(key) || g.league === "mlb" ? { r: opp.papg, what: g.league === "mlb" ? "runs" : g.league === "nhl" ? "goals" : "points" } :
+      /passing|completion|passAtt/i.test(key) ? { r: opp.passAllowed, what: "pass yds" } :
+      /rushing|longRush|rushAtt/i.test(key) ? { r: opp.rushAllowed, what: "rush yds" } :
+      /receiv|reception|longRec|target/i.test(key) ? { r: opp.passAllowed, what: "pass yds" } :
+      football && /fantasy|rushRec|passRush/i.test(key) ? (/^RB|HB|FB/.test(pos) ? { r: opp.rushAllowed, what: "rush yds" } : { r: opp.passAllowed ?? opp.papg, what: opp.passAllowed ? "pass yds" : "points" }) :
+      football && opp.papg ? { r: opp.papg, what: "points" } :
+      opp.papg ? { r: opp.papg, what: g.league === "mlb" ? "runs" : g.league === "nhl" || sportKind(g.league) === "soccer" ? "goals" : "points" } :
       null;
     if (allowed?.r) {
       const { value, rank, of } = allowed.r;
       facts.push({ label: `${opp.abbr} defense`, value: `${value} ${allowed.what} allowed per game (${ord(rank)} fewest of ${of})` });
-      const tough = rank <= Math.ceil(of / 4);
-      const soft = rank > of - Math.ceil(of / 4);
-      // Pitcher strikeouts and earned runs read the other way: the pitcher faces their offense.
+      const tough = rank <= Math.ceil(of / 3);
+      const soft = rank > of - Math.ceil(of / 3);
       const pitcherStat = key === "strikeouts" || key === "earnedRuns";
       if (!pitcherStat && (tough || soft)) {
-        const good = soft === (pick === "over");
         const where = soft ? `${ord(of - rank + 1)}-most` : `${ord(rank)}-fewest`;
-        (good ? pros : cons).push({ text: `${opp.abbr} allows the ${where} ${allowed.what} (${value} per game)`, weight: good ? 1 : -1 });
+        push(soft === over, `${opp.abbr} allows the ${where} ${allowed.what} (${value} per game, ${ord(rank)} of ${of})`);
       }
     }
     if (opp.batting && (input.stat === "strikeouts" || input.stat === "earnedRuns") && opp.batting.runsPerGame != null) {
       facts.push({ label: `${opp.abbr} offense`, value: `${opp.batting.runsPerGame} runs/game · AVG ${opp.batting.avg ?? "—"}` });
     }
   }
+  // 6. Game script from the spread and total.
+  const o = g.odds;
+  if (o && isHome !== null && o.spreadHome != null) {
+    const mySpread = isHome ? o.spreadHome : -o.spreadHome;
+    const fav = mySpread < 0;
+    const itt = o.total != null ? r1(o.total / 2 - mySpread / 2) : null;
+    facts.push({ label: "Game script", value: `${team?.abbr ?? "Team"} ${fmtLine(mySpread)}${o.total != null ? ` · total ${o.total} · implied team total ${itt}` : ""}` });
+    const key = input.stat ?? "";
+    const passing = /passing|completion|passAtt|receiv|reception|target/i.test(key);
+    const rushing = /rushing|rushAtt/i.test(key);
+    if (Math.abs(mySpread) >= 7 && (passing || rushing)) {
+      // Big underdogs throw more; big favorites run the clock.
+      const volumeUp = passing ? !fav : fav;
+      push(volumeUp === over, `${team?.abbr} ${fav ? "favored" : "underdog"} by ${Math.abs(mySpread)}: script points to ${volumeUp ? "more" : "less"} ${passing ? "passing" : "rushing"}`);
+    } else if (Math.abs(mySpread) >= 10 && HOOPS_LEAGUES.has(g.league)) {
+      push(!over, `Spread ${Math.abs(mySpread)}: blowout risk can cut starter minutes`);
+    } else if (itt != null && team?.ppg) {
+      const diff = itt - team.ppg.value;
+      if (Math.abs(diff) / Math.max(1, team.ppg.value) >= 0.1) push((diff > 0) === over, `Implied team total ${itt} vs ${team.ppg.value} season scoring`);
+    }
+  }
+  // 7. Weather for outdoor games.
+  const wind = g.indoor ? null : windMph(g.weather);
+  if (g.weather && !g.indoor) facts.push({ label: "Weather", value: g.weather });
+  if (wind != null && wind >= 15 && /passing|receiv|reception|completion|fantasy|longPass|longRec/i.test(input.stat ?? "")) push(!over, `Wind ${wind} mph: tougher throwing`);
+  // 8. Rest: back-to-back where the log has dates.
+  const lastDate = p.games[0]?.date ? Date.parse(p.games[0].date) : NaN;
+  const start = Date.parse(g.start);
+  if (Number.isFinite(lastDate) && Number.isFinite(start)) {
+    const days = Math.round((start - lastDate) / 86400000);
+    if (days >= 0) facts.push({ label: "Rest", value: `${days} day${days === 1 ? "" : "s"} since last game` });
+    if (days <= 1 && HOOPS_LEAGUES.has(g.league)) push(!over, `Back-to-back: last game ${days === 0 ? "earlier today" : "yesterday"}`);
+  }
+  // 9. Line move.
   if (input.openLine != null && input.openLine !== line) {
     const up = line > input.openLine;
     const good = up === (pick === "under");
-    (good ? pros : cons).push({ text: `Line moved ${up ? "up" : "down"} from ${input.openLine} to ${line}: a ${good ? "better" : "worse"} number for the ${pick}`, weight: good ? 1 : -1 });
+    push(good, `Line moved ${up ? "up" : "down"} from ${input.openLine} to ${line}: a ${good ? "better" : "worse"} number for the ${pick}`);
   }
-  const team = isHome === null ? null : isHome ? g.home : g.away;
+  // 10. Injuries: the player, teammates out (more usage), opponents out.
   const listed = team?.injuries.find((i) => i.name.toLowerCase() === p.name.toLowerCase());
   if (listed) cons.push({ text: `${p.name} is on the ESPN injury report (${listed.status})`, weight: /out/i.test(listed.status) ? -3 : -1 });
+  const mates = (team?.injuries ?? []).filter((i) => /^out$/i.test(i.status) && i.name.toLowerCase() !== p.name.toLowerCase());
+  if (mates.length) {
+    facts.push({ label: `${team?.abbr} out`, value: mates.slice(0, 5).map((i) => i.name).join(", ") });
+    if (mates.length >= 2) push(over, `${mates.length} ${team?.abbr} teammates out (${mates.slice(0, 2).map((i) => i.name).join(", ")}): more touches to go around`);
+  }
+  const oppOut = (opp?.injuries ?? []).filter((i) => /^out$/i.test(i.status));
+  if (oppOut.length) facts.push({ label: `${opp?.abbr} out`, value: oppOut.slice(0, 5).map((i) => i.name).join(", ") });
+  if (oppOut.length >= 3) push(over, `${oppOut.length} ${opp?.abbr} players out (${oppOut.slice(0, 2).map((i) => i.name).join(", ")})`);
   return finalize({ ...base, facts, pros, cons });
 }
 
@@ -677,7 +759,7 @@ export function thinReport(input: LegInput, title: string, reason: string, sub =
 /** A short title for any leg, from what it carries. */
 export function roughTitle(l: LegInput): string {
   const pick = l.pick === "under" ? "under" : "over";
-  if (l.kind === "prop") return `${l.athleteName ?? "Player"} ${pick} ${l.line ?? ""} ${l.stat ? statLabel(l.league, l.stat).toLowerCase() : l.market ?? ""}`.replace(/\s+/g, " ").trim();
+  if (l.kind === "prop") return `${l.athleteName ?? "Player"} ${pick} ${l.line ?? ""} ${l.stat ? statLabel(l.league, l.stat) : l.market ?? ""}`.replace(/\s+/g, " ").trim();
   if (l.kind === "total") return `${pick === "over" ? "Over" : "Under"} ${l.line ?? ""}`.trim();
   return `${l.team ?? (l.side === "away" ? "Away" : "Home")} ${l.kind === "spread" ? l.line ?? "" : "ML"}`.trim();
 }

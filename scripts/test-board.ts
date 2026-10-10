@@ -762,14 +762,14 @@ t("prop cons: same log read as an under is bad; opponent defense rank", () => {
   const g = gameR({ league: "nfl", home: team("DAL", { rushAllowed: { value: 88.2, rank: 4, of: 32 } }), away: team("TB") });
   const p = player([60, 72, 55, 80, 66], { teamId: "TB", team: "TB", name: "Bucky Irving" });
   const r = analyzeLeg({ league: "nfl", gameId: "1", kind: "prop", athleteId: "9", stat: "rushingYards", line: 64.5, pick: "over" }, g, p);
-  assert.ok(r.cons.some((c) => c.text === "DAL allows the 4th-fewest rush yds (88.2 per game)"), JSON.stringify(r.cons));
+  assert.ok(r.cons.some((c) => c.text === "DAL allows the 4th-fewest rush yds (88.2 per game, 4th of 32)"), JSON.stringify(r.cons));
   assert.ok(r.facts.some((f) => f.label === "DAL defense" && /4th fewest of 32/.test(f.value)));
 });
 
 t("prop with too few games says not enough data", () => {
   const r = analyzeLeg({ league: "nba", gameId: "1", kind: "prop", athleteId: "9", stat: "points", line: 20.5, pick: "over" }, gameR(), player([22, 18]));
-  assert.equal(r.lean, "none");
-  assert.ok(r.facts.some((f) => /Not enough data/.test(f.value)));
+  assert.ok(r.lean === "none" ? r.verdict === "Not enough data" : /^Thin data/.test(r.verdict ?? ""), r.verdict);
+  assert.ok(r.facts.some((f) => /Only 2 games logged/.test(f.value)));
   const none = analyzeLeg({ league: "nba", gameId: "1", kind: "prop", stat: "points", line: 20.5 }, gameR(), null);
   assert.equal(none.lean, "none");
 });
@@ -1454,6 +1454,19 @@ t("lineups: basketball subs from play-by-play", () => {
   const lu = lineupOf("wnba", snap, false);
   assert.deepEqual(lu.teams[0].on.map((p) => p.name), ["Jackie Young"]);
   assert.equal(lu.subs[0].outName, "Chelsea Gray");
+});
+
+t("breakdown depth: no restated hit-rate, verdict, thin data label, title", () => {
+  const g = gameR({ league: "ncaaf", home: team("FLA", { rushAllowed: { value: 190, rank: 120, of: 134 } }), away: team("SC") });
+  const p = player([34, 30, 12, 34, 26, 20, 18], { teamId: "SC", team: "SC", name: "Jadan Baugh", position: "RB" });
+  const r = analyzeLeg({ league: "ncaaf", gameId: "1", kind: "prop", athleteId: "9", stat: "fantasy", line: 10.5, pick: "under" }, g, p);
+  assert.equal(r.cons.filter((c) => /10\.5/.test(c.text) && /last/.test(c.text)).length, 1, JSON.stringify(r.cons));
+  assert.ok(r.cons.some((c) => /FLA allows the/.test(c.text)), JSON.stringify(r.cons));
+  assert.match(r.title, /Fantasy score \(PrizePicks-style\)$/);
+  assert.match(r.verdict ?? "", /^Lean over · /);
+  const one = analyzeLeg({ league: "ncaaf", gameId: "1", kind: "prop", athleteId: "9", stat: "passingYards", line: 207.5, pick: "under" }, gameR({ league: "ncaaf" }), player([180, 260, 198, 190]));
+  assert.notEqual(one.lean, "none");
+  assert.match(one.verdict ?? "", /^Thin data \(1 factor\)/);
 });
 
 console.log(`\n${n} passed`);
