@@ -19,7 +19,7 @@ Then one sentence comparing what the numbers before the game said (the lean, pro
 No blame, no "should have", no guarantees, no money, no stakes, no betting advice. Confident, punchy voice. If a number is missing, don't invent it.`;
 
 export function recapKey(p: Pick): string {
-  return `pj:recap:${p.league ?? "x"}/${p.gameId ?? "x"}/${p.subject.toLowerCase()}/${(p.market ?? "").toLowerCase()}/${p.line}/${p.selection ?? ""}`;
+  return `pj:recap2:${p.league ?? "x"}/${p.gameId ?? "x"}/${p.subject.toLowerCase()}/${(p.market ?? "").toLowerCase()}/${p.line}/${p.selection ?? ""}`;
 }
 
 export async function buildRecap(p: Pick): Promise<Recap | { error: string }> {
@@ -51,13 +51,13 @@ export async function buildRecap(p: Pick): Promise<Recap | { error: string }> {
   const gw = process.env.AI_GATEWAY_API_KEY ? createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY }) : oidcGateway;
   let text: string;
   try {
-    const r = await generateText({ model: gw(MODEL), system: SYSTEM, prompt: JSON.stringify(facts), maxOutputTokens: 400 });
+    const r = await generateText({ model: gw(MODEL), system: SYSTEM, prompt: JSON.stringify(facts), maxOutputTokens: 2000, providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } } });
     text = r.text.trim();
   } catch (e) {
     console.log(JSON.stringify({ event: "recap.error", msg: String((e as Error).message).slice(0, 160) }));
     return { error: "Portal AI is busy. Try again in a minute." };
   }
   const out: Recap = { text, result, value, line: p.line, at: Date.now(), facts: box ? Object.entries(box).slice(0, 8).map(([k, v]) => `${k} ${v}`) : [] };
-  if (chatEnabled() && text) await redis(["SET", recapKey(p), JSON.stringify(out), "EX", 60 * 60 * 24 * 30]).catch(() => {});
+  if (chatEnabled() && /[.!?]$/.test(text)) await redis(["SET", recapKey(p), JSON.stringify(out), "EX", 60 * 60 * 24 * 30]).catch(() => {});
   return out;
 }
