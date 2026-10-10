@@ -18,10 +18,10 @@ Return ONLY a JSON object: {"recap": string, "wrong": string[], "next": string[]
 - recap: 2 to 4 short sentences. Hit or miss and by how much, the key reason with numbers from the box line (minutes, shots, usage, final score), then one sentence comparing the numbers on the pick (lean, pros/cons) with what happened. Say the pick numbers are season-to-date.
 - wrong: only when needsWhy is true, else []. 1 to 3 specific causes, each backed by a number in the JSON: minutes vs their average, shots/targets/touches, game script or blowout (final margin vs pregame spread), foul trouble (PF), early exit (low minutes), defense matchup, pace/total vs the posted total, line moved before tip (open vs close). Skip causes the data can't show.
 - next: only when needsWhy is true, else []. 1 to 2 concrete takeaways tied to those numbers, e.g. "Check minutes when the spread is over 10: blowouts cut starters' time." or "The hit-rate numbers leaned under: 1 of last 10 over this line." or "The total moved 3 points down before tip. Treat that as a signal."
-No blame, no "you should have", no guarantees, no money, no stakes, no betting advice. Confident, punchy voice.`;
+Never write "should" or "should have". If the game went to overtime, say totals and minutes are inflated by it. No blame, no guarantees, no money, no stakes, no betting advice. Confident, punchy voice.`;
 
 export function recapKey(p: Pick): string {
-  return `pj:recap3:${p.league ?? "x"}/${p.gameId ?? "x"}/${p.subject.toLowerCase()}/${(p.market ?? "").toLowerCase()}/${p.line}/${p.selection ?? ""}`;
+  return `pj:recap4:${p.league ?? "x"}/${p.gameId ?? "x"}/${p.subject.toLowerCase()}/${(p.market ?? "").toLowerCase()}/${p.line}/${p.selection ?? ""}`;
 }
 
 export async function buildRecap(p: Pick): Promise<Recap | { error: string }> {
@@ -29,7 +29,7 @@ export async function buildRecap(p: Pick): Promise<Recap | { error: string }> {
     const hit = (await redis(["GET", recapKey(p)]).catch(() => null)) as string | null;
     if (hit) {
       const r = JSON.parse(hit) as Recap;
-      if (r.v === 3) return r;
+      if (r.v === 4) return r;
     }
   }
   const snap = p.league && p.gameId ? await getLive(p.league, p.gameId).catch(() => null) : null;
@@ -83,7 +83,7 @@ export async function buildRecap(p: Pick): Promise<Recap | { error: string }> {
   } catch {
     /* plain text answer: keep it */
   }
-  const out: Recap = { v: 3, wrong, next, text, result, value, line: p.line, at: Date.now(), facts: box ? Object.entries(box).slice(0, 8).map(([k, v]) => `${k} ${v}`) : [] };
+  const out: Recap = { v: 4, wrong, next, text, result, value, line: p.line, at: Date.now(), facts: box ? Object.entries(box).slice(0, 8).map(([k, v]) => `${k} ${v}`) : [] };
   if (chatEnabled() && /[.!?]$/.test(text)) await redis(["SET", recapKey(p), JSON.stringify(out), "EX", 60 * 60 * 24 * 30]).catch(() => {});
   return out;
 }

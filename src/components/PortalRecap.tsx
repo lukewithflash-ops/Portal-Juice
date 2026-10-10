@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Pick } from "@/lib/types";
 
 type R = { v?: number; wrong?: string[]; next?: string[]; text: string; result: "hit" | "miss" | "push" | "unknown"; value: number | null; line: number; facts: string[] } | { error: string };
-const KEY = "pj-recap3:";
+const KEY = "pj-recap4:";
 
 /** Post-game recap from Portal AI, from the real box score and the numbers on the pick. Cached on device and server. */
 export default function PortalRecap({ pick, auto = false }: { pick: Pick; auto?: boolean }) {
