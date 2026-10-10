@@ -609,7 +609,7 @@ function propLeg(input: LegInput, g: GameResearch, p: PlayerResearch | null): Le
     const good = (season > line) === (pick === "over");
     (good ? pros : cons).push({ text: `Season avg ${season} over ${vals.length} games vs ${line}`, weight: good ? 1 : -1 });
   }
-  const isHome = p.teamId ? p.teamId === g.home.id : null;
+  const isHome = p.teamId && g.home.id ? p.teamId === g.home.id : null;
   if (isHome !== null) {
     const split = p.games.filter((x) => x.home === isHome).map((x) => x.value);
     if (split.length >= 4) {
