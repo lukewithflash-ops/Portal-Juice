@@ -196,6 +196,10 @@ export function clockSpan(
   const spec =
     league === "nba"
       ? { q: 12 * 60, n: 4, ot: 5 * 60 }
+      : league === "wnba" || league === "ncaaw"
+        ? { q: 10 * 60, n: 4, ot: 5 * 60 }
+        : league === "ncaam"
+          ? { q: 20 * 60, n: 2, ot: 5 * 60 }
       : league === "nhl"
         ? { q: 20 * 60, n: 3, ot: 5 * 60 }
         : league === "nfl" || league === "ncaaf"

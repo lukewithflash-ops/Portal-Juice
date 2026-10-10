@@ -1,8 +1,11 @@
 "use client";
 
+import { clutch, heatCheck, isHuge, otLabel, runMeter } from "@/lib/gameFeel";
+import { playCrowd } from "@/lib/emotes";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { pickEmote, playSound, replaySnap, type Emote } from "@/lib/emotes";
-import { EmoteLayer, SoundToggle } from "@/components/Emotes";
+import { CrowdToggle, EmoteLayer, SoundToggle } from "@/components/Emotes";
 import DriveFeed from "@/components/DriveFeed";
 import GameChat from "@/components/GameChat";
 import Mark from "@/components/Mark";
@@ -92,6 +95,8 @@ export default function GameLive({
   const [emote, setEmote] = useState<Emote | null>(null);
   const [bump, setBump] = useState<{ away: number; home: number }>({ away: 0, home: 0 });
   const [edge, setEdge] = useState<{ n: number; color: string } | null>(null);
+  const [pop, setPop] = useState<{ n: number; side: "away" | "home"; text: string } | null>(null);
+  const [shake, setShake] = useState(0);
   const [tab, setTab] = useState<"play" | "lines" | "chat">("play");
   const seen = useRef<Set<string> | null>(null);
   const scores = useRef<{ away: string | null; home: string | null }>({ away: null, home: null });
@@ -118,6 +123,10 @@ export default function GameLive({
     setFreshIds(added.map((p) => p.id));
     const big = [...added].reverse().find(isBigPlay);
     if (big && !quiet) {
+      if (isHuge(big, clutch(league, data))) {
+        setShake((n) => n + 1);
+        playCrowd(0.9);
+      }
       setCinema(big);
       if (cinemaTimer.current) clearTimeout(cinemaTimer.current);
       cinemaTimer.current = setTimeout(() => setCinema(null), 4300);
@@ -134,6 +143,16 @@ export default function GameLive({
       const homeMoved = data.homeScore !== scores.current.home;
       setBump((b) => ({ away: awayMoved ? b.away + 1 : b.away, home: homeMoved ? b.home + 1 : b.home }));
       if (awayMoved || homeMoved) setEdge((e) => ({ n: (e?.n ?? 0) + 1, color: visible((homeMoved ? data.homeColor : data.awayColor) || "#f5c542") }));
+      // Arcade score pop: "+3" over the side that scored.
+      const side = homeMoved ? "home" : awayMoved ? "away" : null;
+      if (side) {
+        const was = Number(scores.current[side]) || 0;
+        const now = Number(side === "home" ? data.homeScore : data.awayScore) || 0;
+        if (now > was && now - was <= 9) {
+          setPop((p) => ({ n: (p?.n ?? 0) + 1, side, text: `+${now - was}` }));
+          if (!quiet) playCrowd(clutch(league, data) ? 0.8 : 0.4);
+        }
+      }
     }
     scores.current = { away: data.awayScore, home: data.homeScore };
     shownRef.current = data;
@@ -152,7 +171,7 @@ export default function GameLive({
   }, league + "/" + id);
 
   // Replay: step through the last plays of a final, one every 1.4s, with the same emotes.
-  const snapAt = useCallback((n: number) => (live ? replaySnap(live, n) : null), [live]);
+  const snapAt = useCallback((n: number) => (live ? replaySnap(live, n, league) : null), [live, league]);
   function startReplay() {
     if (!live) return;
     const start = Math.max(1, live.plays.length - 40);
@@ -178,7 +197,7 @@ export default function GameLive({
     return () => clearTimeout(t);
   }, [replay, live, snapAt, react]);
 
-  const view = replay !== null && live ? replaySnap(live, replay) : live;
+  const view = replay !== null && live ? replaySnap(live, replay, league) : live;
   const snap = view;
 
   const rows = useMemo(() => trackProps(props, snap, league), [props, snap, league]);
@@ -198,8 +217,14 @@ export default function GameLive({
     <div className="game-stage">
       <div className={tab === "chat" ? "max-lg:hidden" : ""}>
         <div className={tab === "lines" ? "max-lg:hidden" : ""} style={vars}>
-          <div className="relative">
+          <div key={"shake" + shake} className={"relative " + (shake ? "screen-shake" : "")}>
           <MomentBadge />
+          <GameFeel league={league} snap={snap} awayColor={awayColor} homeColor={homeColor} />
+          {pop ? (
+            <span key={"pop" + pop.n} className={"arcade-pop " + (pop.side === "home" ? "right-[12%]" : "left-[12%]")} style={{ ["--pop" as string]: pop.side === "home" ? homeColor : awayColor } as React.CSSProperties} aria-hidden>
+              {pop.text}
+            </span>
+          ) : null}
           <Hero
             league={league}
             snap={snap}
@@ -283,6 +308,8 @@ function teamColor(snap: LiveSnap | null, teamId: string | null, awayColor: stri
 }
 
 function logoUrl(league: string, abbr: string, id: string): string | null {
+  if ((league === "ncaam" || league === "ncaaw") && id) return `https://a.espncdn.com/i/teamlogos/ncaa/500/${id}.png`;
+  if (["epl", "ucl", "laliga", "seriea", "bundesliga", "mls"].includes(league) && id) return `https://a.espncdn.com/i/teamlogos/soccer/500/${id}.png`;
   if (league === "ncaaf") return id ? `https://a.espncdn.com/i/teamlogos/ncaa/500/${id}.png` : null;
   if (["nfl", "nba", "mlb", "nhl", "wnba"].includes(league) && abbr) return `https://a.espncdn.com/i/teamlogos/${league}/500/${abbr.toLowerCase()}.png`;
   return null;
@@ -376,8 +403,12 @@ function Hero({
             {live ? <span className="tv-live-dot" aria-hidden /> : null}
             {live ? "Live" : snap?.state === "post" ? "Final" : "Soon"}
             <SoundToggle />
+            <CrowdToggle />
           </div>
-          <div className="tabular mt-0.5 text-sm font-black text-[color:var(--flat)]">{live && snap?.clock ? snap.clock : ""}</div>
+          <div className="tabular mt-0.5 text-sm font-black text-[color:var(--flat)]">
+            {live && otLabel(league, snap?.period ?? null) ? <span className="ot-pill mr-1">{otLabel(league, snap?.period ?? null)}</span> : null}
+            {live && snap?.clock ? snap.clock : ""}
+          </div>
           <div className="text-[10px] text-zinc-400">{snap?.detail || ""}</div>
           {live && league === "mlb" && bug ? (
             <div className="mt-0.5 flex items-center justify-center gap-1.5 text-[10px] font-black text-white">
@@ -447,11 +478,11 @@ function Surface({
   freshIds: string[];
 }) {
   if (league === "nfl" || league === "ncaaf") return <Field snap={snap} awayColor={awayColor} homeColor={homeColor} />;
-  if (league === "nba" || league === "wnba" || league === "ncaam")
+  if (league === "nba" || league === "wnba" || league === "ncaam" || league === "ncaaw")
     return <Court snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} />;
   if (league === "nhl") return <Rink snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} />;
   if (league === "mlb") return <Diamond snap={snap} awayColor={awayColor} homeColor={homeColor} />;
-  return null;
+  return <Pitch snap={snap} awayColor={awayColor} homeColor={homeColor} />;
 }
 
 function Field({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: string; homeColor: string }) {
@@ -890,5 +921,68 @@ function TrackTile({ row }: { row: TrackRow }) {
         <div className="h-full rounded-full" style={{ width: fill + "%", background: color, transition: "width 700ms ease" }} />
       </div>
     </li>
+  );
+}
+
+/** Neon soccer pitch: halves in team colors, the last key moment named. */
+function Pitch({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: string; homeColor: string }) {
+  const last = [...snap.plays].reverse().find((p) => p.text);
+  return (
+    <svg viewBox="0 0 120 70" preserveAspectRatio="xMidYMax meet" aria-label="Pitch">
+      <defs>
+        <linearGradient id="pitch" x1="0" x2="1">
+          <stop offset="0" stopColor={awayColor} stopOpacity="0.28" />
+          <stop offset="0.5" stopColor="#0b3d1f" />
+          <stop offset="1" stopColor={homeColor} stopOpacity="0.28" />
+        </linearGradient>
+      </defs>
+      <rect x="4" y="6" width="112" height="60" rx="2" fill="url(#pitch)" stroke="#a855f7" strokeWidth="0.6" style={{ filter: "drop-shadow(0 0 3px #a855f7)" }} />
+      <line x1="60" y1="6" x2="60" y2="66" stroke="rgba(255,255,255,0.55)" strokeWidth="0.4" />
+      <circle cx="60" cy="36" r="9" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="0.4" />
+      <rect x="4" y="22" width="16" height="28" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="0.4" />
+      <rect x="100" y="22" width="16" height="28" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="0.4" />
+      <rect x="1.5" y="31" width="2.5" height="10" fill={awayColor} />
+      <rect x="116" y="31" width="2.5" height="10" fill={homeColor} />
+      {last ? (
+        <text x="60" y="4" fontSize="3.2" textAnchor="middle" fill="rgba(255,255,255,0.75)">
+          {last.text.slice(0, 70)}
+        </text>
+      ) : null}
+    </svg>
+  );
+}
+
+/** Overtime intro, clutch heartbeat, team-run combo meter, and heat check. Real plays only. */
+function GameFeel({ league, snap, awayColor, homeColor }: { league: string; snap: LiveSnap | null; awayColor: string; homeColor: string }) {
+  const ot = snap?.state === "in" ? otLabel(league, snap.period) : null;
+  const hot = clutch(league, snap);
+  const run = snap && snap.state === "in" ? runMeter(snap.plays) : null;
+  const heat = snap && snap.state === "in" ? heatCheck(snap.plays) : null;
+  const colorOf = (teamId: string) => (snap && teamId === snap.homeId ? homeColor : awayColor);
+  return (
+    <>
+      {ot ? (
+        <div key={"ot" + snap?.period} className="ot-intro" aria-live="polite">
+          <span>{ot === "OT" ? "OVERTIME" : ot.toUpperCase()}</span>
+        </div>
+      ) : null}
+      {hot ? <div className="clutch-edges" aria-hidden /> : null}
+      {hot ? <span className="clutch-tag">{ot ? "Sudden death" : "Clutch time"} ♥</span> : null}
+      <div className="pointer-events-none absolute inset-x-2 top-2 z-[6] flex justify-between gap-2">
+        {run ? (
+          <span key={run.label} className={"combo-meter " + (run.fire ? "on-fire" : "")} style={{ ["--combo" as string]: colorOf(run.teamId) } as React.CSSProperties}>
+            {run.fire ? "🔥 " : ""}
+            {run.label}
+          </span>
+        ) : (
+          <span />
+        )}
+        {heat ? (
+          <span key={heat.name} className="heat-check" style={{ ["--combo" as string]: colorOf(heat.teamId) } as React.CSSProperties}>
+            Heat check · {heat.name}
+          </span>
+        ) : null}
+      </div>
+    </>
   );
 }

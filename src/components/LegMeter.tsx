@@ -44,8 +44,8 @@ export function LegMeter({ leg, mini = false }: { leg: Leg; mini?: boolean }) {
             {cleared ? " ✓" : ""}
           </span>
         </div>
-        <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-black/40">
-          <div className="h-full rounded-full" style={{ width: leg.fill + "%", background: color, transition: "width 700ms ease" }} />
+        <div className={"xp-bar mt-0.5 h-1.5 overflow-hidden rounded-full " + (cleared ? "level-up" : "")}>
+          <div className="xp-fill h-full rounded-full" style={{ width: leg.fill + "%", background: color, color }} />
         </div>
       </div>
     );
@@ -77,9 +77,10 @@ export function LegMeter({ leg, mini = false }: { leg: Leg; mini?: boolean }) {
           ) : null}
         </div>
       </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
-        <div className="h-full rounded-full" style={{ width: leg.fill + "%", background: color, transition: "width 700ms ease" }} />
+      <div className="xp-bar mt-2 h-2.5 overflow-hidden rounded-full">
+        <div className="xp-fill h-full rounded-full" style={{ width: leg.fill + "%", background: color, color }} />
       </div>
+      {cleared ? <div key={leg.pickId + "lvl"} className="level-up pointer-events-none absolute inset-0" aria-hidden /> : null}
       {leg.hype ? (
         <p key={leg.hype + leg.value} className="play-in mt-1.5 text-xs font-black" style={{ color: cleared ? "var(--gold)" : color }}>
           {leg.hype}

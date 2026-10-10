@@ -261,6 +261,8 @@ export function parseLive(data: unknown): LiveSnap | null {
   const drives: LiveDrive[] = [];
   // NFL/NCAAF put plays inside drives; NBA/NHL/MLB use top-level plays.
   let rawPlays = asList(d.plays);
+  // Soccer posts key moments (goals, bookings, subs, halves) instead of plays.
+  if (!rawPlays.length && asList(d.keyEvents).length) rawPlays = asList(d.keyEvents);
   const football = !rawPlays.length && asDict(d.drives).previous !== undefined;
   if (!rawPlays.length) {
     const driveData = asDict(d.drives);
@@ -322,7 +324,7 @@ export function parseLive(data: unknown): LiveSnap | null {
       clock: str(asDict(p.clock).displayValue) || "",
       period: str(asDict(p.period).displayValue) || ordinal(num(asDict(p.period).number)),
       scoring: p.scoringPlay === true,
-      points: num(p.scoreValue) ?? 0,
+      points: num(p.scoreValue) ?? (p.scoringPlay === true ? 1 : 0),
       awayScore: num(p.awayScore),
       homeScore: num(p.homeScore),
       teamId: str(asDict(p.team).id),

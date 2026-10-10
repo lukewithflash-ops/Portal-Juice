@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { setSound, soundOn, type Emote } from "@/lib/emotes";
+import { setSound, soundOn, type Emote , crowdOn, setCrowd } from "@/lib/emotes";
 
 const ICON: Record<Emote["kind"], string> = {
   td: "🏈", fg: "🥅", first: "⛓️", sack: "💢", turnover: "🔄", gain: "💨",
@@ -57,6 +57,24 @@ export function EmoteLayer({ emote, color }: { emote: Emote | null; color: strin
 }
 
 /** Sound is off unless you turn it on. Saved on this device. */
+export function CrowdToggle() {
+  const [on, setOn] = useState(() => (typeof window === "undefined" ? false : crowdOn()));
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      title={on ? "Crowd noise on" : "Crowd noise off"}
+      onClick={() => {
+        setCrowd(!on);
+        setOn(!on);
+      }}
+      className={"rounded-md bg-black/40 px-1.5 py-0.5 text-[11px] " + (on ? "text-white" : "text-white/50")}
+    >
+      {on ? "📣" : "🤫"}
+    </button>
+  );
+}
+
 export function SoundToggle() {
   const [on, setOn] = useState(() => (typeof window === "undefined" ? false : soundOn()));
   return (

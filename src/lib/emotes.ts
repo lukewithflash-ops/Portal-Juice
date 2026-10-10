@@ -1,3 +1,4 @@
+import { periodFromText } from "@/lib/gameFeel";
 /** Quick emotes for live plays. Pure picking + an optional tiny synth (off unless you turn sound on). */
 import type { LivePlay, LiveSnap } from "@/lib/live";
 import { playKind } from "@/lib/tracker";
@@ -73,7 +74,7 @@ export function pickEmote(league: string, added: LivePlay[], prev: LiveSnap | nu
 }
 
 /** A final game as it stood after `n` plays, for the replay. Only real plays and their posted scores. */
-export function replaySnap(snap: LiveSnap, n: number): LiveSnap {
+export function replaySnap(snap: LiveSnap, n: number, league = "nba"): LiveSnap {
   const plays = snap.plays.slice(0, Math.max(0, n));
   const last = [...plays].reverse().find((p) => p.awayScore !== null && p.homeScore !== null);
   const keep = new Set(plays.map((p) => p.id));
@@ -92,7 +93,7 @@ export function replaySnap(snap: LiveSnap, n: number): LiveSnap {
     awayScore: last ? String(last.awayScore) : "0",
     homeScore: last ? String(last.homeScore) : "0",
     clock: lp?.clock ?? null,
-    period: lp ? Number(lp.period) || snap.period : snap.period,
+    period: lp ? periodFromText(lp.period, league) ?? snap.period : snap.period,
     detail: lp ? `Replay · ${/^\d+$/.test(lp.period) ? "Period " + lp.period : lp.period} ${lp.clock ?? ""}`.trim() : "Replay",
     situation:
       lp && lp.down && lp.yardsToEndzone !== null
@@ -138,6 +139,48 @@ export function playSound(kind: EmoteKind) {
       o.start(at);
       o.stop(at + 0.18);
     });
+  } catch {
+    /* no audio */
+  }
+}
+
+const CROWD_KEY = "pj-crowd";
+export function crowdOn(): boolean {
+  try {
+    return localStorage.getItem(CROWD_KEY) === "on";
+  } catch {
+    return false;
+  }
+}
+export function setCrowd(on: boolean) {
+  localStorage.setItem(CROWD_KEY, on ? "on" : "off");
+}
+
+/** Crowd roar: filtered noise that swells and fades (~1.2s). Off by default. `level` 0–1 sets how loud. */
+export function playCrowd(level = 0.5) {
+  if (typeof window === "undefined" || !crowdOn()) return;
+  try {
+    ctx = ctx ?? new AudioContext();
+    const c = ctx;
+    const len = Math.floor(c.sampleRate * 1.2);
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.6;
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const bp = c.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 900;
+    bp.Q.value = 0.6;
+    const g = c.createGain();
+    const at = c.currentTime;
+    const peak = 0.05 + 0.15 * Math.max(0, Math.min(1, level));
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(peak, at + 0.25);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 1.2);
+    src.connect(bp).connect(g).connect(c.destination);
+    src.start(at);
+    src.stop(at + 1.25);
   } catch {
     /* no audio */
   }

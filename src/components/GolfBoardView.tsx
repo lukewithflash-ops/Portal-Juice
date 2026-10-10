@@ -1,3 +1,4 @@
+import MatchFx from "@/components/MatchFx";
 import type { GolfBoard } from "@/lib/sports";
 
 /** Golf leaderboard from ESPN, top 25. */
@@ -30,7 +31,7 @@ export default function GolfBoardView({ b }: { b: GolfBoard }) {
                 ) : null}
                 {r.name}
               </td>
-              <td className={"text-right font-black tabular " + (r.score.startsWith("-") ? "text-[color:var(--plus)]" : "text-zinc-200")}>{r.score}</td>
+              <td className={"text-right font-black tabular " + (r.score.startsWith("-") ? "text-[color:var(--plus)]" : "text-zinc-200")}><MatchFx sig={r.score} kind="golf" small>{r.score}</MatchFx></td>
               <td className="text-right tabular text-zinc-400">{r.today ?? "—"}</td>
               <td className="text-right tabular text-zinc-400">{r.thru ?? "—"}</td>
             </tr>

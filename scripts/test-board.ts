@@ -38,6 +38,8 @@ import { chooseLean, leanCandidates } from "../src/lib/gameLean";
 import { parseSportScoreboard, sportLeague, parseMatchFeed } from "../src/lib/sports";
 import { nameClose, propMarketOf } from "../src/lib/slipImport";
 import { styleAlert, gameOf } from "../src/lib/pushStyle";
+import { clutch, heatCheck, otLabel, periodFromText, runMeter } from "../src/lib/gameFeel";
+import { fightFx, golfFx, tennisFx } from "../src/lib/matchFx";
 import { liveStat, longestPassFromPlays, marketTerms } from "../src/lib/tracker";
 
 let n = 0;
@@ -1283,6 +1285,36 @@ t("push style: emoji titles, per-game tag, renotify, actions, image recipe", () 
   assert.equal(score.renotify, false);
   assert.equal(score.title, "🏀 End of Q2 · TB 14-21 DAL");
   assert.equal(gameOf("/lines"), null);
+});
+
+
+t("game feel: overtime labels past regulation, clutch, runs, heat checks", () => {
+  assert.equal(otLabel("wnba", 4), null);
+  assert.equal(otLabel("wnba", 5), "OT");
+  assert.equal(otLabel("wnba", 6), "2OT");
+  assert.equal(otLabel("ncaam", 3), "OT");
+  assert.equal(otLabel("nhl", 5), "Shootout");
+  assert.equal(otLabel("mlb", 10), "Extra innings · 10th");
+  assert.equal(otLabel("epl", 3), "Extra time");
+  // OT clock math does not break past regulation.
+  const span = clockSpan("wnba", 5, "3:00", "in");
+  assert.deepEqual(span, { elapsed: 2400 + 120, total: 2700 });
+  assert.equal(clutch("wnba", { state: "in", period: 5, clock: "4:00", awayScore: "80", homeScore: "90" }), true);
+  assert.equal(clutch("wnba", { state: "in", period: 4, clock: "1:40", awayScore: "80", homeScore: "83" }), true);
+  assert.equal(clutch("wnba", { state: "in", period: 4, clock: "1:40", awayScore: "70", homeScore: "83" }), false);
+  assert.equal(clutch("wnba", { state: "in", period: 3, clock: "0:40", awayScore: "80", homeScore: "80" }), false);
+  const sc = (id: string, team: string, text: string, points = 2): LivePlay => ({ id, text, clock: "", period: "", scoring: true, points, awayScore: null, homeScore: null, teamId: team, x: null, y: null, down: null, distance: null, yardsToEndzone: null, spot: null, typeText: "" });
+  const plays = [sc("1", "9", "Kelsey Plum makes layup"), sc("2", "17", "A'ja Wilson makes jumper"), sc("3", "17", "Chelsea Gray makes three point jumper", 3), sc("4", "17", "A'ja Wilson makes layup"), sc("5", "17", "A'ja Wilson makes hook shot")];
+  assert.equal(runMeter(plays)?.label, "9-0 RUN");
+  assert.equal(runMeter(plays)?.fire, true);
+  assert.equal(heatCheck(plays)?.name, "A'ja Wilson");
+  assert.equal(tennisFx("6|4|in", "6,2|4,1|in"), "NEW SET");
+  assert.equal(fightFx("Round 1|in", "Round 2|in"), "ROUND 2");
+  assert.equal(golfFx("-3", "-4"), "BIRDIE");
+  assert.equal(golfFx("E", "-2"), "EAGLE");
+  assert.equal(periodFromText("OT", "wnba"), 5);
+  assert.equal(periodFromText("2OT", "nba"), 6);
+  assert.equal(periodFromText("3rd", "wnba"), 3);
 });
 
 console.log(`\n${n} passed`);

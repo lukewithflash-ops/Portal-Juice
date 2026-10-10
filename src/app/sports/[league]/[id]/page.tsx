@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import MatchRow from "@/components/MatchRow";
+import MatchFx from "@/components/MatchFx";
+import GameLive from "@/components/GameLive";
 import AutoRefresh from "@/components/AutoRefresh";
 import { sportLeague } from "@/lib/sports";
 import { getMatch } from "@/lib/sportsFetch";
@@ -37,9 +39,24 @@ export default async function MatchPage({ params }: { params: Promise<Params> })
         {l.name}
         {m.state === "in" ? " · Live" : m.state === "post" ? " · Final" : ""}
       </p>
-      {m.state === "in" ? <AutoRefresh ms={5000} /> : null}
+      {m.state === "in" && l.kind !== "team" && l.kind !== "soccer" ? <AutoRefresh ms={5000} /> : null}
+      {l.kind === "team" || l.kind === "soccer" ? (
+        <div className="mb-4">
+          <GameLive league={league} id={id} away={m.away.short} home={m.home.short} props={[]} />
+        </div>
+      ) : null}
       <div className="max-w-xl">
-        <MatchRow m={m} href={null} />
+        {l.kind === "tennis" ? (
+          <MatchFx kind="tennis" sig={`${m.away.sets.join(",")}|${m.home.sets.join(",")}|${m.state}`}>
+            <MatchRow m={m} href={null} />
+          </MatchFx>
+        ) : l.kind === "fight" ? (
+          <MatchFx kind="fight" sig={`${m.detail}|${m.state}`}>
+            <MatchRow m={m} href={null} />
+          </MatchFx>
+        ) : (
+          <MatchRow m={m} href={null} />
+        )}
         {stats.length ? (
           <section className="foil-tile mt-4 p-4">
             <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-200/80">{m.state === "pre" ? "Season stats" : "Match stats"}</h2>
@@ -63,9 +80,9 @@ export default async function MatchPage({ params }: { params: Promise<Params> })
             </table>
           </section>
         ) : null}
-        {feed.length ? (
+        {l.kind === "team" || l.kind === "soccer" ? null : feed.length ? (
           <section className="foil-tile mt-4 p-4">
-            <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-200/80">{l.kind === "soccer" ? "Key moments" : "Play by play"}</h2>
+            <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-200/80">Play by play</h2>
             <ol className="mt-2 space-y-1.5 text-[13px]">
               {feed.map((e) => (
                 <li key={e.id} className="flex gap-2">
