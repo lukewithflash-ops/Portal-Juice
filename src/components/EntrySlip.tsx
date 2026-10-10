@@ -47,7 +47,7 @@ function LegRow({ leg, snap }: { leg: Leg; snap: LiveSnap | undefined }) {
           <div className="tabular text-sm font-black text-white">
             <span aria-label={leg.side} className={leg.side === "Over" ? "text-[color:var(--plus)]" : "text-[color:var(--minus)]"}>{leg.side === "Over" ? "↑" : "↓"}</span> {leg.line}
           </div>
-          <div className="max-w-[8.5rem] truncate text-[10px] text-zinc-400">{leg.market}</div>
+          <div className="max-w-[8.5rem] truncate text-[10px] capitalize text-zinc-400" title={leg.market}>{leg.market.replace(/\s*\(.*\)\s*/, "")}</div>
         </div>
       </div>
       <div className="relative mt-2.5 h-2 rounded-full bg-white/10">
@@ -79,7 +79,7 @@ export function EntrySlip({ slip, snaps, compact = false, title }: { slip: SlipL
   return (
     <div className="entry-slip rounded-2xl border border-purple-400/30 bg-[#0d0718]/95 shadow-[0_0_24px_rgba(124,58,237,.25)]">
       <div className="flex items-center justify-between gap-2 px-3 pt-2.5">
-        <div className="text-[11px] font-black uppercase tracking-[0.18em] text-purple-200">{title ?? `${slip.total}-Pick entry`}</div>
+        <div className="font-display text-[11px] font-black uppercase tracking-[0.18em] text-purple-200">{title ?? `${slip.total}-Pick entry`}</div>
         <div className="tabular text-[11px] font-bold text-zinc-400">
           {slip.hit} hit{slip.missed ? ` · ${slip.missed} missed` : ""}
         </div>
@@ -94,7 +94,7 @@ export function EntrySlip({ slip, snaps, compact = false, title }: { slip: SlipL
         </div>
       ) : null}
       {tab === "entry" ? (
-        <div className="space-y-2 p-2">
+        <div className={`space-y-2 p-2 ${compact ? "max-h-[38vh] overflow-y-auto" : ""}`}>
           {games.map((g) => {
             const [league, id] = g.split("/");
             const s = snaps[g];
@@ -130,6 +130,7 @@ export function EntrySlip({ slip, snaps, compact = false, title }: { slip: SlipL
               </div>
             );
           })}
+          {slip.legs.some((l) => /fantasy/i.test(l.market)) ? <p className="px-1 text-[10px] text-zinc-500">Fantasy score: PrizePicks-style scoring.</p> : null}
         </div>
       ) : (
         <ul className="max-h-80 space-y-1.5 overflow-y-auto p-3 text-[12px]" aria-label="Pulse">

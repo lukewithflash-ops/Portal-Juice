@@ -104,9 +104,13 @@ export async function soccerBoxes(summary: unknown, path: string, event: string,
     if (!/substitution/i.test(type)) continue;
     const text = str(e.text) ?? "";
     const m = text.match(/Substitution,\s*([^.]+)\.\s*(.+?)\s+replaces\s+(.+?)(?:\s+because[^.]*)?\.?$/i);
-    const teamName = m?.[1] ?? "";
-    const box = boxes.find((b) => teamName && asList(d.rosters).some((r) => str(asDict(asDict(r).team).displayName) === teamName && str(asDict(asDict(r).team).abbreviation) === b.abbr));
-    subs.push({ clock: str(asDict(e.clock).displayValue) ?? "", teamAbbr: box?.abbr ?? teamName, inName: m?.[2] ?? null, outName: m?.[3] ?? null, text });
+    const parts = asList(e.participants).map((x) => str(asDict(asDict(x).athlete).displayName));
+    const inName = m?.[2] ?? parts[0] ?? null;
+    const outName = m?.[3] ?? parts[1] ?? null;
+    if (!inName && !outName) continue;
+    const teamName = str(asDict(e.team).displayName) ?? m?.[1] ?? "";
+    const r = asList(d.rosters).map(asDict).find((x) => str(asDict(x.team).displayName) === teamName);
+    subs.push({ clock: str(asDict(e.clock).displayValue) ?? "", teamAbbr: (r && str(asDict(r.team).abbreviation)) || teamName, inName, outName, text: text || `${inName} for ${outName}` });
   }
   return { boxes, subs };
 }
