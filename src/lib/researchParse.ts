@@ -48,7 +48,10 @@ export function parseStandings(data: unknown): StandRow[] {
       const s = asList(e.stats).map(asDict).find((x) => x.name === name || x.type === name);
       return s ? str(s.displayValue) : null;
     };
-    const games = stat("gamesPlayed") ?? ((stat("wins") ?? 0) + (stat("losses") ?? 0) + (stat("ties") ?? 0) + (stat("otLosses") ?? 0));
+    // Some tables (college) post wins but no losses: count games from the overall record.
+    const overall = statText("overall")?.match(/^(\d+)-(\d+)(?:-(\d+))?$/);
+    const overallGames = overall ? Number(overall[1]) + Number(overall[2]) + Number(overall[3] ?? 0) : null;
+    const games = stat("gamesPlayed") ?? overallGames ?? ((stat("wins") ?? 0) + (stat("losses") ?? 0) + (stat("ties") ?? 0) + (stat("otLosses") ?? 0));
     const ppg = stat("avgPointsFor") ?? (games ? (stat("pointsFor") ?? NaN) / games : null);
     const papg = stat("avgPointsAgainst") ?? (games ? (stat("pointsAgainst") ?? NaN) / games : null);
     if (ppg === null || papg === null || !Number.isFinite(ppg) || !Number.isFinite(papg) || !games) continue;
