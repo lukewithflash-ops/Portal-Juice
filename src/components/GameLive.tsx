@@ -271,7 +271,7 @@ export default function GameLive({
           <Tracker top={top} rest={rest} state={snap?.state ?? "pre"} />
         </div>
       </div>
-      <div className={(tab !== "chat" ? "max-lg:hidden " : "") + "lg:sticky lg:top-[calc(var(--chrome-h,calc(6.6rem+env(safe-area-inset-top)))+var(--live-h,0px))] lg:block"}>
+      <div className={(tab !== "chat" ? "max-lg:hidden " : "") + "lg:sticky lg:top-[calc(var(--chrome-h,calc(6.6rem+env(safe-area-inset-top))))] lg:block"}>
         <div className="hidden lg:block">
           <BetsDock variant="side" />
         </div>

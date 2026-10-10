@@ -72,16 +72,17 @@ body {
 }
 .portal-bg > * { position: relative; z-index: 1; }
 
-.site-chrome {
-  position: fixed;
+.top-stack {
+  position: -webkit-sticky;
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
   z-index: 50;
+  background: #030306;
+}
+.site-chrome {
+  position: relative;
   border-bottom: 1px solid rgba(192, 38, 255, 0.2);
   background: #030306;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 1px 0 rgba(192, 38, 255, 0.08);
   padding-top: env(safe-area-inset-top);
 }

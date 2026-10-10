@@ -1,5 +1,7 @@
 "use client";
 
+import TopSlot from "@/components/TopSlot";
+
 import MascotSlot from "@/components/MascotSlot";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -159,7 +161,9 @@ export default function GamesBoard({
         </button>
       </div>
 
-      <div className="sticky top-[calc(var(--chrome-h,calc(6.6rem+env(safe-area-inset-top)))+var(--live-h,0px)-1px)] z-30 -mx-4 mb-4 border-b border-purple-500/20 bg-[#030306] px-4 py-2" data-testid="league-bar">
+      <TopSlot>
+      <div className="border-b border-purple-500/20 bg-[#030306] py-2" data-testid="league-bar">
+        <div className="mx-auto max-w-6xl px-4">
         <div ref={bar} className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Chip active={league === "ALL"} onClick={() => setLeague("ALL")}>
             All
@@ -178,7 +182,9 @@ export default function GamesBoard({
             </Chip>
           ))}
         </div>
+        </div>
       </div>
+      </TopSlot>
 
       {sportPick ? (
         <SportList slate={sports[sportPick.id] ?? null} name={sportPick.name} />

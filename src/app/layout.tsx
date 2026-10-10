@@ -52,10 +52,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <LiveHubProvider>
             <InstallCapture />
             <div className="flex min-h-screen flex-col">
-              <SiteHeader />
+              {/* One sticky stack: nav, live banner, then page bars (league chips). Solid, no gaps. */}
+              <div className="top-stack">
+                <SiteHeader />
+                <LiveBanner />
+                <div id="top-stack-slot" />
+              </div>
               <ChromeVars />
-              <LiveBanner />
-              <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-[calc(var(--chrome-h,calc(6.6rem+env(safe-area-inset-top)))+var(--live-h,0px)+0.75rem)]">
+              <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-3">
                 <NotifyBanner />
                 {children}
               </main>

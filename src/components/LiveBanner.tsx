@@ -2,7 +2,7 @@
 
 import { gameRoute } from "@/lib/gameRoute";
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LegMeter } from "@/components/LegMeter";
 import { useLiveHub, type HubGame } from "@/components/LiveHub";
 import { usePrefs } from "@/components/Prefs";
@@ -71,24 +71,6 @@ export default function LiveBanner() {
     (livePicks > 0 ? nav.setAppBadge(livePicks) : nav.clearAppBadge?.())?.catch(() => {});
   }, [livePicks]);
 
-  // Keep the page and sticky bars below the banner.
-  useLayoutEffect(() => {
-    const root = document.documentElement;
-    const el = box.current;
-    const chrome = document.querySelector(".site-chrome");
-    const set = () => {
-      if (chrome) root.style.setProperty("--chrome-h", chrome.getBoundingClientRect().height + "px");
-      root.style.setProperty("--live-h", el && games.length ? el.getBoundingClientRect().height + "px" : "0px");
-    };
-    set();
-    const ro = new ResizeObserver(set);
-    if (el) ro.observe(el);
-    if (chrome) ro.observe(chrome);
-    return () => ro.disconnect();
-  }, [games.length]);
-
-  useEffect(() => () => document.documentElement.style.setProperty("--live-h", "0px"), []);
-
   // Rotate every 7s when there is more than one game, unless you just swiped.
   useEffect(() => {
     if (games.length < 2) return;
@@ -118,8 +100,7 @@ export default function LiveBanner() {
   return (
     <div
       ref={box}
-      className="fixed inset-x-0 z-40"
-      style={{ top: "var(--chrome-h, calc(6.6rem + env(safe-area-inset-top)))" }}
+      className="relative bg-[#030306] pb-1.5"
       aria-label="Live now"
     >
       <div className="mx-auto max-w-6xl px-2 pt-1.5">
