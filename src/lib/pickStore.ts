@@ -69,3 +69,9 @@ export function setStatus(id: string, status: PickStatus) {
 export function removePick(id: string) {
   write(getPicks().filter((p) => p.id !== id));
 }
+/** Apply server grades to still-open picks only. */
+export function applyGrades(grades: Record<string, PickStatus>) {
+  const ids = Object.keys(grades);
+  if (!ids.length) return;
+  write(getPicks().map((p) => (p.status === "open" && grades[p.id] && STATUSES.includes(grades[p.id]) ? { ...p, status: grades[p.id] } : p)));
+}

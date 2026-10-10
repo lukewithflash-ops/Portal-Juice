@@ -37,7 +37,7 @@ async function ocr(file: File): Promise<string> {
   }
 }
 
-async function post(body: unknown): Promise<{ legs?: ImportLeg[]; stake?: number | null; error?: string; vision?: boolean; reason?: string }> {
+async function post(body: unknown): Promise<{ legs?: ImportLeg[]; stake?: number | null; book?: string | null; error?: string; vision?: boolean; reason?: string }> {
   const res = await fetch("/api/slip/read", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   return res.json();
 }
@@ -57,7 +57,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
   const [pasted, setPasted] = useState("");
   const [tracked, setTracked] = useState(false);
 
-  function load(r: { legs?: ImportLeg[]; stake?: number | null; error?: string }, how: string) {
+  function load(r: { legs?: ImportLeg[]; stake?: number | null; book?: string | null; error?: string }, how: string) {
     setTracked(false);
     if (r.error) return setError(r.error);
     const legs = r.legs ?? [];
@@ -67,7 +67,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
     }
     setError("");
     setNote(how);
-    if (r.stake) setStake(String(r.stake));
+    if (r.book) setBook(r.book);
     setItems(legs.map((l) => ({ ...l, keep: true, dirty: false })));
   }
 

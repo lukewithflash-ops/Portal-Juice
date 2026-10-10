@@ -1,4 +1,5 @@
 "use client";
+import Lineups from "@/components/Lineups";
 
 import { clutch, heatCheck, isHuge, otLabel, runMeter } from "@/lib/gameFeel";
 import { playCrowd, playSignature } from "@/lib/emotes";
@@ -266,6 +267,7 @@ export default function GameLive({
           ) : (
             <Feed plays={plays.slice(0, 30)} freshIds={freshIds} snap={snap} awayColor={awayColor} homeColor={homeColor} />
           )}
+          <Lineups league={league} gameId={id} snap={snap} />
         </div>
         <div className={tab === "play" ? "max-lg:hidden" : ""}>
           <Tracker top={top} rest={rest} state={snap?.state ?? "pre"} />

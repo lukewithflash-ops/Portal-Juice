@@ -1,4 +1,5 @@
 import "server-only";
+import { soccerBoxes } from "@/lib/soccerBox";
 import { sportLeague } from "@/lib/sports";
 import { unstable_cache } from "next/cache";
 import { allowedHeadshot } from "@/lib/headshots";
@@ -664,7 +665,11 @@ export async function getLive(leagueId: string, id: string): Promise<LiveSnap | 
   } catch {
     return null;
   }
-  const snap = parseLive(data);
+  let snap = parseLive(data);
+  if (snap && extra?.kind === "soccer") {
+    const { boxes, subs } = await soccerBoxes(data, extra.path, id, snap.state).catch(() => ({ boxes: snap!.boxes, subs: [] }));
+    snap = { ...snap, boxes, subs };
+  }
   if (!snap || snap.state === "post") return snap;
   // The scoreboard often posts the score and clock before the game summary does.
   const comp = (data as { header?: { competitions?: { date?: string }[] } })?.header?.competitions?.[0];

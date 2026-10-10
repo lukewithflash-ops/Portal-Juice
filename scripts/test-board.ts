@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { soccerFantasy, soccerKey, soccerStat } from "../src/lib/soccerScore";
+import { gradePick, sideOf } from "../src/lib/grade";
+import { parseHoopsSub, lineupOf } from "../src/lib/lineup";
+import { propMarketOf as pmOf } from "../src/lib/slipImport";
+import { liveStat as lsOf, marketTerms as mtOf } from "../src/lib/tracker";
 import { coldProps, hotProps, streakingPlayers, streakingTeams } from "../src/lib/board";
 import { HISTORY } from "../src/data/history";
 import { allowedHeadshot, licensedHosts } from "../src/lib/headshots";
@@ -1408,6 +1413,47 @@ t("recap cues: computed from numbers only", () => {
   assert.ok(!JSON.stringify(c).match(/typically|should/i));
   const u = recapCues({ side: "Over", line: 9.5, value: 7, last10: [7, 3, 4, 5, 12, 6, 7, 8, 10, 2], last5Avg: null, seasonAvg: null, minutes: null, fouls: null, overtime: false, spreadHome: null, spreadOpenHome: null, total: null, totalOpen: null, finalMarginHome: 3, finalTotal: 150, who: "Gray" });
   assert.equal(u.next[0], "Gray cleared 9.5 in 2 of last 9. When the hit rate leans the other way, pass or flip the side.");
+});
+
+t("soccer: PrizePicks-style scoring and markets", () => {
+  const gk = soccerFantasy({ goals: 0, assists: 0, shots: 0, sot: 0, passes: 20, shotAssists: 0, clearances: 1, tackles: 0, dribbles: 0, crosses: 0, yellow: 0, red: 0, fouls: 0, saves: 2, conceded: 0, started: true });
+  assert.equal(gk.goalie, 14); // Lammens at 57': start 5 + 2 saves + clean sheet 5
+  const out = soccerFantasy({ goals: 1, assists: 1, shots: 3, sot: 2, passes: 40, shotAssists: 2, clearances: 1, tackles: 2, dribbles: 1, crosses: 2, yellow: 1, red: 0, fouls: 2, saves: 0, conceded: 0, started: true });
+  assert.equal(out.outfield, 10 + 5 + 3 + 2 + 2 + 1 + 1 + 2 + 1 + 1 - 1 - 1);
+  assert.equal(pmOf("Passes Attempted"), "passes attempted");
+  assert.equal(pmOf("Goalie Fantasy Score"), "goalie fantasy score");
+  assert.equal(pmOf("Pass Attempts"), "pass attempts");
+  assert.equal(soccerKey("passes attempted"), "s:passes");
+  assert.equal(soccerKey("goals allowed"), "s:ga");
+  assert.equal(soccerKey("shots on target"), "s:sot");
+  assert.ok(mtOf("tackles").length > 0 && mtOf("clearances").length > 0);
+  const map = { "s:soccer": "1", "s:passes": "32", "s:gkfantasy": "14", "s:fantasy": "1.6", "s:isgk": "1" };
+  assert.equal(soccerStat(map, "passes attempted"), 32);
+  assert.equal(lsOf(map, "goalie fantasy score"), 14);
+  assert.equal(lsOf(map, "fantasy score"), 14);
+  assert.equal(lsOf({ passingAttempts: "30" }, "pass attempts"), 30);
+});
+
+t("auto-grade: final props, sides, totals", () => {
+  const base = { id: "x", sport: "NBA", odds: 0, stake: 0, book: "", date: "2026-10-10", status: "open", createdAt: "", league: "wnba", gameId: "1" } as const;
+  const snap = { state: "post", awayAbbr: "LV", homeAbbr: "NY", awayName: "Las Vegas Aces", homeName: "New York Liberty", awayScore: "88", homeScore: "80",
+    boxes: [{ abbr: "LV", color: "", columns: [], players: [{ id: "1", name: "Chelsea Gray", starter: true, played: true, stats: [], statMap: { points: "9" } }] }], plays: [] } as never;
+  assert.equal(gradePick({ ...base, subject: "Chelsea Gray", line: 7.5, market: "points", selection: "Over" } as never, snap), "win");
+  assert.equal(gradePick({ ...base, subject: "Chelsea Gray", line: 7.5, market: "points", selection: "Under" } as never, snap), "loss");
+  assert.equal(gradePick({ ...base, subject: "Las Vegas Aces", line: 0, market: "Moneyline" } as never, snap), "win");
+  assert.equal(gradePick({ ...base, subject: "NY", line: 8.5, market: "Spread" } as never, snap), "win");
+  assert.equal(gradePick({ ...base, subject: "LV @ NY", line: 170.5, market: "Total", selection: "Under" } as never, snap), "win");
+  assert.equal(gradePick({ ...base, subject: "Chelsea Gray", line: 7.5, market: "points", selection: "Over" } as never, { ...(snap as object), state: "in" } as never), null);
+  assert.equal(sideOf("Liberty", snap), "home");
+});
+
+t("lineups: basketball subs from play-by-play", () => {
+  assert.deepEqual(parseHoopsSub("Jackie Young enters the game for Chelsea Gray"), { inName: "Jackie Young", outName: "Chelsea Gray" });
+  const P = (id: string, name: string, starter: boolean) => ({ id, name, starter, played: true, stats: [], statMap: {} });
+  const snap = { state: "in", boxes: [{ abbr: "LV", color: "", columns: [], players: [P("1", "Chelsea Gray", true), P("2", "Jackie Young", false)] }], plays: [{ id: "p", text: "Jackie Young enters the game for Chelsea Gray", clock: "5:00", period: "2" }] } as never;
+  const lu = lineupOf("wnba", snap, false);
+  assert.deepEqual(lu.teams[0].on.map((p) => p.name), ["Jackie Young"]);
+  assert.equal(lu.subs[0].outName, "Chelsea Gray");
 });
 
 console.log(`\n${n} passed`);

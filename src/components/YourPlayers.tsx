@@ -5,6 +5,7 @@ import { useLiveHub, type PlayerMoment } from "@/components/LiveHub";
 import { headshotFor } from "@/lib/faces";
 import type { LiveSnap } from "@/lib/live";
 import { ChanceBadge } from "@/components/LegMeter";
+import { EntrySlip } from "@/components/EntrySlip";
 import { CHANCE_NOTE, combinedChance, liveTeamChance, playedShare, pregameChance, type Chance } from "@/lib/chance";
 import { sportOf } from "@/lib/legPick";
 import { legFromPick, TONE_COLOR, type Leg } from "@/lib/motivation";
@@ -198,32 +199,15 @@ export function BetsDock({ variant }: { variant: "bar" | "side" }) {
       ) : null}
       {expanded && s.total ? (
         <ul className="mt-2 space-y-1.5">
-          {legs.map((l) => {
-            const color = TONE_COLOR[l.tone];
-            const hot = moment?.pickId === l.pickId;
-            const toHit = l.value !== null ? Math.max(0, Math.round((l.line - l.value) * 10) / 10) : null;
-            return (
-              <li key={l.pickId} className={`flex items-center gap-2 rounded-xl border bg-black/40 px-2 py-1.5 ${hot ? "your-player" : ""}`} style={{ borderColor: `color-mix(in srgb, ${color} 55%, transparent)` }}>
-                <Face league={league} leg={l} hot={hot} />
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-baseline justify-between gap-2">
-                    <span className="truncate text-[12px] font-bold text-[color:var(--flat)]">{l.name}</span>
-                    <ChanceBadge chance={l.chance} />
-                  </span>
-                  <span className="tabular block truncate text-[11px] font-black" style={{ color }}>
-                    {l.value ?? "—"} of {l.line} {l.market}
-                    <span className="font-semibold text-zinc-400">
-                      {" "}
-                      {l.status === "cleared" ? "· Hit!" : l.status === "waiting" ? "" : l.side === "Under" ? "· under" : toHit !== null ? `· ${toHit} to hit` : ""}
-                    </span>
-                  </span>
-                  <span className="mt-0.5 block h-1 overflow-hidden rounded-full bg-white/10">
-                    <span className="block h-full rounded-full" style={{ width: `${l.fill}%`, background: color, transition: "width 700ms ease" }} />
-                  </span>
-                </span>
-              </li>
-            );
-          })}
+          {legs.length && snap ? (
+            <li className="list-none">
+              <EntrySlip
+                compact={!side}
+                slip={{ key: `game-${gameId}`, legs, total: legs.length, hit: legs.filter((l) => l.status === "cleared").length, missed: legs.filter((l) => l.status === "missed").length }}
+                snaps={{ [`${league}/${gameId}`]: snap }}
+              />
+            </li>
+          ) : null}
           {team.map((t) => (
             <li key={t.pickId} className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/40 px-2 py-1.5">
               <span className="text-[12px] font-bold text-white">{t.label}</span>

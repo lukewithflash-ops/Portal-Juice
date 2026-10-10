@@ -92,6 +92,11 @@ export default function LogRow({
               ))}
             </div>
             {pick.league && pick.gameId && (pick.status !== "open" || leg?.final) ? <PortalRecap pick={pick} /> : null}
+            {pick.status === "open" ? (
+              <button type="button" onClick={() => setStatus(pick.id, "loss")} className="rounded-md border border-red-500/50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-red-300 hover:bg-red-500/10">
+                Mark lost
+              </button>
+            ) : null}
             <div className="flex items-center gap-3">
               {legIn ? (
                 <Link href={checkHref([legIn])} className="text-[11px] font-bold text-purple-200/90 hover:text-white">

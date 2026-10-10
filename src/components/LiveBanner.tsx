@@ -3,7 +3,7 @@
 import { gameRoute } from "@/lib/gameRoute";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { LegMeter } from "@/components/LegMeter";
+import { EntrySlip } from "@/components/EntrySlip";
 import { useLiveHub, type HubGame } from "@/components/LiveHub";
 import { usePrefs } from "@/components/Prefs";
 
@@ -160,7 +160,6 @@ function GameStrip({
   const last = s?.plays.length ? s.plays[s.plays.length - 1] : null;
   const hit = game.legs.filter((l) => l.status === "cleared").length;
   const href = gameRoute(game.league, game.id);
-  const legsShown = game.legs.filter((l) => l.value !== null).slice(0, 2);
 
   return (
     <div
@@ -208,14 +207,12 @@ function GameStrip({
             </p>
           ) : null}
           {last ? <p className="line-clamp-1 text-[11px] font-semibold text-white/90">{last.text.trim()}</p> : null}
-          {legsShown.length ? (
-            <div className="mt-1 grid gap-1 sm:grid-cols-2">
-              {legsShown.map((l) => (
-                <LegMeter key={l.pickId} leg={l} mini />
-              ))}
-            </div>
-          ) : null}
         </Link>
+      ) : null}
+      {!slim && game.legs.length && s ? (
+        <div className="border-t border-white/10 p-1.5">
+          <EntrySlip compact slip={{ key: `banner-${game.key}`, legs: game.legs, total: game.legs.length, hit, missed: game.legs.filter((l) => l.status === "missed").length }} snaps={{ [`${game.league}/${game.id}`]: s }} />
+        </div>
       ) : null}
     </div>
   );

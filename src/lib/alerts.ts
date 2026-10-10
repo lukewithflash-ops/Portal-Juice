@@ -6,13 +6,15 @@ import { gameRoute } from "@/lib/gameRoute";
 
 import type { LivePlay, LiveSnap } from "@/lib/live";
 import { unitsNeeded, type Leg } from "@/lib/motivation";
+import { freshSubs } from "@/lib/lineup";
 
-export type AlertKind = "tile" | "score" | "lead" | "big" | "close" | "cleared" | "final" | "player";
+export type AlertKind = "tile" | "score" | "lead" | "big" | "close" | "cleared" | "final" | "player" | "sub";
 
 export const ALERT_KINDS: { kind: AlertKind; label: string; hint: string }[] = [
   { kind: "tile", label: "Live game on lock screen", hint: "One quiet notification per game you follow that updates in place: score, clock, your props. Buzzes only for big moments." },
   { kind: "cleared", label: "Prop cleared", hint: "A logged leg hits its line." },
   { kind: "player", label: "Your player", hint: "A player on your slips moves toward the line. One per player every 90 seconds." },
+  { kind: "sub", label: "Your player subbed out", hint: "A player on your picks goes to the bench or is subbed off." },
   { kind: "close", label: "Prop close", hint: "1 or 2 away from the line." },
   { kind: "final", label: "Game final", hint: "Final score for your games." },
   { kind: "lead", label: "Lead change", hint: "The lead flips." },
@@ -21,7 +23,7 @@ export const ALERT_KINDS: { kind: AlertKind; label: string; hint: string }[] = [
 ];
 
 export type AlertPrefs = Record<AlertKind, boolean>;
-export const DEFAULT_ALERTS: AlertPrefs = { tile: true, cleared: true, player: true, close: true, final: true, lead: true, big: true, score: true };
+export const DEFAULT_ALERTS: AlertPrefs = { tile: true, cleared: true, player: true, close: true, final: true, lead: true, big: true, score: true, sub: true };
 
 export type GameAlert = {
   kind: AlertKind;
@@ -64,6 +66,7 @@ export function playNames(text: string, names: string[]): boolean {
  * game, or when a player on your picks made the play. Everything else passes through.
  */
 export function keepAlert(a: GameAlert, followed: boolean, pickNames: string[]): boolean {
+  if (a.kind === "sub") return a.play ? playNames(a.play, pickNames) : false;
   if (a.kind !== "big") return true;
   return followed || (a.play ? playNames(a.play, pickNames) : false);
 }
@@ -117,6 +120,11 @@ export function gameEvents(league: string, id: string, prev: LiveSnap | null, ne
   const big = [...fresh].reverse().find(isKeyPlay);
   if (big && prev.plays.length) {
     out.push({ kind: "big", key: `${g}:big:${big.id}`, title: bigLabel(big), body: big.text.slice(0, 140), url, play: big.text });
+  }
+  // Subs: kept only when the player going out is on your picks (see keepAlert).
+  for (const sub of freshSubs(league, prev, next).slice(-4)) {
+    if (!sub.outName) continue;
+    out.push({ kind: "sub", key: `${g}:sub:${sub.text}`, title: `🪑 ${sub.outName} subbed out`, body: `${sub.inName ? `${sub.inName} in · ` : ""}${sub.clock ? `${sub.clock} · ` : ""}${scoreLine(next)}`, url, play: sub.outName });
   }
   // Score only at the end of a quarter, period, or half (finals fire above).
   if (prev.period != null && next.period != null && next.period > prev.period) {

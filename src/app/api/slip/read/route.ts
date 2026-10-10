@@ -24,6 +24,7 @@ export async function POST(req: Request) {
   let rows: SlipRow[] = [];
   let stake: number | null = null;
   let source = "text";
+  let book: string | null = null;
   let text = "";
   if (typeof body.image === "string") {
     if (!/^data:image\/(png|jpe?g|webp);base64,/.test(body.image) || body.image.length > 4_000_000) {
@@ -33,6 +34,7 @@ export async function POST(req: Request) {
     if (!r.ok) return NextResponse.json({ vision: false, reason: r.reason, status: r.status ?? null, detail: r.detail ?? null }, { status: 200 });
     rows = r.rows;
     stake = r.stake;
+    book = r.book ?? null;
     text = r.text;
     source = "photo";
     if (!rows.length && text) rows = rowsFromText(text).rows;
@@ -47,5 +49,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Nothing to read." }, { status: 400 });
   }
   const legs = await matchRows(rows);
-  return NextResponse.json({ source, stake, legs, vision: source === "photo" ? true : undefined });
+  return NextResponse.json({ source, stake, book, legs, vision: source === "photo" ? true : undefined });
 }

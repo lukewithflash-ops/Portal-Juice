@@ -62,7 +62,7 @@ export async function upcomingGames(): Promise<SlateGame[]> {
   )];
 }
 
-type SearchItem = { id?: string; displayName?: string; league?: string; teamRelationships?: { core?: { id?: string } }[] };
+type SearchItem = { id?: string; displayName?: string; league?: string; sport?: string; teamRelationships?: { core?: { id?: string } }[] };
 
 async function searchPlayers(q: string): Promise<FoundPlayer[]> {
   try {
@@ -72,16 +72,39 @@ async function searchPlayers(q: string): Promise<FoundPlayer[]> {
     });
     if (!res.ok) return [];
     const data = (await res.json()) as { items?: SearchItem[] };
-    return (data.items ?? [])
+    const items = data.items ?? [];
+    // Soccer search lists a player under his national team; look up his club instead.
+    const soccer = await Promise.all(
+      items
+        .filter((it) => it.sport === "soccer" && it.id && !LEAGUE_OF[String(it.league ?? "")])
+        .slice(0, 3)
+        .map(async (it) => {
+          const club = await soccerClub(String(it.id));
+          return club ? ({ id: String(it.id), name: String(it.displayName ?? ""), league: "soccer", teamId: club } as FoundPlayer) : null;
+        })
+    );
+    const clubHits = soccer.filter((x): x is FoundPlayer => !!x);
+    return [...clubHits, ...items
       .map((it) => ({
         id: String(it.id ?? ""),
         name: String(it.displayName ?? ""),
         league: LEAGUE_OF[String(it.league ?? "")] ?? "",
         teamId: it.teamRelationships?.[0]?.core?.id ? String(it.teamRelationships[0].core.id) : null,
       }))
-      .filter((h) => h.id && h.league);
+      .filter((h) => h.id && h.league)];
   } catch {
     return [];
+  }
+}
+
+async function soccerClub(id: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://site.web.api.espn.com/apis/common/v3/sports/soccer/athletes/${id}`, { signal: AbortSignal.timeout(6000), next: { revalidate: 21600 } });
+    if (!res.ok) return null;
+    const d = (await res.json()) as { athlete?: { team?: { id?: string } } };
+    return d.athlete?.team?.id ? String(d.athlete.team.id) : null;
+  } catch {
+    return null;
   }
 }
 
@@ -97,8 +120,15 @@ export async function findPlayer(name: string, games: SlateGame[]): Promise<Foun
     const last = q.split(/\s+/).pop() ?? "";
     if (last.length >= 3) hits = (await searchPlayers(last)).filter((h) => nameClose(h.name, q));
   }
-  const playing = hits.find((h) => h.teamId && games.some((g) => g.league === h.league && g.state !== "post" && (g.home.id === h.teamId || g.away.id === h.teamId)));
-  return playing ?? hits[0] ?? null;
+  const isSoccer = (lg: string) => SPORT_LEAGUES.some((l) => l.id === lg && l.kind === "soccer");
+  const sameLeague = (h: FoundPlayer, g: SlateGame) => g.league === h.league || (h.league === "soccer" && isSoccer(g.league));
+  const order = (g: SlateGame) => (g.state === "in" ? 0 : g.state === "pre" ? 1 : 2);
+  for (const h of hits) {
+    if (!h.teamId) continue;
+    const g = games.filter((x) => sameLeague(h, x) && (x.home.id === h.teamId || x.away.id === h.teamId)).sort((a, b) => order(a) - order(b))[0];
+    if (g) return { ...h, league: g.league };
+  }
+  return hits.find((h) => h.league !== "soccer") ?? null;
 }
 
 export async function matchRows(rows: SlipRow[]): Promise<ImportLeg[]> {
@@ -106,7 +136,7 @@ export async function matchRows(rows: SlipRow[]): Promise<ImportLeg[]> {
   return Promise.all(rows.slice(0, 15).map(async (r) => matchRow(r, games, r.kind === "prop" ? await findPlayer(r.subject, games) : null)));
 }
 
-export type VisionResult = { ok: true; rows: SlipRow[]; stake: number | null; text: string } | { ok: false; reason: string; status?: number; detail?: string };
+export type VisionResult = { ok: true; rows: SlipRow[]; stake: number | null; book?: string | null; text: string } | { ok: false; reason: string; status?: number; detail?: string };
 
 function gatewayAuth(oidcHeader: string | null): string | null {
   return process.env.AI_GATEWAY_API_KEY || oidcHeader || process.env.VERCEL_OIDC_TOKEN || null;
@@ -117,12 +147,15 @@ export function visionConfigured(oidcHeader: string | null): boolean {
 }
 
 const PROMPT = `You read sportsbook bet slip screenshots. Copy ONLY what is printed on the slip. Never guess or add anything.
-Return JSON: {"legs":[{"subject":string,"kind":"prop"|"spread"|"total"|"moneyline","market":string,"line":number|null,"side":"over"|"under"|null,"odds":number|null}],"stake":number|null,"lines":[string]}
+Return JSON: {"legs":[{"subject":string,"kind":"prop"|"spread"|"total"|"moneyline","market":string,"line":number|null,"side":"over"|"under"|null,"odds":number|null}],"stake":null,"book":string|null,"entry":string|null,"lines":[string]}
 - subject: the player name for props, the team for spread/moneyline, the matchup ("AWAY @ HOME") for game totals.
 - market: the stat as printed (e.g. "Passing Yards") for props; "spread", "moneyline", or "total" otherwise.
 - line: the number on the slip (spread keeps its sign). null if not printed.
 - odds: American odds for that leg if printed, else null. Do not use the combined parlay odds for a leg.
-- stake: the wager amount if printed, else null.
+- stake: always null. Ignore "$X to win $Y", payout, and entry fee text.
+- book: the app name if visible (e.g. "PrizePicks", "Underdog", "DraftKings"), else null.
+- entry: the entry type if printed (e.g. "Power Play", "Flex", "Parlay"), else null.
+- PrizePicks/Underdog: an up arrow, "More" or "Higher" means over; a down arrow, "Less" or "Lower" means under. The stat label under the number is the market (e.g. "Passes Attempted", "Goalie Fantasy Score"); keep "Goalie" when printed.
 - lines: every text line you can read, top to bottom.
 If the image is not a bet slip, return {"legs":[],"stake":null,"lines":[]}.`;
 
@@ -163,7 +196,7 @@ export async function readSlipImage(dataUrl: string, oidcHeader: string | null):
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: unknown };
     console.log(JSON.stringify({ event: "slip.vision", status: 200, model: MODEL, usage: data.usage ?? null }));
     const content = data.choices?.[0]?.message?.content ?? "";
-    const json = JSON.parse(content.replace(/^```(?:json)?|```$/g, "").trim()) as { legs?: unknown[]; stake?: unknown; lines?: unknown[] };
+    const json = JSON.parse(content.replace(/^```(?:json)?|```$/g, "").trim()) as { legs?: unknown[]; stake?: unknown; lines?: unknown[]; book?: unknown; entry?: unknown };
     const lines = (json.lines ?? []).filter((x): x is string => typeof x === "string").slice(0, 80);
     const text = lines.join("\n");
     const rows: SlipRow[] = [];
@@ -185,7 +218,9 @@ export async function readSlipImage(dataUrl: string, oidcHeader: string | null):
         odds: odds != null && Math.abs(odds) >= 100 && Math.abs(odds) < 100000 ? Math.round(odds) : null,
       });
     }
-    return { ok: true, rows: rows.slice(0, 15), stake: num(json.stake) ?? stakeOf(text), text };
+    const book = [typeof json.book === "string" ? json.book.slice(0, 20) : "", typeof json.entry === "string" ? json.entry.slice(0, 20) : ""].filter(Boolean).join(" · ") || null;
+    // No money in records: stake and payout text are dropped.
+    return { ok: true, rows: rows.slice(0, 15), stake: null, book, text };
   } catch (err) {
     console.log(JSON.stringify({ event: "slip.vision", error: String((err as Error).message).slice(0, 200) }));
     return { ok: false, reason: "error" };
@@ -193,5 +228,5 @@ export async function readSlipImage(dataUrl: string, oidcHeader: string | null):
 }
 
 export function rowsFromText(text: string): { rows: SlipRow[]; stake: number | null } {
-  return { rows: parseSlipRows(text), stake: stakeOf(text) };
+  return { rows: parseSlipRows(text), stake: null };
 }

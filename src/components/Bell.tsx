@@ -14,7 +14,7 @@ import {
 } from "@/lib/inbox";
 import { currentEndpoint, pushState, sendTestPush } from "@/lib/pushClient";
 
-const ICON: Record<string, string> = { tile: "📺", score: "🔢", lead: "🔁", big: "💥", close: "🔥", cleared: "🏆", final: "🏁", player: "⭐", test: "🔔" };
+const ICON: Record<string, string> = { tile: "📺", score: "🔢", lead: "🔁", big: "💥", close: "🔥", cleared: "🏆", final: "🏁", player: "⭐", sub: "🪑", test: "🔔" };
 
 function ago(at: number) {
   const s = Math.max(0, Math.round((Date.now() - at) / 1000));

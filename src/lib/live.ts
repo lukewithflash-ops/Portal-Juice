@@ -16,7 +16,14 @@ export type LivePlayer = {
   stats: string[];
   /** Stable ESPN stat name or label → cell. Used to match a prop. */
   statMap: Record<string, string>;
+  position?: string | null;
+  jersey?: string | null;
+  headshot?: string | null;
+  /** On the field/court/ice right now, when the sport's data says so. */
+  onField?: boolean | null;
 };
+
+export type LineupSub = { clock: string; teamAbbr: string; inName: string | null; outName: string | null; text: string };
 
 export type LiveBox = {
   abbr: string;
@@ -127,6 +134,8 @@ export type LiveSnap = {
   detail: string;
   awayAbbr: string;
   homeAbbr: string;
+  awayName?: string | null;
+  homeName?: string | null;
   awayScore: string | null;
   homeScore: string | null;
   awayColor: string;
@@ -151,6 +160,8 @@ export type LiveSnap = {
   drives: LiveDrive[];
   situation: LiveSituation | null;
   bug?: LiveBug | null;
+  /** Substitutions in order, oldest first (soccer from key events, basketball from play-by-play). */
+  subs?: LineupSub[];
 };
 
 function colorOf(raw: unknown): string {
@@ -395,6 +406,8 @@ export function parseLive(data: unknown): LiveSnap | null {
     state,
     clock: state === "in" ? str(asDict(comp.status).displayClock) : null,
     detail: str(status.shortDetail) || "",
+    awayName: str(awayTeam.displayName) ?? str(awayTeam.name),
+    homeName: str(homeTeam.displayName) ?? str(homeTeam.name),
     awayAbbr: str(awayTeam.abbreviation) || "AWY",
     homeAbbr: str(homeTeam.abbreviation) || "HME",
     awayScore: str(away.score),

@@ -6,6 +6,7 @@ import NotifyBanner from "@/components/NotifyBanner";
 import SiteHeader from "@/components/SiteHeader";
 import LiveBanner from "@/components/LiveBanner";
 import ChromeVars from "@/components/ChromeVars";
+import { AutoGrade } from "@/components/AutoGrade";
 import { LiveHubProvider } from "@/components/LiveHub";
 import SiteFooter from "@/components/SiteFooter";
 import { SITE_NAME, SITE_URL, TAGLINE } from "@/lib/site";
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 <div id="top-stack-slot" />
               </div>
               <ChromeVars />
+              <AutoGrade />
               <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-3">
                 <NotifyBanner />
                 {children}

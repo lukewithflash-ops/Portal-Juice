@@ -1,3 +1,4 @@
+import { soccerKey, soccerStat } from "@/lib/soccerScore";
 /** Match a posted prop line to a live box cell. No invented stats. */
 
 import type { LiveBox, LivePlay, LiveSnap } from "@/lib/live";
@@ -114,6 +115,8 @@ export function marketTerms(market: string): Term[] {
   if (m.includes("assist")) return [AST];
   if (m.includes("rebound")) return [REB];
   if (m.includes("goal")) return [T(["goals"])];
+  const sk = soccerKey(m);
+  if (sk) return [T([sk])];
   return [];
 }
 
@@ -161,6 +164,7 @@ export function longestPassFromPlays(plays: { text: string }[], name: string): n
 }
 
 export function liveStat(map: Record<string, string> | undefined, market: string, plays?: { text: string }[], name?: string): number | null {
+  if (map && map["s:soccer"]) return soccerStat(map, market);
   const terms = marketTerms(market);
   if (!terms.length || !map) return null;
   if (terms[0].aliases[0] === "fantasy") {

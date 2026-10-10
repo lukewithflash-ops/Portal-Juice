@@ -3,7 +3,10 @@ import { tool } from "ai";
 import { z } from "zod";
 import { statFromMarket, statLabel } from "@/lib/breakdown";
 import { runBreakdown } from "@/lib/checkRun";
-import { getLive, getScores } from "@/lib/espn";
+import { getGameDetail, getLive, getScores } from "@/lib/espn";
+import { chooseLean } from "@/lib/gameLean";
+import { noVig, winPct } from "@/lib/winPct";
+import { leagueById } from "@/lib/slate";
 import { researchGame, researchPlayer } from "@/lib/research";
 import { findPlayer } from "@/lib/slipRead";
 import { SPORT_LEAGUES } from "@/lib/sports";
@@ -61,6 +64,54 @@ export const askTools = {
         });
       }
       return { count: rows.length, games: rows.slice(0, 25).map(({ names, ...r }) => (void names, r)) };
+    },
+  }),
+  rankGames: tool({
+    description:
+      "Rank games by who is most likely to win: projected win % per team (ESPN projection, live ESPN win probability, or no-vig DraftKings moneyline), team records, recent form, scoring margins, and Portal Juice's lean per game. Use for 'best teams', 'most likely to win', 'safest favorites', 'who wins today'. Pass league and/or game ids from todaysGames; with neither, ranks today's games in all main leagues.",
+    inputSchema: z.object({
+      league: z.string().optional().describe(`League id, one of: ${ALL_IDS.join(", ")}`),
+      ids: z.array(z.string()).optional().describe("ESPN game ids to limit to (from todaysGames)"),
+    }),
+    execute: async ({ league, ids }) => {
+      let list: { league: string; id: string }[] = [];
+      if (ids?.length && league) list = ids.map((id) => ({ league, id }));
+      else {
+        const core = (await getScores().catch(() => ({ scores: [] }))).scores.filter((r) => r.state !== "post" && (!league || r.league === league)).map((r) => ({ league: r.league, id: r.id }));
+        const extra = league && !leagueById(league) ? ((await getSportSlate(league).catch(() => null))?.matches ?? []).filter((m) => m.state !== "post").map((m) => ({ league, id: m.id })) : [];
+        list = [...core, ...extra].filter((g) => !ids?.length || ids.includes(g.id));
+      }
+      list = list.slice(0, 14);
+      const rows = await Promise.all(
+        list.map(async ({ league: lg, id }) => {
+          const [g, bundle] = await Promise.all([researchGame(lg, id).catch(() => null), leagueById(lg) ? getGameDetail(lg, id).catch(() => null) : Promise.resolve(null)]);
+          if (!g) return null;
+          let win = bundle
+            ? winPct({ state: bundle.game.state, liveHome: bundle.detail.liveHomeWin ?? bundle.game.liveHomeWin, projection: bundle.detail.projection, homeMl: bundle.game.price?.homeMl, awayMl: bundle.game.price?.awayMl, drawMl: bundle.game.price?.drawMl })
+            : null;
+          if (!win && g.odds?.homeMl != null && g.odds?.awayMl != null) {
+            const nv = noVig(g.odds.homeMl, g.odds.awayMl, (g.odds as { drawMl?: number | null }).drawMl ?? null);
+            if (nv) win = { ...nv, source: "moneyline", label: "From the moneyline, vig removed" };
+          }
+          const lean = chooseLean(g);
+          const t = (x: typeof g.home) => ({ team: x.name, record: x.record, last5: x.form.map((f) => f.result).join(""), scoredPerGame: x.ppg, allowedPerGame: x.papg, ats: x.ats });
+          const fav = win ? (win.home >= win.away ? { team: g.home.name, pct: win.home } : { team: g.away.name, pct: win.away }) : null;
+          return {
+            league: lg,
+            id,
+            game: g.label,
+            state: g.state,
+            winPct: win ? { home: win.home, away: win.away, draw: win.draw, source: win.label } : "Not enough data",
+            favorite: fav,
+            away: t(g.away),
+            home: t(g.home),
+            ourLean: lean.kind === "lean" ? { pick: lean.report.title, score: lean.report.score, reasons: lean.points.map((p) => `${p.pro ? "+" : "-"} ${p.text}`) } : lean.reason,
+          };
+        })
+      );
+      const ok = rows.filter((r): r is NonNullable<typeof r> => !!r);
+      ok.sort((a, b) => (b.favorite?.pct ?? 0) - (a.favorite?.pct ?? 0));
+      return { count: ok.length, rankedByWinPct: ok, note: "Win % is an estimate. Not a guarantee." };
     },
   }),
   gameDetail: tool({

@@ -41,7 +41,15 @@ export type ImportLeg = {
 };
 
 const PROP_MARKETS: [RegExp, string][] = [
+  [/(?:goalie|goalkeeper|keeper|gk)\s*fantasy\s*(?:score|points|pts)?/i, "goalie fantasy score"],
   [/fantasy\s*(?:score|points|pts)?|\bfpts\b/i, "fantasy score"],
+  [/\bpasses(?:\s+attempted)?\b/i, "passes attempted"],
+  [/goals?\s*(?:allowed|conceded|against)/i, "goals allowed"],
+  [/goal\s*\+\s*assist|goals?\s*(?:and|\+)\s*assists?/i, "goal + assist"],
+  [/tackles?/i, "tackles"],
+  [/clearances?/i, "clearances"],
+  [/crosses/i, "crosses"],
+  [/shots?\s*assisted|key\s*passes/i, "shots assisted"],
   [/longest\s+(?:rush|run)|long(?:est)?\s+rush/i, "longest rush"],
   [/longest\s+(?:reception|catch|rec)/i, "longest reception"],
   [/longest\s+(?:pass(?:ing)?\s+)?(?:completion|pass)/i, "longest completion"],
@@ -85,7 +93,7 @@ export const STAT_CHOICES: Record<string, string[]> = {
   basketball: ["points", "rebounds", "assists", "3-pointers", "points + rebounds + assists", "points + rebounds", "points + assists", "rebounds + assists", "steals", "blocks", "steals + blocks", "turnovers", "fantasy score"],
   baseball: ["hits", "total bases", "home runs", "rbis", "strikeouts"],
   hockey: ["goals", "assists", "points", "shots on goal", "saves"],
-  soccer: ["goals", "assists", "shots on goal", "saves"],
+  soccer: ["fantasy score", "goalie fantasy score", "passes attempted", "shots", "shots on target", "goals", "assists", "goal + assist", "tackles", "clearances", "crosses", "saves", "goals allowed", "shots assisted", "fouls"],
 };
 
 export function sportGroupOf(league: string): string {
