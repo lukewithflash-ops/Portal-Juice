@@ -66,5 +66,12 @@ export async function POST(req: Request) {
       console.log(JSON.stringify({ event: "ask.done", model: ASK_MODEL, in: u?.inputTokens ?? null, out: u?.outputTokens ?? null }));
     },
   });
-  return createUIMessageStreamResponse({ stream: toUIMessageStream({ stream: result.stream }), headers: { "X-RateLimit-Remaining": String(rl.left) } });
+  const onError = (err: unknown) => {
+    const e = err as { message?: string; statusCode?: number; type?: string };
+    const msg = String(e?.message ?? err).slice(0, 240);
+    console.log(JSON.stringify({ event: "ask.error", model: ASK_MODEL, status: e?.statusCode ?? null, type: e?.type ?? null, msg }));
+    if (/credit|billing|verification|payment/i.test(msg)) return "Ask Portal AI is paused: the AI Gateway needs credits on the Vercel team.";
+    return `Ask Portal AI hit an error (${e?.statusCode ?? "?"}: ${msg.slice(0, 120)}). Try again.`;
+  };
+  return createUIMessageStreamResponse({ stream: toUIMessageStream({ stream: result.stream, onError }), headers: { "X-RateLimit-Remaining": String(rl.left) } });
 }
