@@ -5,7 +5,6 @@
 
 import type { LivePlay, LiveSnap } from "@/lib/live";
 import { unitsNeeded, type Leg } from "@/lib/motivation";
-import { isBigPlay } from "@/lib/tracker";
 
 export type AlertKind = "score" | "lead" | "big" | "close" | "cleared" | "final" | "player";
 
@@ -15,12 +14,12 @@ export const ALERT_KINDS: { kind: AlertKind; label: string; hint: string }[] = [
   { kind: "close", label: "Prop close", hint: "1 or 2 away from the line." },
   { kind: "final", label: "Game final", hint: "Final score for your games." },
   { kind: "lead", label: "Lead change", hint: "The lead flips." },
-  { kind: "big", label: "Big plays", hint: "Touchdowns, turnovers, 20+ yard plays, threes, goals." },
-  { kind: "score", label: "Score updates", hint: "Every score. Basketball is held to one a minute." },
+  { kind: "big", label: "Big plays", hint: "Touchdowns, turnovers, goals, home runs: only in starred games, your team's game, or plays by players on your picks." },
+  { kind: "score", label: "End of each quarter", hint: "The score at the end of each quarter, period, or half." },
 ];
 
 export type AlertPrefs = Record<AlertKind, boolean>;
-export const DEFAULT_ALERTS: AlertPrefs = { cleared: true, player: true, close: true, final: true, lead: true, big: true, score: false };
+export const DEFAULT_ALERTS: AlertPrefs = { cleared: true, player: true, close: true, final: true, lead: true, big: true, score: true };
 
 export type GameAlert = {
   kind: AlertKind;
@@ -33,7 +32,39 @@ export type GameAlert = {
   player?: { name: string; athleteId: string | null; league: string; gain: number; pickId: string };
   /** Leg alerts: the meter for the rich push image. */
   meter?: { name: string; athleteId: string | null; value: number | null; line: number; market: string; side: "Over" | "Under" };
+  /** Big plays: the play text, so we can tell whose play it was. */
+  play?: string;
 };
+
+/** Plays worth a buzz: touchdowns, turnovers, goals, home runs. Not threes or long gains. */
+export function isKeyPlay(p: LivePlay): boolean {
+  const t = `${p.typeText} ${p.text}`.toLowerCase();
+  if (/touchdown/.test(t)) return true;
+  if (/\bintercept/.test(t) || /fumble lost|fumbles? .*recovered by/.test(t) || /turnover on downs/.test(t)) return true;
+  if (/\bgoal\b/.test(t) && p.scoring) return true;
+  if (/home run|homers/.test(t)) return true;
+  return false;
+}
+
+/** Does this play name one of these players? Matches "J.Allen", "Josh Allen", or a unique last name. */
+export function playNames(text: string, names: string[]): boolean {
+  const t = text.toLowerCase();
+  return names.some((n) => {
+    const parts = n.toLowerCase().trim().split(/\s+/);
+    if (parts.length < 2) return false;
+    const last = parts[parts.length - 1];
+    return t.includes(`${parts[0][0]}.${last}`) || t.includes(`${parts[0][0]}. ${last}`) || t.includes(n.toLowerCase());
+  });
+}
+
+/**
+ * Noise filter, the same for push and in-app toasts. Big plays only fire in games you starred or your team's
+ * game, or when a player on your picks made the play. Everything else passes through.
+ */
+export function keepAlert(a: GameAlert, followed: boolean, pickNames: string[]): boolean {
+  if (a.kind !== "big") return true;
+  return followed || (a.play ? playNames(a.play, pickNames) : false);
+}
 
 const scoreLine = (s: LiveSnap) => `${s.awayAbbr} ${s.awayScore ?? 0} · ${s.homeScore ?? 0} ${s.homeAbbr}`;
 const lead = (s: { awayScore: string | null; homeScore: string | null }) => {
@@ -50,6 +81,15 @@ function bigLabel(p: LivePlay): string {
   if (/home run/.test(t)) return "Home run";
   if (p.points >= 3) return "From deep";
   return "Big play";
+}
+
+export function periodName(league: string, n: number): string {
+  const ord = (k: number) => `${k}${k === 1 ? "st" : k === 2 ? "nd" : k === 3 ? "rd" : "th"}`;
+  if (league === "nfl" || league === "ncaaf" || league === "nba" || league === "wnba") return n <= 4 ? `Q${n}` : "OT";
+  if (league === "ncaam") return n === 1 ? "the 1st half" : n === 2 ? "the 2nd half" : "OT";
+  if (league === "nhl") return n <= 3 ? `the ${ord(n)} period` : "OT";
+  if (league === "mlb") return `the ${ord(n)} inning`;
+  return n === 1 ? "the 1st half" : `period ${n}`;
 }
 
 /** Updates between two pulls of one game. Nothing fires on the first look. */
@@ -72,12 +112,13 @@ export function gameEvents(league: string, id: string, prev: LiveSnap | null, ne
   }
   const seen = new Set(prev.plays.map((p) => p.id));
   const fresh = next.plays.filter((p) => !seen.has(p.id));
-  const big = [...fresh].reverse().find(isBigPlay);
+  const big = [...fresh].reverse().find(isKeyPlay);
   if (big && prev.plays.length) {
-    out.push({ kind: "big", key: `${g}:big:${big.id}`, title: bigLabel(big), body: big.text.slice(0, 140), url });
+    out.push({ kind: "big", key: `${g}:big:${big.id}`, title: bigLabel(big), body: big.text.slice(0, 140), url, play: big.text });
   }
-  if (scored) {
-    out.push({ kind: "score", key: `${g}:score:${next.awayScore}-${next.homeScore}`, title: "Score", body: `${scoreLine(next)} · ${next.detail}`, url });
+  // Score only at the end of a quarter, period, or half (finals fire above).
+  if (prev.period != null && next.period != null && next.period > prev.period) {
+    out.push({ kind: "score", key: `${g}:end:${prev.period}`, title: `End of ${periodName(league, prev.period)}`, body: `${scoreLine(next)}`, url });
   }
   return out;
 }

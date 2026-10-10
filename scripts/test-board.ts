@@ -19,7 +19,7 @@ import { marketFavorites, biggestMoves, hotTrends, mvpHomework } from "../src/li
 import { playKind, playerFromText, isShotAttempt } from "../src/lib/tracker";
 import { clockSpan, isBigPlay, paceOf, parseLine, scoringRun, statNumber, trackProps } from "../src/lib/tracker";
 import type { LivePlay, LiveSnap } from "../src/lib/live";
-import { gameEvents, legEvents } from "../src/lib/alerts";
+import { gameEvents, keepAlert, legEvents } from "../src/lib/alerts";
 import { groupSlips, legFromPick, unitsNeeded } from "../src/lib/motivation";
 import type { Pick } from "../src/lib/types";
 import { freshestStatus, isBehind, parseLive, situationFromScoreboard, statusFromScoreboard, yardsFromSpot, type LiveStatus } from "../src/lib/live";
@@ -666,8 +666,19 @@ t("game updates: score, lead change, big play, final; nothing on first look", ()
   const play = (id: string, text: string, points = 0): LivePlay => ({ id, text, clock: "", period: "", scoring: points > 0, points, awayScore: null, homeScore: null, teamId: "5", x: null, y: null, down: null, distance: null, yardsToEndzone: null, spot: null, typeText: "" });
   const before = { ...a, awayScore: "80", homeScore: "78", plays: [play("1", "Jump ball")] };
   const after = { ...a, awayScore: "80", homeScore: "81", plays: [play("1", "Jump ball"), play("2", "Max Strus makes 26-foot three point jumper", 3)] };
+  // A three and a basket are not alerts any more: only the lead change.
   const kinds = gameEvents("nba", "401", before, after).map((e) => e.kind).sort();
-  assert.deepEqual(kinds, ["big", "lead", "score"]);
+  assert.deepEqual(kinds, ["lead"]);
+  // Score fires once at the end of a quarter.
+  const q = gameEvents("nba", "401", { ...after, period: 2 }, { ...after, period: 3 });
+  assert.deepEqual(q.map((e) => [e.kind, e.title]), [["score", "End of Q2"]]);
+  // A TD is a key play; it buzzes only in a starred/fav game or when a pick's player made it.
+  const td = gameEvents("nfl", "9", { ...before, plays: [play("1", "kick")] }, { ...before, plays: [play("1", "kick"), play("3", "J.Allen pass short left to K.Coleman for 12 yards, TOUCHDOWN", 6)] }).find((e) => e.kind === "big")!;
+  assert.ok(td && td.title === "Touchdown");
+  assert.equal(keepAlert(td, false, []), false);
+  assert.equal(keepAlert(td, true, []), true);
+  assert.equal(keepAlert(td, false, ["Keon Coleman"]), true);
+  assert.equal(keepAlert(td, false, ["Travis Kelce"]), false);
   const fin = gameEvents("nba", "401", after, { ...after, state: "post" });
   assert.deepEqual(fin.map((e) => e.kind), ["final"]);
   assert.match(fin[0].body, /BOS 80 · 81 CLE/);
@@ -1268,9 +1279,9 @@ t("push style: emoji titles, per-game tag, renotify, actions, image recipe", () 
   assert.match(hit.icon, /api\/icon\?size=192&color=a7a9ac/);
   assert.match(hit.image ?? "", /pid=2529122/);
   assert.equal(hit.badge, "/icons/badge-96.png");
-  const score = styleAlert({ kind: "score", key: "k", title: "Score", body: "x", url: "/games/nba/5" }, { ...scene, league: "nba" }, null);
+  const score = styleAlert({ kind: "score", key: "k", title: "End of Q2", body: "x", url: "/games/nba/5" }, { ...scene, league: "nba" }, null);
   assert.equal(score.renotify, false);
-  assert.equal(score.title, "🏀 TB 14-21 DAL");
+  assert.equal(score.title, "🏀 End of Q2 · TB 14-21 DAL");
   assert.equal(gameOf("/lines"), null);
 });
 

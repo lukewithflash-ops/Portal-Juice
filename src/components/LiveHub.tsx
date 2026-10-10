@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { usePrefs } from "@/components/Prefs";
 import { POLL_ERROR_MS, usePoll } from "@/components/usePoll";
-import { gameEvents, legEvents, type GameAlert } from "@/lib/alerts";
+import { gameEvents, keepAlert, legEvents, type GameAlert } from "@/lib/alerts";
 import { getAlertPrefs, getServerAlertPrefs, subscribeAlertPrefs } from "@/lib/alertPrefsStore";
 import { getFollows, getServerFollows, subscribeFollows } from "@/lib/follows";
 import { isBehind, type LiveSnap } from "@/lib/live";
@@ -181,7 +181,9 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
       const [t, snap] = item;
       const k = keyOf(t.league, t.id);
       if (isBehind(snap, had[k] ?? null)) continue;
-      alerts.push(...gameEvents(t.league, t.id, had[k] ?? null, snap));
+      const followed = starred.some((f) => f.league === t.league && f.id === t.id) || (fav ? fav.league === t.league && fav.id === t.id : false);
+      const names = legsOpen.filter((p) => p.league === t.league && p.gameId === t.id).map((p) => p.subject);
+      alerts.push(...gameEvents(t.league, t.id, had[k] ?? null, snap).filter((a) => keepAlert(a, followed, names)));
       next[k] = snap;
       changed = true;
     }

@@ -1,7 +1,7 @@
 import "server-only";
 import { APP_ICON, BADGE, gameOf, styleAlert, type PushPayload, type PushScene } from "@/lib/pushStyle";
 import webpush from "web-push";
-import { gameEvents, legEvents, readAlertPrefs, type AlertPrefs, type GameAlert } from "@/lib/alerts";
+import { gameEvents, keepAlert, legEvents, readAlertPrefs, type AlertPrefs, type GameAlert } from "@/lib/alerts";
 import { chatEnabled, redis } from "@/lib/chat";
 import { getLive, getScores } from "@/lib/espn";
 import type { LiveSnap } from "@/lib/live";
@@ -348,9 +348,13 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
       await redis(["HSET", LEGS, key, JSON.stringify({ status: leg.status, value: leg.value, line: leg.line, side: leg.side })]);
     }
     const muted = new Set(((await redis(["SMEMBERS", `pj:push:mute:${await deviceId(row.endpoint)}`]).catch(() => [])) as string[] | null) ?? []);
+    const fav = favGame(row.team);
+    const followedKeys = new Set([...(row.games ?? []), ...(fav ? [fav] : [])].map((g) => `${g.league}/${g.id}`));
     for (const a of out) {
       if (!prefs[a.kind]) continue;
       const gk = gameOf(a.url);
+      const names = (row.props ?? []).filter((p) => gk === `${p.league}/${p.gameId}`).map((p) => p.subject);
+      if (!keepAlert(a, gk ? followedKeys.has(gk) : false, names)) continue;
       if (gk && muted.has(gk)) continue;
       const once = await redis(["SET", `pj:push:sent:${tail}:${a.key}`, "1", "EX", 172800, "NX"]);
       if (once !== "OK") continue;

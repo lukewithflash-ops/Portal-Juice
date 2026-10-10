@@ -111,7 +111,7 @@ export function styleAlert(a: GameAlert, scene: PushScene | null, fav: FavTeam, 
       break;
     case "score":
       emoji = sportEmoji(league);
-      title = `${sportEmoji(league)} ${scene ? score(scene) : a.title}`;
+      title = `${sportEmoji(league)} ${a.title}${scene ? ` · ${score(scene)}` : ""}`;
       body = scene?.detail ?? a.body;
       break;
   }
