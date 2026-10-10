@@ -211,7 +211,7 @@ function GameStrip({
       ) : null}
       {!slim && game.legs.length && s ? (
         <div className="border-t border-white/10 p-1.5">
-          <EntrySlip compact slip={{ key: `banner-${game.key}`, legs: game.legs, total: game.legs.length, hit, missed: game.legs.filter((l) => l.status === "missed").length }} snaps={{ [`${game.league}/${game.id}`]: s }} />
+          <EntrySlip compact title="Your picks in this game" slip={{ key: `banner-${game.key}`, legs: game.legs, total: game.legs.length, hit, missed: game.legs.filter((l) => l.status === "missed").length }} snaps={{ [`${game.league}/${game.id}`]: s }} />
         </div>
       ) : null}
     </div>

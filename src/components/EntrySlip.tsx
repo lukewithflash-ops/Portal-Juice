@@ -67,7 +67,7 @@ function lastName(n: string) {
 }
 
 /** PrizePicks-style entry: legs grouped by game, with a Pulse feed of plays that involve the slip's players. */
-export function EntrySlip({ slip, snaps, compact = false }: { slip: SlipLive; snaps: Record<string, LiveSnap>; compact?: boolean }) {
+export function EntrySlip({ slip, snaps, compact = false, title }: { slip: SlipLive; snaps: Record<string, LiveSnap>; compact?: boolean; title?: string }) {
   const [tab, setTab] = useState<"entry" | "pulse">("entry");
   const games = [...new Set(slip.legs.map((l) => `${l.league}/${l.gameId}`))];
   const names = slip.legs.map((l) => lastName(l.name)).filter((n) => n.length > 2);
@@ -79,7 +79,7 @@ export function EntrySlip({ slip, snaps, compact = false }: { slip: SlipLive; sn
   return (
     <div className="entry-slip rounded-2xl border border-purple-400/30 bg-[#0d0718]/95 shadow-[0_0_24px_rgba(124,58,237,.25)]">
       <div className="flex items-center justify-between gap-2 px-3 pt-2.5">
-        <div className="text-[11px] font-black uppercase tracking-[0.18em] text-purple-200">{slip.total}-Pick entry</div>
+        <div className="text-[11px] font-black uppercase tracking-[0.18em] text-purple-200">{title ?? `${slip.total}-Pick entry`}</div>
         <div className="tabular text-[11px] font-bold text-zinc-400">
           {slip.hit} hit{slip.missed ? ` · ${slip.missed} missed` : ""}
         </div>

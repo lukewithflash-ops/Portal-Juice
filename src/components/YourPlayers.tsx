@@ -202,6 +202,7 @@ export function BetsDock({ variant }: { variant: "bar" | "side" }) {
           {legs.length && snap ? (
             <li className="list-none">
               <EntrySlip
+                title="Your picks in this game"
                 compact={!side}
                 slip={{ key: `game-${gameId}`, legs, total: legs.length, hit: legs.filter((l) => l.status === "cleared").length, missed: legs.filter((l) => l.status === "missed").length }}
                 snaps={{ [`${league}/${gameId}`]: snap }}

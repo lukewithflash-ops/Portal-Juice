@@ -205,7 +205,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
       const extra = { slipId, book: book || "Slip", stake: i === 0 && amount > 0 ? amount : 0, odds: x.row.odds };
       if (x.leg && x.game && !x.dirty) {
         // Tied to a game: the Log can follow it live when the stat is trackable.
-        addPick({ ...pickFromLeg(x.leg, { home: x.game.home, away: x.game.away }, extra), link: link.trim() || undefined });
+        addPick({ ...pickFromLeg(x.row.kind === "prop" ? { ...x.leg, market: x.row.market } : x.leg, { home: x.game.home, away: x.game.away }, extra), link: link.trim() || undefined });
         return;
       }
       // Not tied to a game: saved as read, so you can fix it in the Log.

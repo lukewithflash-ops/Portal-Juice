@@ -1,3 +1,4 @@
+import { sportLeague } from "@/lib/sports";
 /** Turn a Breakdown leg into a Log pick. Stake starts blank (0); you fill it in. */
 import { statLabel, type LegInput } from "@/lib/breakdown";
 import type { Pick, Sport } from "@/lib/types";
@@ -18,7 +19,7 @@ export function pickFromLeg(
   const subject =
     leg.kind === "prop" ? leg.athleteName ?? "Player" : leg.kind === "total" ? `${teams.away} @ ${teams.home}` : leg.team ?? side;
   const market =
-    leg.kind === "prop" ? (leg.stat ? statLabel(leg.league, leg.stat) : leg.market ?? "") : leg.kind === "total" ? "Total" : leg.kind === "spread" ? "Spread" : "Moneyline";
+    leg.kind === "prop" ? (leg.market && sportLeague(leg.league)?.kind === "soccer" ? leg.market : leg.stat ? statLabel(leg.league, leg.stat) : leg.market ?? "") : leg.kind === "total" ? "Total" : leg.kind === "spread" ? "Spread" : "Moneyline";
   const odds = extra.odds ?? leg.odds ?? 0;
   return {
     id: crypto.randomUUID(),
