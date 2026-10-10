@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Pick } from "@/lib/types";
 
 type R = { v?: number; wrong?: string[]; next?: string[]; text: string; result: "hit" | "miss" | "push" | "unknown"; value: number | null; line: number; facts: string[] } | { error: string };
-const KEY = "pj-recap4:";
+const KEY = "pj-recap5:";
 
 /** Post-game recap from Portal AI, from the real box score and the numbers on the pick. Cached on device and server. */
 export default function PortalRecap({ pick, auto = false }: { pick: Pick; auto?: boolean }) {
@@ -67,7 +67,7 @@ export default function PortalRecap({ pick, auto = false }: { pick: Pick; auto?:
         <div className="mt-2">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[color:var(--plus)]">Next time</div>
           <ul className="mt-0.5 space-y-0.5 text-[12px] text-zinc-200">
-            {r.next.map((w) => <li key={w}>✓ {w}</li>)}
+            {r.next.map((w, i) => <li key={w}>{i + 1}. {w}</li>)}
           </ul>
         </div>
       ) : null}

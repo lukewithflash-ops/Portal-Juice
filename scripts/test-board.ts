@@ -41,6 +41,7 @@ import { styleAlert, gameOf, liveTile, tileDue } from "../src/lib/pushStyle";
 import { clutch, heatCheck, otLabel, periodFromText, runMeter } from "../src/lib/gameFeel";
 import { gameRoute } from "../src/lib/gameRoute";
 import { myStats, streaks, tally } from "../src/lib/myStats";
+import { recapCues } from "../src/lib/recapCues";
 import { personalTips, slipRecord, splits, statRecord, statTip, styleReport } from "../src/lib/tips";
 import { LEAGUES } from "../src/lib/slate";
 import { SPORT_LEAGUES } from "../src/lib/sports";
@@ -1383,7 +1384,7 @@ t("tips and style: real splits only, 5+ settled, W-L and %, no money", () => {
   for (let i = 10; i < 16; i++) ps.push(mk(i, i < 12 ? "win" : "loss", { market: "points", selection: "Over", odds: 120 }));
   const s = styleReport(ps);
   assert.equal(s.enough, true);
-  assert.match(s.summary, /^Under-leaning prop player, strongest on rebounds/);
+  assert.equal(s.summary, "Under player at heart: unders 6-1 (86%), strongest on rebounds 6-1. Most of your picks are unders (7 of 13).");
   assert.ok(s.pros.some((p) => p.label === "Unders" && p.t.w === 6 && p.t.l === 1));
   assert.ok(s.cons.some((p) => p.label === "Overs" && p.t.w === 2 && p.t.l === 4));
   assert.ok(splits(ps).every((x) => x.t.w + x.t.l >= 5));
@@ -1395,6 +1396,18 @@ t("tips and style: real splits only, 5+ settled, W-L and %, no money", () => {
   assert.deepEqual(slipRecord(slips, 4), { w: 0, l: 1, p: 0, open: 0, pct: 0 });
   assert.equal(statTip("longest rush"), "One big run decides it. Check carries and the run-game role.");
   assert.equal(statRecord(ps, "Rebounds"), "You're 6-1 on rebounds (86%).");
+});
+
+
+t("recap cues: computed from numbers only", () => {
+  const c = recapCues({ side: "Over", line: 9.5, value: 7, last10: [7, 7, 12, 6, 10, 10, 10, 11, 16, 26], last5Avg: 8.4, seasonAvg: 11.7, minutes: 39, fouls: 2, overtime: true, spreadHome: 12, spreadOpenHome: 10.5, total: 168.5, totalOpen: 171, finalMarginHome: -2, finalTotal: 199, who: "Reese" });
+  assert.ok(c.wrong.some((w) => w.includes("last 5 avg 8.4 vs 9.5")));
+  assert.ok(c.next.some((w) => w.startsWith("Spread was 12. Check spreads over 10")));
+  assert.ok(c.next.some((w) => w.includes("171 → 168.5")));
+  assert.ok(c.next.some((w) => w.includes("7 of 9 over 9.5")));
+  assert.ok(!JSON.stringify(c).match(/typically|should/i));
+  const u = recapCues({ side: "Over", line: 9.5, value: 7, last10: [7, 3, 4, 5, 12, 6, 7, 8, 10, 2], last5Avg: null, seasonAvg: null, minutes: null, fouls: null, overtime: false, spreadHome: null, spreadOpenHome: null, total: null, totalOpen: null, finalMarginHome: 3, finalTotal: 150, who: "Gray" });
+  assert.equal(u.next[0], "Gray cleared 9.5 in 2 of last 9. When the hit rate leans the other way, pass or flip the side.");
 });
 
 console.log(`\n${n} passed`);

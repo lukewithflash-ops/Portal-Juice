@@ -6,6 +6,7 @@ import { chatEnabled, redis } from "@/lib/chat";
 import { getLive } from "@/lib/espn";
 import { legFromPick } from "@/lib/motivation";
 import { nameClose } from "@/lib/slipImport";
+import { firstNum, parseLast10, recapCues } from "@/lib/recapCues";
 import type { Pick } from "@/lib/types";
 
 const MODEL = process.env.ASK_MODEL || "google/gemini-2.5-flash";
@@ -13,15 +14,15 @@ const MODEL = process.env.ASK_MODEL || "google/gemini-2.5-flash";
 export type Recap = { v?: number; wrong?: string[]; next?: string[]; text: string; result: "hit" | "miss" | "push" | "unknown"; value: number | null; line: number; at: number; facts: string[] };
 
 const SYSTEM = `You write a short post-game recap of ONE logged pick for Portal Juice.
-Use ONLY numbers in the JSON. Never invent a number. Plain text inside JSON strings, no markdown.
-Return ONLY a JSON object: {"recap": string, "wrong": string[], "next": string[]}
-- recap: 2 to 4 short sentences. Hit or miss and by how much, the key reason with numbers from the box line (minutes, shots, usage, final score), then one sentence comparing the numbers on the pick (lean, pros/cons) with what happened. Say the pick numbers are season-to-date.
-- wrong: only when needsWhy is true, else []. 1 to 3 specific causes, each backed by a number in the JSON: minutes vs their average, shots/targets/touches, game script or blowout (final margin vs pregame spread), foul trouble (PF), early exit (low minutes), defense matchup, pace/total vs the posted total, line moved before tip (open vs close). Skip causes the data can't show.
-- next: only when needsWhy is true, else []. 1 to 2 concrete takeaways tied to those numbers, e.g. "Check minutes when the spread is over 10: blowouts cut starters' time." or "The hit-rate numbers leaned under: 1 of last 10 over this line." or "The total moved 3 points down before tip. Treat that as a signal."
-Never write "should" or "should have". If the game went to overtime, say totals and minutes are inflated by it. No blame, no guarantees, no money, no stakes, no betting advice. Confident, punchy voice.`;
+Use ONLY numbers in the JSON. Never invent a number or a general claim about how games "typically" go. Plain text, no markdown.
+Return ONLY a JSON object: {"recap": string, "wrong": number[], "next": number[]}
+- recap: 2 to 4 short sentences. Hit or miss and by how much, the key reason with numbers from the box line, then one sentence comparing the numbers on the pick (lean, pros/cons) with what happened. Say the pick numbers are season-to-date.
+- wrong: indexes (0-based) into candidates.wrong, the 1 to 3 that best explain the result. [] when needsWhy is false or there are none.
+- next: indexes into candidates.next, the 1 or 2 most useful. [] when needsWhy is false or there are none.
+Never write "should". No blame, no guarantees, no money, no stakes, no betting advice. Confident, punchy voice.`;
 
 export function recapKey(p: Pick): string {
-  return `pj:recap4:${p.league ?? "x"}/${p.gameId ?? "x"}/${p.subject.toLowerCase()}/${(p.market ?? "").toLowerCase()}/${p.line}/${p.selection ?? ""}`;
+  return `pj:recap5:${p.league ?? "x"}/${p.gameId ?? "x"}/${p.subject.toLowerCase()}/${(p.market ?? "").toLowerCase()}/${p.line}/${p.selection ?? ""}`;
 }
 
 export async function buildRecap(p: Pick): Promise<Recap | { error: string }> {
@@ -29,7 +30,7 @@ export async function buildRecap(p: Pick): Promise<Recap | { error: string }> {
     const hit = (await redis(["GET", recapKey(p)]).catch(() => null)) as string | null;
     if (hit) {
       const r = JSON.parse(hit) as Recap;
-      if (r.v === 4) return r;
+      if (r.v === 5) return r;
     }
   }
   const snap = p.league && p.gameId ? await getLive(p.league, p.gameId).catch(() => null) : null;
@@ -64,10 +65,26 @@ export async function buildRecap(p: Pick): Promise<Recap | { error: string }> {
   };
   const close = value != null && Math.abs(value - p.line) <= Math.max(1.5, p.line * 0.1);
   facts.needsWhy = result === "miss" || (result === "hit" && close);
+  const fact = (re: RegExp) => rep?.facts.find((f) => re.test(f.label))?.value;
+  const bx = (k: string) => (box && box[k] != null ? firstNum(String(box[k])) : null);
+  const cues = facts.needsWhy
+    ? recapCues({
+        side, line: p.line, value,
+        last10: parseLast10(fact(/^Last 10$/)),
+        last5Avg: firstNum(fact(/^Last 5 avg/)),
+        seasonAvg: firstNum(fact(/^Season/)?.replace(/^.*?\)\s*/, "")) ?? firstNum(fact(/^Season/)),
+        minutes: bx("MIN"), fouls: bx("PF"),
+        overtime: /OT/.test(snap.detail),
+        spreadHome: snap.spreadHome, spreadOpenHome: snap.spreadOpen, total: snap.total, totalOpen: snap.totalOpen,
+        finalMarginHome: facts.gameScript.finalMarginHome, finalTotal: facts.gameScript.finalTotal,
+        who: p.subject.split(" ").slice(-1)[0] || p.subject,
+      })
+    : { wrong: [], next: [] };
+  const prompt = { ...facts, candidates: cues };
   const gw = process.env.AI_GATEWAY_API_KEY ? createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY }) : oidcGateway;
   let text: string;
   try {
-    const r = await generateText({ model: gw(MODEL), system: SYSTEM, prompt: JSON.stringify(facts), maxOutputTokens: 2000, providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } } });
+    const r = await generateText({ model: gw(MODEL), system: SYSTEM, prompt: JSON.stringify(prompt), maxOutputTokens: 2000, providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } } });
     text = r.text.trim();
   } catch (e) {
     console.log(JSON.stringify({ event: "recap.error", msg: String((e as Error).message).slice(0, 160) }));
@@ -76,14 +93,18 @@ export async function buildRecap(p: Pick): Promise<Recap | { error: string }> {
   let wrong: string[] = [];
   let next: string[] = [];
   try {
-    const j = JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, "")) as { recap?: string; wrong?: string[]; next?: string[] };
+    const j = JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, "")) as { recap?: string; wrong?: unknown[]; next?: unknown[] };
     text = String(j.recap ?? "").trim();
-    wrong = (j.wrong ?? []).map(String).slice(0, 3);
-    next = (j.next ?? []).map(String).slice(0, 2);
+    const pickIdx = (xs: unknown[] | undefined, from: string[], n: number) => [...new Set((xs ?? []).map(Number).filter((i) => Number.isInteger(i) && from[i]))].slice(0, n).map((i) => from[i]);
+    wrong = pickIdx(j.wrong, cues.wrong, 3);
+    next = pickIdx(j.next, cues.next, 2);
   } catch {
     /* plain text answer: keep it */
   }
-  const out: Recap = { v: 4, wrong, next, text, result, value, line: p.line, at: Date.now(), facts: box ? Object.entries(box).slice(0, 8).map(([k, v]) => `${k} ${v}`) : [] };
+  // Model skipped them: fall back to the top computed ones.
+  if (facts.needsWhy && !wrong.length) wrong = cues.wrong.slice(0, 2);
+  if (facts.needsWhy && !next.length) next = cues.next.slice(0, 2);
+  const out: Recap = { v: 5, wrong, next, text, result, value, line: p.line, at: Date.now(), facts: box ? Object.entries(box).slice(0, 8).map(([k, v]) => `${k} ${v}`) : [] };
   if (chatEnabled() && /[.!?]$/.test(text)) await redis(["SET", recapKey(p), JSON.stringify(out), "EX", 60 * 60 * 24 * 30]).catch(() => {});
   return out;
 }

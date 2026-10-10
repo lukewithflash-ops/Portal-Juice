@@ -91,12 +91,23 @@ export function styleReport(ps: Pick[]): Style {
   if (tilt && (tilt.t.pct ?? 100) < base) warnings.push(`After a loss you're ${rec(tilt.t)} (${pct(tilt.t)}). Slow down after a miss.`);
   const unders = sp.find((s) => s.label === "Unders");
   const overs = sp.find((s) => s.label === "Overs");
-  const props = done.filter((p) => pickKind(p) === "prop").length;
-  const lean = unders && overs ? (decided(unders.t) > decided(overs.t) ? "Under-leaning" : "Over-leaning") : overs ? "Over-leaning" : unders ? "Under-leaning" : "Balanced";
-  const kind = props >= done.length / 2 ? "prop player" : "team-side player";
-  const bestStat = ranked.find((s) => s.label === s.label.toLowerCase() && s.label.length > 3 && (s.t.pct ?? 0) > base);
-  const summary = `${lean} ${kind}${bestStat ? `, strongest on ${bestStat.label}` : ""}.`;
-  return { enough: true, need: 0, summary: summary[0].toUpperCase() + summary.slice(1), pros, cons, warnings };
+  const props = sp.find((s) => s.label === "Props");
+  const teams = sp.find((s) => s.label === "Team picks");
+  const statSplits = ranked.filter((s) => s.label === s.label.toLowerCase() && !["Overs", "Unders"].includes(s.label));
+  // Lead with results: the side that actually hits, then the best stat. Volume second.
+  const better = overs && unders ? ((overs.t.pct ?? 0) >= (unders.t.pct ?? 0) ? overs : unders) : overs ?? unders ?? null;
+  const head = better
+    ? `${better.label === "Overs" ? "Over" : "Under"} player at heart: ${better.label.toLowerCase()} ${rec(better.t)} (${pct(better.t)})`
+    : props && teams
+      ? `${(props.t.pct ?? 0) >= (teams.t.pct ?? 0) ? "Props" : "Team picks"} hit best: ${rec(((props.t.pct ?? 0) >= (teams.t.pct ?? 0) ? props : teams).t)}`
+      : `Your record: ${rec(all)} (${pct(all)})`;
+  const bestStat = statSplits.find((s) => (s.t.pct ?? 0) > base);
+  const ou = done.filter((p) => p.selection === "Over").length;
+  const uu = done.filter((p) => p.selection === "Under").length;
+  const volume = ou + uu ? (uu > ou ? `Most of your picks are unders (${uu} of ${ou + uu}).` : ou > uu ? `Most of your picks are overs (${ou} of ${ou + uu}).` : "") : "";
+  const mismatch = better && volume && ((better.label === "Overs") !== ou > uu) ? volume : volume;
+  const summary = `${head}${bestStat ? `, strongest on ${bestStat.label} ${rec(bestStat.t)}` : ""}.${mismatch ? " " + mismatch : ""}`;
+  return { enough: true, need: 0, summary, pros, cons, warnings };
 }
 
 export const GENERAL_TIPS = [
