@@ -63,6 +63,14 @@ export default function LiveBanner() {
 
   const games = live.filter((g) => !hidden.includes(g.key));
 
+  // Home-screen app badge: live picks right now (installed app; ignored where unsupported).
+  const livePicks = live.reduce((n, g) => n + g.legs.length, 0);
+  useEffect(() => {
+    const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    if (!nav.setAppBadge) return;
+    (livePicks > 0 ? nav.setAppBadge(livePicks) : nav.clearAppBadge?.())?.catch(() => {});
+  }, [livePicks]);
+
   // Keep the page and sticky bars below the banner.
   useLayoutEffect(() => {
     const root = document.documentElement;

@@ -52,6 +52,18 @@ export async function GET(req: Request) {
   const line = q.get("l") != null && Number.isFinite(Number(q.get("l"))) ? Number(q.get("l")) : null;
   const market = word(q.get("mk"), 20);
   const under = q.get("sd") === "Under";
+  // Live tile: up to 3 prop meters "name~value~line~O|U", joined by "|".
+  const meters = (q.get("ms") ?? "")
+    .split("|")
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((x) => {
+      const [n, v, l, sd] = x.split("~");
+      const val = Number(v);
+      const ln = Number(l);
+      return { name: word(n, 22), value: Number.isFinite(val) && v !== "" ? val : null, line: Number.isFinite(ln) ? ln : 0, under: sd === "U" };
+    })
+    .filter((m) => m.name && m.line > 0);
   const hit = kind === "cleared";
   const ring = hit ? "#F5C542" : kind === "final" ? "#f2eee6" : ac;
 
@@ -123,7 +135,26 @@ export async function GET(req: Request) {
             </div>
           )}
         </div>
-        <div style={{ display: "flex", justifyContent: "center", fontSize: 46, fontWeight: 900, textAlign: "center" }}>{title}</div>
+        {meters.length ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "0 40px" }}>
+            {meters.map((m) => {
+              const pct = m.value == null ? 0 : Math.max(0, Math.min(100, (m.value / m.line) * 100));
+              const done = m.value != null && (m.under ? false : m.value > m.line);
+              const c = done ? "#F5C542" : m.under ? (m.value != null && m.value > m.line ? "#FF3B5C" : "#39FF14") : "#A855F7";
+              return (
+                <div key={m.name} style={{ display: "flex", alignItems: "center", gap: 18 }}>
+                  <div style={{ display: "flex", width: 330, fontSize: 32, fontWeight: 800 }}>{m.name}</div>
+                  <div style={{ display: "flex", flex: 1, height: 22, borderRadius: 99, background: "#1f1530", border: "2px solid #4c1d95" }}>
+                    <div style={{ display: "flex", width: `${pct}%`, height: 18, borderRadius: 99, background: c, boxShadow: `0 0 20px ${c}` }} />
+                  </div>
+                  <div style={{ display: "flex", width: 190, justifyContent: "flex-end", fontSize: 32, fontWeight: 900, color: c }}>{`${m.value ?? "—"}/${m.line}`}</div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ display: "flex", justifyContent: "center", fontSize: 46, fontWeight: 900, textAlign: "center" }}>{title}</div>
+        )}
       </div>
     ),
     { width: 1200, height: 600, emoji: "twemoji", headers: { "Cache-Control": "public, max-age=86400, immutable" } }

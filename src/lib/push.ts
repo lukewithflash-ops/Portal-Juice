@@ -1,6 +1,7 @@
 import "server-only";
-import { APP_ICON, BADGE, gameOf, styleAlert, type PushPayload, type PushScene } from "@/lib/pushStyle";
+import { APP_ICON, BADGE, tileDue, gameOf, liveTile, styleAlert, type TileLeg, type PushPayload, type PushScene } from "@/lib/pushStyle";
 import webpush from "web-push";
+import { gameRoute } from "@/lib/gameRoute";
 import { gameEvents, keepAlert, legEvents, readAlertPrefs, type AlertPrefs, type GameAlert } from "@/lib/alerts";
 import { chatEnabled, redis } from "@/lib/chat";
 import { getLive, getScores } from "@/lib/espn";
@@ -25,6 +26,7 @@ const SUBS = "pj:push:subs";
 const GAMES = "pj:push:games";
 const LEGS = "pj:push:legs";
 const LAST = "pj:push:last";
+const TILES = "pj:push:tiles";
 const INBOX = "pj:push:inbox:";
 const INBOX_MAX = 50;
 const PLAYER_GAP_S = 90;
@@ -74,7 +76,7 @@ export async function sendTo(sub: webpush.PushSubscription, payload: { title: st
     }
   })();
   try {
-    const r = await webpush.sendNotification(sub, JSON.stringify(payload), { TTL: 600, urgency: "high" });
+    const r = await webpush.sendNotification(sub, JSON.stringify(payload), { TTL: payload.silent ? 180 : 600, urgency: payload.silent ? "normal" : "high" });
     console.log(JSON.stringify({ event: "push.send", host, tag: payload.tag, code: r.statusCode }));
     return { ok: true, code: r.statusCode, error: null };
   } catch (err) {
@@ -330,6 +332,9 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
     const prefs = readAlertPrefs(row.prefs);
     const tail = row.endpoint.slice(-24);
     const out: GameAlert[] = [];
+    const tileLegs = new Map<string, TileLeg[]>();
+    const alerted = new Set<string>();
+    const liveCount = (row.props ?? []).filter((p) => snaps.get(`${p.league}/${p.gameId}`)?.state === "in").length;
     for (const g of gamesFor[i]) out.push(...(events.get(`${g.league}/${g.id}`) ?? []));
     for (const p of row.props ?? []) {
       const snap = snaps.get(`${p.league}/${p.gameId}`);
@@ -344,6 +349,8 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
       }
       const leg = legFromPick(asPick(p), snap, prevLeg?.value ?? null);
       if (!leg) continue;
+      const gkey = `${p.league}/${p.gameId}`;
+      tileLegs.set(gkey, [...(tileLegs.get(gkey) ?? []), { name: leg.name, value: leg.value, line: leg.line, side: leg.side }]);
       out.push(...legEvents(prevLeg, leg));
       await redis(["HSET", LEGS, key, JSON.stringify({ status: leg.status, value: leg.value, line: leg.line, side: leg.side })]);
     }
@@ -366,14 +373,52 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
       const scene: PushScene | null = snap && gk ? { league: gk.split("/")[0], awayAbbr: snap.awayAbbr, homeAbbr: snap.homeAbbr, awayScore: snap.awayScore, homeScore: snap.homeScore, awayColor: snap.awayColor, homeColor: snap.homeColor, awayId: snap.awayId, homeId: snap.homeId, detail: snap.detail } : null;
       const t = row.team;
       const fav = t && snap ? (snap.awayAbbr === t.abbr ? { abbr: t.abbr, color: snap.awayColor } : snap.homeAbbr === t.abbr ? { abbr: t.abbr, color: snap.homeColor } : null) : null;
-      const styled = styleAlert(a, scene, fav);
+      const styled = { ...styleAlert(a, scene, fav), count: liveCount };
       const r = await sendTo(row.sub, styled);
+      if (r.ok && gk) alerted.add(gk);
       codes[String(r.code)] = (codes[String(r.code)] ?? 0) + 1;
       await toInbox(row.endpoint, { key: a.key, kind: a.kind, title: styled.title, body: styled.body, url: a.url, at: Date.now(), pushed: r.ok, code: r.code }).catch(() => {});
       if (r.ok) sent += 1;
       else {
         failed += 1;
         if (r.code === 404 || r.code === 410) break;
+      }
+    }
+    // Live tile on the lock screen: one quiet notification per followed game, replaced in place.
+    if (prefs.tile) {
+      for (const g of gamesFor[i]) {
+        const gk = `${g.league}/${g.id}`;
+        const snap = snaps.get(gk);
+        if (!snap || snap.state === "pre" || muted.has(gk)) continue;
+        const ck = `${tail}:${gk}`;
+        const rawTile = (await redis(["HGET", TILES, ck])) as string | null;
+        let prevTile: { sig: string; at: number; final?: boolean } | null = null;
+        try {
+          prevTile = rawTile ? JSON.parse(rawTile) : null;
+        } catch {
+          prevTile = null;
+        }
+        if (snap.state === "post" && !prevTile) continue; // never send a tile for a game we did not follow live
+        const legs = tileLegs.get(gk) ?? [];
+        const sig = `${snap.awayScore}-${snap.homeScore}|${legs.map((l) => l.value).join(",")}`;
+        const now = Date.now();
+        const mark = (final: boolean) => redis(["HSET", TILES, ck, JSON.stringify({ sig, at: now, final })]).catch(() => {});
+        if (alerted.has(gk)) {
+          await mark(snap.state === "post");
+          continue;
+        }
+        if (!tileDue(prevTile, sig, snap.state, now)) continue;
+        const scene: PushScene = { league: g.league, awayAbbr: snap.awayAbbr, homeAbbr: snap.homeAbbr, awayScore: snap.awayScore, homeScore: snap.homeScore, awayColor: snap.awayColor, homeColor: snap.homeColor, awayId: snap.awayId, homeId: snap.homeId, detail: snap.detail };
+        const tile = { ...liveTile(gk, gameRoute(g.league, g.id), scene, snap.state, legs), count: liveCount };
+        const r = await sendTo(row.sub, tile);
+        codes[String(r.code)] = (codes[String(r.code)] ?? 0) + 1;
+        if (r.ok) {
+          sent += 1;
+          await mark(snap.state === "post");
+        } else {
+          failed += 1;
+          if (r.code === 404 || r.code === 410) break;
+        }
       }
     }
   }

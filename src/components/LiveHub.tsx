@@ -328,7 +328,7 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-const ICON: Record<GameAlert["kind"], string> = { score: "🔢", lead: "🔁", big: "💥", close: "🔥", cleared: "🟡", final: "🏁", player: "⭐" };
+const ICON: Record<GameAlert["kind"], string> = { tile: "📺", score: "🔢", lead: "🔁", big: "💥", close: "🔥", cleared: "🟡", final: "🏁", player: "⭐" };
 
 /** "Your player" moment: gold ring around the face, the gain, and how close to the line. */
 function PlayerToast({ t }: { t: Toast }) {

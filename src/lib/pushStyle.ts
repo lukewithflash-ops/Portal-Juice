@@ -17,6 +17,10 @@ export type PushPayload = {
   vibrate: number[];
   actions: { action: string; title: string }[];
   game: string | null;
+  /** Quiet update: no sound or buzz (routine live-tile refresh). */
+  silent?: boolean;
+  /** PWA app badge: live picks right now. */
+  count?: number;
 };
 
 export type PushScene = {
@@ -167,4 +171,53 @@ function shortMarket(m: string): string {
     .replace(/receiving yards/i, "rec yds")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+export type TileLeg = { name: string; value: number | null; line: number; side: "Over" | "Under" };
+
+const lastName = (n: string) => n.trim().split(/\s+/).slice(-1)[0] ?? n;
+
+/** Lock-screen live tile: one per game, same tag as that game's alerts so each update replaces the last. */
+export function liveTile(game: string, url: string, scene: PushScene, state: "in" | "post", legs: TileLeg[], origin = ""): PushPayload {
+  const sc = `${scene.awayAbbr} ${scene.awayScore ?? 0}-${scene.homeScore ?? 0} ${scene.homeAbbr}`;
+  const clock = state === "post" ? "Final" : scene.detail.replace(/\s*-\s*/, " ").replace(/(\d)(st|nd|rd|th)\b/, "$1$2").trim();
+  const title = `${sportEmoji(scene.league)} ${sc} · ${clock}`.slice(0, 80);
+  const body = legs.length ? legs.map((l) => `${lastName(l.name)} ${l.value ?? 0}/${l.line}`).join(" · ") : state === "post" ? "Final. Tap for the recap." : "Live. Tap to watch.";
+  const q = new URLSearchParams();
+  q.set("k", "live");
+  q.set("e", sportEmoji(scene.league));
+  q.set("t", `${sc} · ${clock}`.slice(0, 60));
+  q.set("lg", scene.league);
+  q.set("a", scene.awayAbbr);
+  q.set("h", scene.homeAbbr);
+  q.set("as", scene.awayScore ?? "0");
+  q.set("hs", scene.homeScore ?? "0");
+  q.set("ac", hex(scene.awayColor) ?? "7C3AED");
+  q.set("hc", hex(scene.homeColor) ?? "F5C542");
+  q.set("ai", scene.awayId);
+  q.set("hi", scene.homeId);
+  q.set("d", clock.slice(0, 30));
+  if (legs.length) q.set("ms", legs.slice(0, 3).map((l) => `${lastName(l.name).replace(/[~|]/g, "")}~${l.value ?? ""}~${l.line}~${l.side === "Under" ? "U" : "O"}`).join("|"));
+  return {
+    title,
+    body: body.slice(0, 140),
+    url,
+    tag: `pj:${game}`,
+    renotify: false,
+    silent: true,
+    image: `${origin}/api/push/img?${q.toString()}`,
+    icon: `${origin}${APP_ICON}`,
+    badge: `${origin}${BADGE}`,
+    vibrate: [],
+    actions: [{ action: "open", title: "Open game" }, { action: "mute", title: "Mute game" }],
+    game,
+  };
+}
+
+/** Send a tile now? Final once, on a score change (at most once a minute), else every 150s. */
+export function tileDue(prev: { sig: string; at: number; final?: boolean } | null, sig: string, state: "in" | "post", now: number): boolean {
+  if (state === "post") return !prev?.final;
+  if (!prev) return true;
+  if (prev.sig !== sig) return now - prev.at >= 60_000;
+  return now - prev.at >= 150_000;
 }

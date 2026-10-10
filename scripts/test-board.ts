@@ -37,7 +37,7 @@ import { barColors } from "../src/components/WinBar";
 import { chooseLean, leanCandidates } from "../src/lib/gameLean";
 import { parseSportScoreboard, sportLeague, parseMatchFeed } from "../src/lib/sports";
 import { nameClose, propMarketOf } from "../src/lib/slipImport";
-import { styleAlert, gameOf } from "../src/lib/pushStyle";
+import { styleAlert, gameOf, liveTile, tileDue } from "../src/lib/pushStyle";
 import { clutch, heatCheck, otLabel, periodFromText, runMeter } from "../src/lib/gameFeel";
 import { gameRoute } from "../src/lib/gameRoute";
 import { LEAGUES } from "../src/lib/slate";
@@ -1335,6 +1335,26 @@ t("game links: every listed league resolves to a route that exists", () => {
   assert.equal(gameRoute("wnba", "1"), "/sports/wnba/1");
   assert.equal(gameRoute("nfl", "1"), "/games/nfl/1");
   assert.equal(gameRoute("nope", "1"), "/games");
+});
+
+
+t("live tile: per-game tag, quiet, title and prop body, cadence", () => {
+  const scene = { league: "nfl", awayAbbr: "DAL", homeAbbr: "TB", awayScore: "21", homeScore: "14", awayColor: "#003594", homeColor: "#d50a0a", awayId: "6", homeId: "27", detail: "7:31 - 3rd" };
+  const c = liveTile("nfl/1", "/games/nfl/1", scene, "in", [{ name: "CeeDee Lamb", value: 48, line: 64.5, side: "Over" }, { name: "Dak Prescott", value: 155, line: 224.5, side: "Over" }]);
+  assert.equal(c.tag, "pj:nfl/1");
+  assert.equal(c.silent, true);
+  assert.equal(c.renotify, false);
+  assert.equal(c.title, "🏈 DAL 21-14 TB · 7:31 3rd");
+  assert.equal(c.body, "Lamb 48/64.5 · Prescott 155/224.5");
+  assert.match(c.image ?? "", /ms=Lamb~48~64.5~O/);
+  assert.equal(c.tag, styleAlert({ kind: "final", key: "k", title: "Final", body: "", url: "/games/nfl/1" }, scene, null).tag);
+  assert.equal(tileDue(null, "a", "in", 0), true);
+  assert.equal(tileDue({ sig: "a", at: 0 }, "a", "in", 100_000), false);
+  assert.equal(tileDue({ sig: "a", at: 0 }, "a", "in", 150_000), true);
+  assert.equal(tileDue({ sig: "a", at: 0 }, "b", "in", 30_000), false);
+  assert.equal(tileDue({ sig: "a", at: 0 }, "b", "in", 60_000), true);
+  assert.equal(tileDue({ sig: "a", at: 0 }, "a", "post", 1), true);
+  assert.equal(tileDue({ sig: "a", at: 0, final: true }, "a", "post", 1), false);
 });
 
 console.log(`\n${n} passed`);

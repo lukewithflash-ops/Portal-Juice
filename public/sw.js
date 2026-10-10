@@ -19,14 +19,20 @@ self.addEventListener("push", (event) => {
     badge: data.badge || "/icons/badge-96.png",
     tag: data.tag || undefined,
     renotify: Boolean(data.tag && data.renotify),
-    vibrate: Array.isArray(data.vibrate) ? data.vibrate : [60],
+    vibrate: data.silent ? [] : Array.isArray(data.vibrate) ? data.vibrate : [60],
+    silent: Boolean(data.silent),
     timestamp: Date.now(),
     data: { url: data.url, game: data.game || null },
   };
   if (data.image) opts.image = data.image;
   if (Array.isArray(data.actions) && "maxActions" in Notification) opts.actions = data.actions.slice(0, Notification.maxActions || 2);
+  // App icon badge: how many of your picks are live right now.
+  if (typeof data.count === "number" && self.navigator && "setAppBadge" in self.navigator) {
+    (data.count > 0 ? self.navigator.setAppBadge(data.count) : self.navigator.clearAppBadge()).catch(() => {});
+  }
   event.waitUntil(
     self.registration.showNotification(data.title, opts).then(() =>
+      data.silent ? null :
       // Tell open tabs so they can show a matching in-app toast.
       self.clients.matchAll({ type: "window" }).then((list) => list.forEach((c) => c.postMessage({ type: "pj-push", title: data.title, body: data.body, url: data.url })))
     )

@@ -7,9 +7,10 @@ import { gameRoute } from "@/lib/gameRoute";
 import type { LivePlay, LiveSnap } from "@/lib/live";
 import { unitsNeeded, type Leg } from "@/lib/motivation";
 
-export type AlertKind = "score" | "lead" | "big" | "close" | "cleared" | "final" | "player";
+export type AlertKind = "tile" | "score" | "lead" | "big" | "close" | "cleared" | "final" | "player";
 
 export const ALERT_KINDS: { kind: AlertKind; label: string; hint: string }[] = [
+  { kind: "tile", label: "Live game on lock screen", hint: "One quiet notification per game you follow that updates in place: score, clock, your props. Buzzes only for big moments." },
   { kind: "cleared", label: "Prop cleared", hint: "A logged leg hits its line." },
   { kind: "player", label: "Your player", hint: "A player on your slips moves toward the line. One per player every 90 seconds." },
   { kind: "close", label: "Prop close", hint: "1 or 2 away from the line." },
@@ -20,7 +21,7 @@ export const ALERT_KINDS: { kind: AlertKind; label: string; hint: string }[] = [
 ];
 
 export type AlertPrefs = Record<AlertKind, boolean>;
-export const DEFAULT_ALERTS: AlertPrefs = { cleared: true, player: true, close: true, final: true, lead: true, big: true, score: true };
+export const DEFAULT_ALERTS: AlertPrefs = { tile: true, cleared: true, player: true, close: true, final: true, lead: true, big: true, score: true };
 
 export type GameAlert = {
   kind: AlertKind;
