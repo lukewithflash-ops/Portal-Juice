@@ -18,6 +18,7 @@ export const NAV = [
 /** Behind the More menu. Routes stay live. */
 export const MORE_NAV = [
   { href: "/check", label: "Breakdown" },
+  { href: "/ask", label: "Ask Portal AI" },
   { href: "/mvp", label: "MVP" },
   { href: "/trends", label: "Trends" },
   { href: "/news", label: "News" },

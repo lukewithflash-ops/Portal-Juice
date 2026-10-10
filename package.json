@@ -10,12 +10,15 @@
     "test": "tsx scripts/test-board.ts"
   },
   "dependencies": {
+    "@ai-sdk/react": "^4.0.140",
+    "ai": "^7.0.137",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "^0.0.1",
     "tesseract.js": "^7.0.0",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

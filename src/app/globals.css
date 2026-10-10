@@ -470,3 +470,26 @@ html[data-team] .portal-bg::after {
 }
 .line-moved.neutral { border-color: rgba(244, 244, 245, 0.35); }
 .line-moved.neutral::before { background: linear-gradient(90deg, transparent, rgba(244, 244, 245, 0.8), transparent); }
+
+/* Portal-glow toasts: match the push notifications. */
+.portal-toast {
+  background: radial-gradient(120% 140% at 0% 50%, color-mix(in srgb, var(--glow, #a855f7) 22%, transparent) 0%, rgba(26, 11, 46, 0.97) 45%, rgba(3, 3, 6, 0.98) 100%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--glow, #a855f7) 35%, transparent), 0 0 24px color-mix(in srgb, var(--glow, #a855f7) 45%, transparent);
+}
+.portal-ring {
+  flex: none;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  border: 3px solid var(--glow, #a855f7);
+  box-shadow: 0 0 10px var(--glow, #a855f7), inset 0 0 6px var(--glow, #a855f7);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .portal-ring { animation: portal-spin 2.4s linear infinite; border-top-color: transparent; }
+}
+@keyframes portal-spin { to { transform: rotate(360deg); } }
+.ask-panel {
+  background: radial-gradient(120% 80% at 50% 0%, rgba(168, 85, 247, 0.18) 0%, rgba(20, 10, 34, 0.96) 45%, rgba(3, 3, 6, 0.98) 100%);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  box-shadow: 0 0 30px rgba(168, 85, 247, 0.18);
+}

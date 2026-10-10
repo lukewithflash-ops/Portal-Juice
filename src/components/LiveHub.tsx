@@ -304,16 +304,19 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
             <a
               key={t.key}
               href={t.url}
-              className="play-in pointer-events-auto block rounded-xl border px-3 py-2 text-sm text-[color:var(--flat)] shadow-lg"
+              className="portal-toast play-in pointer-events-auto flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm text-[color:var(--flat)]"
               style={{
-                background: "rgba(10,8,18,0.96)",
+                ["--glow" as string]: t.kind === "close" || t.kind === "cleared" ? "var(--gold)" : t.kind === "lead" || t.kind === "big" ? "var(--plus)" : "#a855f7",
                 borderColor: t.kind === "close" || t.kind === "cleared" ? "var(--gold)" : t.kind === "lead" || t.kind === "big" ? "var(--plus)" : "rgba(255,255,255,0.2)",
               }}
             >
-              <span className="font-black" style={{ color: t.kind === "close" ? "var(--gold)" : undefined }}>
-                {ICON[t.kind]} {t.title}
+              <span className="portal-ring" aria-hidden />
+              <span className="min-w-0">
+                <span className="block font-black" style={{ color: t.kind === "close" || t.kind === "cleared" ? "var(--gold)" : undefined }}>
+                  {ICON[t.kind]} {t.title}
+                </span>
+                <span className="block text-xs text-zinc-300">{t.body}</span>
               </span>
-              <span className="ml-1 text-zinc-300">{t.body}</span>
             </a>
             )
           )}
@@ -323,7 +326,7 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-const ICON: Record<GameAlert["kind"], string> = { score: "🔢", lead: "🔁", big: "💥", close: "🔥", cleared: "🏆", final: "🏁", player: "⭐" };
+const ICON: Record<GameAlert["kind"], string> = { score: "🔢", lead: "🔁", big: "💥", close: "🔥", cleared: "🟡", final: "🏁", player: "⭐" };
 
 /** "Your player" moment: gold ring around the face, the gain, and how close to the line. */
 function PlayerToast({ t }: { t: Toast }) {

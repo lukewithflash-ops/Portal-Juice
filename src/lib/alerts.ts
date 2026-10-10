@@ -31,6 +31,8 @@ export type GameAlert = {
   url: string;
   /** Set on "Your player" moments. */
   player?: { name: string; athleteId: string | null; league: string; gain: number; pickId: string };
+  /** Leg alerts: the meter for the rich push image. */
+  meter?: { name: string; athleteId: string | null; value: number | null; line: number; market: string; side: "Over" | "Under" };
 };
 
 const scoreLine = (s: LiveSnap) => `${s.awayAbbr} ${s.awayScore ?? 0} · ${s.homeScore ?? 0} ${s.homeAbbr}`;
@@ -85,6 +87,7 @@ export function legEvents(prev: Leg | null, next: Leg): GameAlert[] {
   if (!prev) return [];
   const url = `/games/${next.league}/${next.gameId}`;
   const out: GameAlert[] = [];
+  const meter = { name: next.name, athleteId: next.athleteId ?? null, value: next.value, line: next.line, market: next.market, side: next.side };
   if (prev.status !== "cleared" && next.status === "cleared") {
     out.push({
       kind: "cleared",
@@ -92,6 +95,7 @@ export function legEvents(prev: Leg | null, next: Leg): GameAlert[] {
       title: "Hit!",
       body: `${next.name} ${next.side === "Under" ? "stayed under" : "cleared"} ${next.line} ${next.market}${next.value !== null ? ` (${next.value})` : ""}.`,
       url,
+      meter,
     });
     return out;
   }
@@ -113,6 +117,7 @@ export function legEvents(prev: Leg | null, next: Leg): GameAlert[] {
       body: `${next.value} of ${next.line} ${next.market} · ${toHit} to hit.`,
       url,
       player: { name: next.name, athleteId: next.athleteId ?? null, league: next.league, gain, pickId: next.pickId },
+      meter,
     });
   }
   if (next.side === "Over" && !next.final && next.value !== null && next.status !== "cleared") {
@@ -125,6 +130,7 @@ export function legEvents(prev: Leg | null, next: Leg): GameAlert[] {
         title: `${need} away!`,
         body: `${next.name} ${next.value} of ${next.line} ${next.market}.`,
         url,
+        meter,
       });
     }
   }

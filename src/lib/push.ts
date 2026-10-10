@@ -1,4 +1,5 @@
 import "server-only";
+import { APP_ICON, BADGE, gameOf, styleAlert, type PushPayload, type PushScene } from "@/lib/pushStyle";
 import webpush from "web-push";
 import { gameEvents, legEvents, readAlertPrefs, type AlertPrefs, type GameAlert } from "@/lib/alerts";
 import { chatEnabled, redis } from "@/lib/chat";
@@ -63,7 +64,7 @@ export async function hasSubscription(endpoint: string): Promise<boolean> {
 export type SendResult = { ok: boolean; code: number | null; error: string | null };
 
 /** One push. Logs the result; drops dead endpoints. */
-export async function sendTo(sub: webpush.PushSubscription, payload: { title: string; body: string; url: string; tag: string }): Promise<SendResult> {
+export async function sendTo(sub: webpush.PushSubscription, payload: { title: string; body: string; url: string; tag: string } & Partial<PushPayload>): Promise<SendResult> {
   webpush.setVapidDetails("mailto:juice@portaljuice.app", vapidPublic() as string, process.env.VAPID_PRIVATE_KEY as string);
   const host = (() => {
     try {
@@ -92,7 +93,7 @@ export async function sendTest(endpoint: string): Promise<SendResult & { stored:
   if (!raw) return { ok: false, code: null, error: "This device is not subscribed yet. Turn notifications on first.", stored: false };
   const row = JSON.parse(raw) as Stored;
   const at = Date.now();
-  const payload = { title: "Portal Juice test", body: "Notifications work on this device.", url: "/lines/portfolio", tag: `test:${at}` };
+  const payload = themedTest(at);
   const r = await sendTo(row.sub, payload);
   await toInbox(endpoint, { key: payload.tag, kind: "test", title: payload.title, body: payload.body, url: payload.url, at, pushed: r.ok, code: r.code }).catch(() => {});
   return { ...r, stored: true };
@@ -116,10 +117,67 @@ export async function subCount(): Promise<number> {
 }
 
 /** One check per window, whoever asks: cron, a GitHub schedule, or an open app. */
+/** Test copy only. Shows the full themed look: emoji title, rich image, badge, actions. */
+export function themedTest(at: number): PushPayload {
+  const q = new URLSearchParams({ k: "cleared", e: "🟡", t: "Test alert · this is how a hit looks", p: "Test player", v: "8", l: "7.5", mk: "pts", d: "Test" });
+  return {
+    title: "🟡 Test · Portal Juice alerts are working",
+    body: "This is a test. Hits, TDs, and finals will look like this.",
+    url: "/lines/portfolio",
+    tag: `test:${at}`,
+    renotify: true,
+    image: `/api/push/img?${q.toString()}`,
+    icon: APP_ICON,
+    badge: BADGE,
+    vibrate: [90, 40, 90, 40, 220],
+    actions: [{ action: "open", title: "Open Log" }],
+    game: null,
+  };
+}
+
+const THEMED_ONCE = "pj:push:once:themed-20261009";
+
+/** One themed test push to every saved subscription. Runs once ever (Redis NX), from the next check. */
+async function themedOnce(): Promise<void> {
+  const go = await redis(["SET", THEMED_ONCE, String(Date.now()), "EX", 30 * 86400, "NX"]);
+  if (go !== "OK") return;
+  const flat = (await redis(["HGETALL", SUBS])) as string[] | null;
+  const out: { device: string; code: number | null; ok: boolean }[] = [];
+  for (let i = 0; Array.isArray(flat) && i < flat.length; i += 2) {
+    try {
+      const row = JSON.parse(String(flat[i + 1])) as Stored;
+      const at = Date.now();
+      const payload = themedTest(at);
+      const r = await sendTo(row.sub, payload);
+      out.push({ device: (await deviceId(row.endpoint)).slice(0, 8), code: r.code, ok: r.ok });
+      await toInbox(row.endpoint, { key: payload.tag, kind: "test", title: payload.title, body: payload.body, url: payload.url, at, pushed: r.ok, code: r.code }).catch(() => {});
+    } catch {
+      /* skip a bad row */
+    }
+  }
+  await redis(["SET", `${THEMED_ONCE}:result`, JSON.stringify({ at: new Date().toISOString(), sent: out }), "EX", 30 * 86400]);
+}
+
+export async function themedResult(): Promise<unknown> {
+  if (!chatEnabled()) return null;
+  const raw = (await redis(["GET", `${THEMED_ONCE}:result`])) as string | null;
+  return raw ? JSON.parse(raw) : null;
+}
+
+/** Mute a game on one device for two days. */
+export async function muteGame(endpoint: string, game: string): Promise<boolean> {
+  if (!chatEnabled() || !/^[a-z0-9]+\/\d+$/.test(game)) return false;
+  const k = `pj:push:mute:${await deviceId(endpoint)}`;
+  await redis(["SADD", k, game]);
+  await redis(["EXPIRE", k, 172800]);
+  return true;
+}
+
 export async function tryCheck(source: string, windowS = 50): Promise<{ ran: boolean; result?: Awaited<ReturnType<typeof checkPush>> }> {
   if (!chatEnabled()) return { ran: false };
   const lock = await redis(["SET", "pj:push:lock", source, "EX", windowS, "NX"]);
   if (lock !== "OK") return { ran: false };
+  await themedOnce().catch(() => {});
   return { ran: true, result: await checkPush(source) };
 }
 
@@ -289,17 +347,25 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
       out.push(...legEvents(prevLeg, leg));
       await redis(["HSET", LEGS, key, JSON.stringify({ status: leg.status, value: leg.value, line: leg.line, side: leg.side })]);
     }
+    const muted = new Set(((await redis(["SMEMBERS", `pj:push:mute:${await deviceId(row.endpoint)}`]).catch(() => [])) as string[] | null) ?? []);
     for (const a of out) {
       if (!prefs[a.kind]) continue;
+      const gk = gameOf(a.url);
+      if (gk && muted.has(gk)) continue;
       const once = await redis(["SET", `pj:push:sent:${tail}:${a.key}`, "1", "EX", 172800, "NX"]);
       if (once !== "OK") continue;
       if (a.kind === "player" && a.player) {
         const gap = await redis(["SET", `pj:push:pl:${tail}:${a.player.pickId}`, "1", "EX", PLAYER_GAP_S, "NX"]);
         if (gap !== "OK") continue;
       }
-      const r = await sendTo(row.sub, { title: a.kind === "player" ? `⭐ ${a.title}` : a.title, body: a.body, url: a.url, tag: a.key });
+      const snap = gk ? snaps.get(gk) ?? null : null;
+      const scene: PushScene | null = snap && gk ? { league: gk.split("/")[0], awayAbbr: snap.awayAbbr, homeAbbr: snap.homeAbbr, awayScore: snap.awayScore, homeScore: snap.homeScore, awayColor: snap.awayColor, homeColor: snap.homeColor, awayId: snap.awayId, homeId: snap.homeId, detail: snap.detail } : null;
+      const t = row.team;
+      const fav = t && snap ? (snap.awayAbbr === t.abbr ? { abbr: t.abbr, color: snap.awayColor } : snap.homeAbbr === t.abbr ? { abbr: t.abbr, color: snap.homeColor } : null) : null;
+      const styled = styleAlert(a, scene, fav);
+      const r = await sendTo(row.sub, styled);
       codes[String(r.code)] = (codes[String(r.code)] ?? 0) + 1;
-      await toInbox(row.endpoint, { key: a.key, kind: a.kind, title: a.title, body: a.body, url: a.url, at: Date.now(), pushed: r.ok, code: r.code }).catch(() => {});
+      await toInbox(row.endpoint, { key: a.key, kind: a.kind, title: styled.title, body: styled.body, url: a.url, at: Date.now(), pushed: r.ok, code: r.code }).catch(() => {});
       if (r.ok) sent += 1;
       else {
         failed += 1;

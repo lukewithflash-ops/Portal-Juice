@@ -116,12 +116,13 @@ export default function MyProps({ gameId, snap }: { league: string; gameId: stri
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="play-in rounded-xl border px-3 py-2 text-sm font-bold text-[color:var(--flat)]"
+            className="portal-toast play-in flex items-center gap-2 rounded-2xl border px-3 py-2 text-sm font-bold text-[color:var(--flat)]"
             style={{
-              background: "rgba(10,8,18,0.95)",
+              ["--glow" as string]: t.tone === "gold" ? "var(--gold)" : t.tone === "green" ? "var(--plus)" : "var(--minus)",
               borderColor: t.tone === "gold" ? "var(--gold)" : t.tone === "green" ? "var(--plus)" : "var(--minus)",
             }}
           >
+            <span className="portal-ring" aria-hidden />
             {t.text}
           </div>
         ))}

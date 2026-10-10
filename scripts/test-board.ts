@@ -37,6 +37,7 @@ import { barColors } from "../src/components/WinBar";
 import { chooseLean, leanCandidates } from "../src/lib/gameLean";
 import { parseSportScoreboard, sportLeague, parseMatchFeed } from "../src/lib/sports";
 import { nameClose, propMarketOf } from "../src/lib/slipImport";
+import { styleAlert, gameOf } from "../src/lib/pushStyle";
 import { liveStat, longestPassFromPlays, marketTerms } from "../src/lib/tracker";
 
 let n = 0;
@@ -1249,6 +1250,28 @@ t("breakdown markets: game-log math for combos, fantasy, longest", () => {
   assert.equal(statFromMarket("epl", "shots on goal"), "shotsOnTarget");
   const manual = legFromLogged({ subject: "Chelsea Gray", market: "points", selection: "Over", line: 7.5, odds: 0 });
   assert.ok(manual && manual.kind === "prop" && manual.gameId === "", "a manual leg still breaks down");
+});
+
+
+t("push style: emoji titles, per-game tag, renotify, actions, image recipe", () => {
+  const scene = { league: "nfl", awayAbbr: "TB", homeAbbr: "DAL", awayScore: "14", homeScore: "21", awayColor: "#bd1c36", homeColor: "002a5c", awayId: "27", homeId: "6", detail: "Q3 4:12" };
+  const td = styleAlert({ kind: "big", key: "nfl/1:big:9", title: "Touchdown", body: "D.Prescott pass to C.Lamb for 31 yds", url: "/games/nfl/401" }, scene, null);
+  assert.equal(td.title, "🏈🎆 TD · TB 14-21 DAL");
+  assert.match(td.body, /Q3 4:12$/);
+  assert.equal(td.tag, "pj:nfl/401");
+  assert.equal(td.renotify, true);
+  assert.deepEqual(td.actions.map((a) => a.action), ["open", "mute"]);
+  assert.match(td.image ?? "", /^\/api\/push\/img\?k=big/);
+  assert.match(td.image ?? "", /hc=002a5c/);
+  const hit = styleAlert({ kind: "cleared", key: "p1:cleared", title: "Hit!", body: "Chelsea Gray cleared 7.5 points (8).", url: "/games/wnba/401918300", meter: { name: "Chelsea Gray", athleteId: "2529122", value: 8, line: 7.5, market: "points", side: "Over" } }, null, { abbr: "LV", color: "a7a9ac" });
+  assert.equal(hit.title, "🟡 Hit! Chelsea Gray 8+ pts");
+  assert.match(hit.icon, /api\/icon\?size=192&color=a7a9ac/);
+  assert.match(hit.image ?? "", /pid=2529122/);
+  assert.equal(hit.badge, "/icons/badge-96.png");
+  const score = styleAlert({ kind: "score", key: "k", title: "Score", body: "x", url: "/games/nba/5" }, { ...scene, league: "nba" }, null);
+  assert.equal(score.renotify, false);
+  assert.equal(score.title, "🏀 TB 14-21 DAL");
+  assert.equal(gameOf("/lines"), null);
 });
 
 console.log(`\n${n} passed`);

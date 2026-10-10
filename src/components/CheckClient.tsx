@@ -18,6 +18,7 @@ import { americanNumber } from "@/lib/detail";
 import { ptTime } from "@/lib/time";
 import Mark from "@/components/Mark";
 import SlipImport from "@/components/SlipImport";
+import AskChat from "@/components/AskChat";
 
 type GameOpt = {
   id: string;
@@ -479,6 +480,7 @@ export default function CheckClient() {
             )
           )}
           <p className="text-[11px] text-zinc-500">Numbers pulled {ptTime(result.fetchedAt)} from ESPN.</p>
+          <AskAboutParlay result={result} />
         </section>
       ) : null}
     </div>
@@ -647,5 +649,27 @@ function ParlayPanel({ p, reports }: { p: ParlayReport; reports: Result["reports
       ) : null}
       {p.sameGame ? <p className="text-[11px] text-zinc-500">Same-game legs move together; the product is a rough guide only.</p> : null}
     </article>
+  );
+}
+
+/** "Ask Portal AI about this parlay": the breakdown on screen goes along as context. */
+function AskAboutParlay({ result }: { result: Result }) {
+  const [open, setOpen] = useState(false);
+  const context = useMemo(() => {
+    const lines = result.reports.map((r, i) =>
+      "error" in r
+        ? `Leg ${i + 1}: ${r.error}`
+        : `Leg ${i + 1}: ${r.title} (${r.sub}). Lean ${r.lean}, score ${r.score}${r.implied != null ? `, ${Math.round(r.implied * 100)}% implied` : ""}. Pros: ${r.pros.map((p) => p.text).join("; ") || "none"}. Cons: ${r.cons.map((p) => p.text).join("; ") || "none"}. Facts: ${r.facts.map((f) => `${f.label}: ${f.value}`).join("; ")}`
+    );
+    if (result.parlay) lines.push(`Parlay: ${result.parlay.summary}`);
+    return `Breakdown on screen (numbers pulled ${result.fetchedAt}):\n${lines.join("\n")}`;
+  }, [result]);
+  return open ? (
+    <AskChat storeKey="pj-ask:parlay" context={context} compact suggestions={["Which leg is the weakest and why?", "Summarize this parlay in 3 bullets", "What would make the weakest leg better?"]} />
+  ) : (
+    <button type="button" onClick={() => setOpen(true)} className="ask-panel flex w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-left text-sm font-black text-white">
+      <span className="portal-ring" aria-hidden style={{ ["--glow" as string]: "#a855f7" }} />
+      Ask Portal AI about this parlay
+    </button>
   );
 }
