@@ -15,7 +15,7 @@ function Chip({ p, league, mine, dim }: { p: LivePlayer; league: string; mine: b
       className={`flex items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2 text-[11px] ${mine ? "your-player border-[color:var(--gold)] text-white" : dim ? "border-white/10 text-zinc-500" : "border-purple-300/30 text-zinc-100"}`}
       title={p.position ?? undefined}
     >
-      <span className="h-5 w-5 flex-none overflow-hidden rounded-full bg-zinc-800">{face ? <img src={face} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}</span>
+      <span className="h-5 w-5 flex-none overflow-hidden rounded-full bg-zinc-800">{face ? <img src={face} alt="" className="h-full w-full object-cover" loading="lazy" onError={(e) => (e.currentTarget.style.display = "none")} /> : null}</span>
       {p.jersey ? <span className="tabular text-[10px] text-zinc-500">#{p.jersey}</span> : null}
       <span className="truncate font-bold">{p.name}</span>
       {mine ? <span aria-label="On your picks">⭐</span> : null}

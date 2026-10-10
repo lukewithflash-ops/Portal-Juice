@@ -37,7 +37,7 @@ function LegRow({ leg, snap }: { leg: Leg; snap: LiveSnap | undefined }) {
     <li className="entry-leg py-2.5" data-hit={hit ? "1" : undefined}>
       <div className="flex items-center gap-3">
         <div className="relative h-12 w-12 flex-none overflow-hidden rounded-full border-2 bg-zinc-900" style={{ borderColor: ring, boxShadow: hit ? "0 0 14px rgba(163,255,60,.55)" : "0 0 10px rgba(168,85,247,.35)" }}>
-          {face ? <img src={face} alt="" className="h-full w-full object-cover" loading="lazy" /> : <span className="grid h-full w-full place-items-center text-xs font-black text-purple-200">{leg.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}</span>}
+          {face ? <img src={face} alt="" className="h-full w-full object-cover" loading="lazy" onError={(e) => (e.currentTarget.style.display = "none")} /> : <span className="grid h-full w-full place-items-center text-xs font-black text-purple-200">{leg.name.split(" ").map((w) => w[0]).join("").slice(0, 2)}</span>}
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-black text-white">{leg.name}</div>
