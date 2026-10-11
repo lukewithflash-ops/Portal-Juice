@@ -541,7 +541,14 @@ export function yardsFromSpot(spot: string | null, offenseAbbr: string | null): 
   const yl = Number(m[2]);
   if (yl === 50) return 50;
   if (!offenseAbbr) return null;
-  return m[1].toUpperCase() === offenseAbbr.toUpperCase() ? 100 - yl : yl;
+  return abbrKey(m[1]) === abbrKey(offenseAbbr) ? 100 - yl : yl;
+}
+
+/** ESPN mixes some abbreviations between feeds (JAX/JAC, WSH/WAS, LAR/LA). */
+const ABBR_ALIAS: Record<string, string> = { JAC: "JAX", WAS: "WSH", LA: "LAR", ARZ: "ARI", HST: "HOU", BLT: "BAL", CLV: "CLE" };
+export function abbrKey(a: string): string {
+  const u = a.trim().toUpperCase();
+  return ABBR_ALIAS[u] ?? u;
 }
 
 /** Football down and distance from the scoreboard, when ESPN has a live snap posted. */

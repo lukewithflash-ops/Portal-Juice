@@ -1,5 +1,6 @@
 "use client";
 import Lineups from "@/components/Lineups";
+import { fieldGeom, spotX, type FieldSide } from "@/lib/fieldGeom";
 
 import { clutch, heatCheck, isHuge, otLabel, runMeter } from "@/lib/gameFeel";
 import { playCrowd, playSignature } from "@/lib/emotes";
@@ -498,14 +499,16 @@ function Field({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: stri
   const toGoal = sit?.yardsToEndzone ?? drive?.ball ?? null;
   const offense = teamId ? (teamId === snap.homeId ? homeColor : awayColor) : "#a1a1aa";
   const defense = teamId ? (teamId === snap.homeId ? awayColor : homeColor) : "#a1a1aa";
-  // Offense drives left to right. 10-yard end zones at 0–10 and 110–120.
-  const ball = toGoal !== null ? 10 + (100 - toGoal) : null;
+  // Fixed like ESPN: away end zone left, home right. Home attacks left, away attacks right.
+  const side: FieldSide = teamId === snap.homeId ? "home" : "away";
+  const geom = teamId ? fieldGeom(side, toGoal, sit?.distance ?? null) : null;
+  const ball = geom?.ball ?? null;
   const startPlay = drive && drive.teamId === teamId ? [...snap.plays].reverse().find((p) => p.teamId === drive.teamId && p.yardsToEndzone !== null && p.driveId === snap.plays[snap.plays.length - 1]?.driveId) : null;
-  const start = startPlay?.yardsToEndzone != null ? 10 + (100 - startPlay.yardsToEndzone) : ball;
+  const start = startPlay?.yardsToEndzone != null ? spotX(side, startPlay.yardsToEndzone) : ball;
   const distance = sit?.distance ?? null;
   const firstToGoal =
     toGoal !== null && distance !== null && distance > 0 ? Math.max(0, toGoal - distance) : drive && drive.teamId === teamId ? drive.firstDown : null;
-  const first = firstToGoal !== null ? 10 + (100 - firstToGoal) : null;
+  const first = firstToGoal !== null ? spotX(side, firstToGoal) : null;
   const redZone = sit ? sit.redZone : !!drive?.redZone;
   const label =
     sit?.text ??
@@ -520,9 +523,9 @@ function Field({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: stri
         </linearGradient>
       </defs>
       <rect x="0" y="0" width="120" height="54" rx="2" fill="url(#turf)" />
-      <rect x="0" y="0" width="10" height="54" fill={offense} opacity="0.55" />
-      <rect x="110" y="0" width="10" height="54" fill={defense} opacity="0.55" />
-      {redZone ? <rect x="90" y="0" width="20" height="54" fill="rgba(255,59,92,0.22)" /> : null}
+      <rect x="0" y="0" width="10" height="54" fill={awayColor} opacity="0.55" />
+      <rect x="110" y="0" width="10" height="54" fill={homeColor} opacity="0.55" />
+      {redZone && geom ? <rect x={geom.redZone.x} y="0" width={geom.redZone.w} height="54" fill="rgba(255,59,92,0.22)" /> : null}
       {Array.from({ length: 99 }, (_, i) => 11 + i).map((x) =>
         x % 5 === 0 ? null : (
           <g key={"h" + x} stroke="rgba(255,255,255,0.28)" strokeWidth="0.15">
@@ -533,16 +536,12 @@ function Field({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: stri
           </g>
         )
       )}
-      {teamId ? (
-        <>
-          <text x="5" y="27" fontSize="5" fontWeight="900" textAnchor="middle" fill="rgba(255,255,255,0.75)" transform="rotate(-90 5 27)" letterSpacing="1">
-            {teamId === snap.homeId ? snap.homeAbbr : snap.awayAbbr}
-          </text>
-          <text x="115" y="27" fontSize="5" fontWeight="900" textAnchor="middle" fill="rgba(255,255,255,0.75)" transform="rotate(90 115 27)" letterSpacing="1">
-            {teamId === snap.homeId ? snap.awayAbbr : snap.homeAbbr}
-          </text>
-        </>
-      ) : null}
+      <text x="5" y="27" fontSize="5" fontWeight="900" textAnchor="middle" fill="rgba(255,255,255,0.75)" transform="rotate(-90 5 27)" letterSpacing="1">
+        {snap.awayAbbr}
+      </text>
+      <text x="115" y="27" fontSize="5" fontWeight="900" textAnchor="middle" fill="rgba(255,255,255,0.75)" transform="rotate(90 115 27)" letterSpacing="1">
+        {snap.homeAbbr}
+      </text>
       {Array.from({ length: 21 }, (_, i) => 10 + i * 5).map((x) => (
         <line key={x} x1={x} y1="0" x2={x} y2="54" stroke="rgba(255,255,255,0.35)" strokeWidth={x % 10 === 0 ? 0.45 : 0.2} />
       ))}
@@ -561,6 +560,7 @@ function Field({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: stri
           <rect x={Math.min(start, ball)} y="24.5" width={Math.abs(ball - start)} height="5" rx="2.5" fill={offense} opacity="0.55" />
           <line className="ball-mark" x1={ball} y1="2" x2={ball} y2="52" stroke="#38bdf8" strokeWidth="0.8" />
           {first !== null ? <line x1={first} y1="2" x2={first} y2="52" stroke="#f5c542" strokeWidth="0.9" /> : null}
+          {geom ? <path d={`M ${ball + geom.dir * 3} 38 l ${geom.dir * 3} 2 l ${-geom.dir * 3} 2 z`} fill={offense} stroke="#fff" strokeWidth="0.25" aria-label={geom.dir > 0 ? "Attacking right" : "Attacking left"} /> : null}
           <ellipse className="ball-mark" cx={ball} cy="27" rx="2.2" ry="1.4" fill="#a0522d" stroke="#fff" strokeWidth="0.3" style={{ filter: "drop-shadow(0 0 3px #f5c542)" }} />
         </>
       ) : (

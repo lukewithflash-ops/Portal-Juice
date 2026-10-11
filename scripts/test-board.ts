@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { fieldGeom as fgOf } from "../src/lib/fieldGeom";
+import { yardsFromSpot as yfs } from "../src/lib/live";
 import { soccerFantasy, soccerKey, soccerStat } from "../src/lib/soccerScore";
 import { gradePick, sideOf } from "../src/lib/grade";
 import { parseHoopsSub, lineupOf } from "../src/lib/lineup";
@@ -1467,6 +1469,24 @@ t("breakdown depth: no restated hit-rate, verdict, thin data label, title", () =
   const one = analyzeLeg({ league: "ncaaf", gameId: "1", kind: "prop", athleteId: "9", stat: "passingYards", line: 207.5, pick: "under" }, gameR({ league: "ncaaf" }), player([180, 260, 198, 190]));
   assert.notEqual(one.lean, "none");
   assert.match(one.verdict ?? "", /^Thin data \(1 factor\)/);
+});
+
+t("field direction: PHI @ JAX, JAX ball at JAX 46, 2nd & 7", () => {
+  const toGoal = yfs("JAX 46", "JAX");
+  assert.equal(toGoal, 54);
+  assert.equal(yfs("JAC 46", "JAX"), 54);
+  assert.equal(yfs("PHI 47", "JAX"), 47);
+  const g = fgOf("home", toGoal, 7)!; // JAX is home: end zone right, attacks left toward PHI
+  assert.equal(g.ball, 64); // 46 yds from JAX goal line (x 110)
+  assert.equal(110 - g.ball, 46);
+  assert.equal(g.first, 57); // PHI 47
+  assert.equal(g.first! - 10, 47);
+  assert.equal(g.dir, -1);
+  assert.deepEqual(g.redZone, { x: 10, w: 20 });
+  const a = fgOf("away", 54, 7)!; // away offense mirrors
+  assert.equal(a.ball, 56);
+  assert.equal(a.first, 63);
+  assert.equal(a.dir, 1);
 });
 
 console.log(`\n${n} passed`);
