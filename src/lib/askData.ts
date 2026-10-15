@@ -147,7 +147,7 @@ export async function resolvePair(a: string, b: string, league?: string | null):
 
 /* ---------------- schedules + lines ---------------- */
 
-export type SchedGame = { id: string; date: string; season: number; type: number; done: boolean; home: { id: string; abbr: string; score: number | null; winner: boolean }; away: { id: string; abbr: string; score: number | null; winner: boolean }; label: string };
+export type SchedGame = { neutral?: boolean; id: string; date: string; season: number; type: number; done: boolean; home: { id: string; abbr: string; score: number | null; winner: boolean }; away: { id: string; abbr: string; score: number | null; winner: boolean }; label: string };
 
 function parseSchedule(d: Dict): SchedGame[] {
   return L(d.events).map((e0) => {
@@ -159,7 +159,7 @@ function parseSchedule(d: Dict): SchedGame[] {
       return { id: S(x.id) ?? S(D(x.team).id) ?? "", abbr: S(D(x.team).abbreviation) ?? "", score: N(sc.value) ?? N(sc.displayValue) ?? N(x.score), winner: x.winner === true };
     };
     const st = D(D(c.status).type);
-    return { id: S(e.id) ?? "", date: S(e.date) ?? "", season: N(D(e.season).year) ?? 0, type: N(D(e.seasonType).type) ?? N(D(e.seasonType).id) ?? 2, done: st.completed === true || st.state === "post", home: side("home"), away: side("away"), label: S(D(D(c.type)).text) ?? "" };
+    return { neutral: c.neutralSite === true, id: S(e.id) ?? "", date: S(e.date) ?? "", season: N(D(e.season).year) ?? 0, type: N(D(e.seasonType).type) ?? N(D(e.seasonType).id) ?? 2, done: st.completed === true || st.state === "post", home: side("home"), away: side("away"), label: S(D(D(c.type)).text) ?? "" };
   }).filter((g) => g.id);
 }
 
@@ -227,7 +227,7 @@ export async function headToHead(a: TeamRef, b: TeamRef, n: number) {
         date: g.date.slice(0, 10),
         season: g.season,
         type: g.type === 3 ? "postseason" : g.type === 1 ? "preseason" : "regular season",
-        where: aHome ? `${a.abbr} home` : `${b.abbr} home`,
+        where: g.neutral ? "neutral site" : aHome ? `${a.abbr} home` : `${b.abbr} home`,
         score: `${a.abbr} ${aPts} - ${bPts} ${b.abbr}`,
         winner: aPts > bPts ? a.abbr : bPts > aPts ? b.abbr : "tie",
         line: line && (line.homeSpread != null || line.total != null) ? { book: line.provider, spread: aSpread != null ? `${a.abbr} ${aSpread > 0 ? "+" : ""}${aSpread}` : null, total: line.total } : null,
@@ -247,8 +247,9 @@ export async function headToHead(a: TeamRef, b: TeamRef, n: number) {
     asked: n,
     seasonsScanned: scanned,
     record: `${a.abbr} ${aw}-${bw}${rows.length - aw - bw ? `-${rows.length - aw - bw}` : ""} ${b.abbr}`,
-    ats: withLine.length ? `${a.abbr} ${aCov}-${bCov}${withLine.length - aCov - bCov ? `-${withLine.length - aCov - bCov}` : ""} ATS in ${withLine.length} with a line on file` : "No lines on file for these meetings",
-    overUnder: ou.length ? `${ou.filter((r) => r.totalResult!.startsWith("over")).length} over, ${ou.filter((r) => r.totalResult!.startsWith("under")).length} under in ${ou.length} with a total on file` : null,
+    ats: withLine.length ? `${a.abbr} ${aCov}-${bCov}${withLine.length - aCov - bCov ? `-${withLine.length - aCov - bCov}` : ""} ATS in these ${withLine.length} meetings (lines on file)` : "No lines on file for these meetings",
+    overUnder: ou.length ? `${ou.filter((r) => r.totalResult!.startsWith("over")).length} over, ${ou.filter((r) => r.totalResult!.startsWith("under")).length} under in these ${ou.length} meetings` : null,
+    books: [...new Set(rows.map((r) => r.line?.book).filter(Boolean))],
     avgPoints: rows.length ? { [a.abbr]: r1(rows.reduce((s, r) => s + Number(r.score.split(" ")[1]), 0) / rows.length), [b.abbr]: r1(rows.reduce((s, r) => s + Number(r.score.split(" - ")[1].split(" ")[0]), 0) / rows.length) } : null,
     meetings: rows,
     note: rows.length < n ? `Only ${rows.length} meetings found in ESPN schedules back to ${cur - 20}.` : undefined,
@@ -719,6 +720,66 @@ export async function playerLog(l: Lg, p: PlayerRef, key: string, label: string,
     low: vals.length ? Math.min(...vals) : null,
     hitRate: line != null ? { line, shown: hit(vals), last5: hit(pool.slice(0, 5).map((g) => g.value)), season: hit(thisSeason) } : undefined,
     missing: !shown.length ? (opts.vsAbbr ? `No games vs ${opts.vsAbbr} in ESPN logs over the last ${want} seasons.` : "ESPN has no games logged for this stat.") : undefined,
+  };
+}
+
+type FullRow = { date: string; opp: string; home: boolean; result: string | null; stats: Record<string, string> };
+
+async function fullSeason(l: Lg, id: string, season: number | null): Promise<{ labels: string[]; rows: FullRow[] }> {
+  const d = D(await fetchJson(`${web(l)}/athletes/${id}/gamelog${season ? `?season=${season}` : ""}`, season && season < new Date().getFullYear() ? 7 * 86400 : 900).catch(() => null));
+  const labels = L(d.labels).map((x) => S(x) ?? "");
+  const meta = D(d.events);
+  const rows: FullRow[] = [];
+  const seen = new Set<string>();
+  for (const st of L(d.seasonTypes).map(D)) {
+    if (/preseason|spring/i.test(S(st.displayName) ?? "")) continue;
+    for (const c of L(st.categories).map(D)) {
+      for (const e of L(c.events).map(D)) {
+        const eid = S(e.eventId);
+        if (!eid || seen.has(eid)) continue;
+        seen.add(eid);
+        const m = D(meta[eid]);
+        const vals = L(e.stats).map((x) => S(x) ?? "");
+        const stats: Record<string, string> = {};
+        labels.forEach((lab, i) => { if (lab && vals[i] != null && !(lab in stats)) stats[lab] = vals[i]; });
+        rows.push({ date: (S(m.gameDate) ?? "").slice(0, 10), opp: S(D(m.opponent).abbreviation) ?? "", home: S(m.atVs) === "vs", result: S(m.gameResult) ? `${S(m.gameResult)} ${S(m.score) ?? ""}`.trim() : null, stats });
+      }
+    }
+  }
+  return { labels, rows };
+}
+
+/** Full box-score lines per game (every column ESPN logs), optional opponent filter across seasons, with per-column averages. */
+export async function playerGames(l: Lg, p: PlayerRef, opts: { last?: number; vsAbbr?: string | null; seasons?: number }) {
+  const info = await athleteInfo(l, p.id).catch(() => null);
+  const thisYear = new Date().getFullYear() + (l.sport === "basketball" || l.sport === "hockey" ? 1 : 0);
+  const want = Math.max(1, Math.min(opts.seasons ?? (opts.vsAbbr ? 6 : 1), 8));
+  const cur = await fullSeason(l, p.id, null);
+  const labels = cur.labels;
+  let rows = cur.rows;
+  if (want > 1 || !rows.length) {
+    const older = await Promise.all(Array.from({ length: want }, (_, i) => fullSeason(l, p.id, thisYear - 1 - i)));
+    const seen = new Set(rows.map((r) => r.date + r.opp));
+    for (const o of older) for (const r of o.rows) if (!seen.has(r.date + r.opp)) { seen.add(r.date + r.opp); rows.push(r); }
+  }
+  rows.sort((a, b) => (a.date < b.date ? 1 : -1));
+  const pool = opts.vsAbbr ? rows.filter((r) => r.opp.toUpperCase() === opts.vsAbbr!.toUpperCase()) : rows;
+  const shown = pool.slice(0, Math.max(1, Math.min(opts.last ?? (opts.vsAbbr ? 15 : 10), 30)));
+  const avgs: Record<string, number> = {};
+  for (const lab of labels) {
+    const xs = shown.map((r) => N(r.stats[lab])).filter((x): x is number => x != null);
+    if (xs.length === shown.length && xs.length && !/%|PCT|AVG|ERA|WHIP/i.test(lab)) avgs[lab] = r1(xs.reduce((a, b) => a + b, 0) / xs.length);
+  }
+  return {
+    player: info?.name ?? p.name,
+    team: info?.team ?? null,
+    position: info?.position ?? null,
+    league: l.label,
+    filter: opts.vsAbbr ? `games vs ${opts.vsAbbr.toUpperCase()} (last ${want} seasons)` : `last ${shown.length} games`,
+    found: pool.length,
+    averagesShown: avgs,
+    games: shown.map((r) => ({ date: r.date, opp: `${r.home ? "vs" : "@"} ${r.opp}`, result: r.result, line: labels.filter((x) => r.stats[x] != null && r.stats[x] !== "").map((x) => `${x} ${r.stats[x]}`).join(", ") })),
+    missing: shown.length ? undefined : opts.vsAbbr ? `No games vs ${opts.vsAbbr} in ESPN logs over the last ${want} seasons.` : "ESPN has no game log for this player.",
   };
 }
 

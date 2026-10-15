@@ -21,6 +21,7 @@ import {
   lgById,
   matchupPreview,
   norm as normData,
+  playerGames,
   playerLog as playerLogData,
   playerSplits,
   resolvePair,
@@ -163,10 +164,10 @@ export const askTools = {
   }),
   playerLog: tool({
     description:
-      "A player's game log for one stat from ESPN (newest first): values per game, last-5 and season averages, highs/lows. Optional: last N games, vsTeam (scans up to 6 past seasons for games vs that team, e.g. 'Brunson vs Celtics'), line (prop hit rate: over/under/push counts and %), seasons (how many seasons back). Works for NFL, NBA, MLB, NHL, college, WNBA.",
+      "A player's ESPN game log (newest first). Leave stat empty to get full box-score lines for every game (all columns: e.g. PTS/REB/AST/3PT, or C/ATT/YDS/TD, or AB/H/HR/RBI) plus averages; best for 'how has X done vs Y' or 'last N games'. With a stat: that one stat per game: values per game, last-5 and season averages, highs/lows. Optional: last N games, vsTeam (scans up to 6 past seasons for games vs that team, e.g. 'Brunson vs Celtics'), line (prop hit rate: over/under/push counts and %), seasons (how many seasons back). Works for NFL, NBA, MLB, NHL, college, WNBA.",
     inputSchema: z.object({
       name: z.string(),
-      stat: z.string().describe("Stat in words, e.g. 'points', 'rushing yards', 'receptions', 'hits', 'shots on goal', 'PRA', 'fantasy score'"),
+      stat: z.string().optional().describe("Optional. One stat in words, e.g. 'points', 'rushing yards', 'receptions', 'hits', 'shots on goal', 'PRA', 'fantasy score'. Needed for a line hit rate."),
       last: z.number().int().min(1).max(40).optional().describe("How many games to show (default 10, or 20 with vsTeam)"),
       vsTeam: z.string().optional().describe("Opponent team name or abbreviation to filter to"),
       line: z.number().optional().describe("Prop line to compute the hit rate against"),
@@ -177,14 +178,15 @@ export const askTools = {
       if (!p) return { missing: `No ESPN player found named "${name}". Check the spelling.` };
       const l = lgById(p.league);
       if (!l) return { missing: `ESPN game logs for ${p.name} (${p.league}) aren't supported here.` };
-      const key = statFromMarket(p.league, stat);
-      if (!key) return { missing: `Can't read "${stat}" from an ESPN ${l.label} game log. Try a box-score stat (e.g. points, rebounds, passing yards, hits, shots).` };
       let vsAbbr: string | null = null;
       if (vsTeam) {
         const t = await resolveTeam(vsTeam, l.id).catch(() => null);
         if (!t) return { missing: `No ${l.label} team matching "${vsTeam}".` };
         vsAbbr = t.team.abbr;
       }
+      if (!stat || !stat.trim()) return playerGames(l, { id: p.id, league: l.id, name: p.name }, { last, vsAbbr, seasons });
+      const key = statFromMarket(p.league, stat);
+      if (!key) return { missing: `Can't read "${stat}" from an ESPN ${l.label} game log. Call again with no stat for full box-score lines.` };
       return playerLogData(l, { id: p.id, league: l.id, name: p.name }, key, statLabel(p.league, key), { last, vsAbbr, line: line ?? null, seasons });
     },
   }),

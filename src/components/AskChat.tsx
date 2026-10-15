@@ -109,6 +109,7 @@ export default function AskChat({ storeKey, context, suggestions, compact = fals
               if (p.type === "text") return <Rich key={i} text={p.text} />;
               if (p.type.startsWith("tool-")) {
                 const name = p.type.slice(5);
+                if (m.parts.slice(0, i).some((q) => q.type === p.type)) return null;
                 const done = "state" in p && (p.state === "output-available" || p.state === "output-error");
                 return (
                   <span key={i} className="mr-2 inline-flex items-center gap-1 text-[11px] text-purple-200/80">
