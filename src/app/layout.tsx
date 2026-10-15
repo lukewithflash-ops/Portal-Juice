@@ -6,6 +6,7 @@ import NotifyBanner from "@/components/NotifyBanner";
 import SiteHeader from "@/components/SiteHeader";
 import LiveBanner from "@/components/LiveBanner";
 import ChromeVars from "@/components/ChromeVars";
+import PortalWipe from "@/components/PortalWipe";
 import { AutoGrade } from "@/components/AutoGrade";
 import { LiveHubProvider } from "@/components/LiveHub";
 import SiteFooter from "@/components/SiteFooter";
@@ -60,6 +61,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 <div id="top-stack-slot" />
               </div>
               <ChromeVars />
+              <PortalWipe />
               <AutoGrade />
               <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-3">
                 <NotifyBanner />

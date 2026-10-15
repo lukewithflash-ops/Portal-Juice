@@ -606,3 +606,110 @@ html[data-team] .portal-bg::after {
 @keyframes pj-emote-bounce { 40% { transform: translateY(-5px) scale(1.15); } }
 @keyframes pj-emote-spin { 0% { transform: rotate(-360deg) scale(0.3); opacity: 0; } 100% { transform: rotate(0) scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .toast-emote, .toast-emote[data-kind] { animation: none !important; } }
+
+/* ---- Drive trail + play travel (football). Reduced motion keeps the finished drawing. ---- */
+.trail-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: trail-draw 700ms ease-out forwards; }
+.trail-head { opacity: 0; animation: trail-head 200ms 600ms ease-out forwards; }
+.ball-travel { animation: ball-travel 900ms cubic-bezier(.2,.7,.2,1) both; }
+.ball-hop { animation: ball-hop 900ms ease-out both; }
+@keyframes trail-draw { to { stroke-dashoffset: 0; } }
+@keyframes trail-head { to { opacity: 1; } }
+@keyframes ball-travel { from { transform: translateX(var(--dx, 0)); } to { transform: none; } }
+@keyframes ball-hop { 0%, 100% { transform: none; } 50% { transform: translateY(-5px); } }
+@media (prefers-reduced-motion: reduce) {
+  .trail-draw { animation: none; stroke-dashoffset: 0; }
+  .trail-head { animation: none; opacity: 1; }
+  .ball-travel, .ball-hop { animation: none; }
+}
+
+/* ---- Play pop (newest play, non-football) ---- */
+.play-pop-stage {
+  position: absolute; left: 50%; bottom: 0.9rem; z-index: 26; pointer-events: none;
+  display: flex; align-items: center; gap: 0.6rem; max-width: min(92%, 22rem);
+  padding: 0.45rem 0.8rem 0.45rem 0.5rem; border-radius: 999px;
+  background: rgba(8, 4, 16, 0.88); border: 1.5px solid var(--team, #a855f7);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--team, #a855f7) 60%, transparent), inset 0 0 10px color-mix(in srgb, var(--team, #a855f7) 30%, transparent);
+  transform: translateX(-50%);
+  animation: play-pop-in 2600ms cubic-bezier(.2,1.4,.4,1) both;
+}
+.play-pop-ico { position: relative; display: flex; height: 2rem; width: 2rem; flex: none; align-items: center; justify-content: center; border-radius: 999px; background: color-mix(in srgb, var(--team) 35%, #05040a); font-size: 1rem; }
+.play-pop-ring { position: absolute; left: 1.5rem; top: 50%; height: 2.2rem; width: 2.2rem; margin: -1.1rem 0 0 -1.1rem; border-radius: 999px; border: 2px solid var(--team); animation: play-pop-ring 900ms ease-out both; }
+.play-pop-pts { margin-left: 0.2rem; font-size: 1.35rem; font-weight: 900; color: #fff; text-shadow: 0 0 10px var(--team), 0 0 2px #000; }
+.play-pop-stage.is-score { border-width: 2px; }
+@keyframes play-pop-in {
+  0% { opacity: 0; transform: translateX(-50%) translateY(12px) scale(0.6); }
+  12% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.06); }
+  20% { transform: translateX(-50%) scale(1); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+}
+@keyframes play-pop-ring { from { transform: scale(0.6); opacity: 1; } to { transform: scale(2.6); opacity: 0; } }
+
+/* ---- Win-chance swing ---- */
+.swing-wrap { position: absolute; inset: 0; z-index: 40; pointer-events: none; display: flex; justify-content: center; align-items: flex-start; padding-top: 18%; overflow: hidden; border-radius: inherit; }
+.swing-banner {
+  position: relative; display: flex; align-items: baseline; gap: 0.5rem; white-space: nowrap;
+  padding: 0.5rem 1rem; border-radius: 0.9rem;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--team) 55%, #05040a), rgba(8, 4, 16, 0.92));
+  border: 2px solid var(--team); color: #fff;
+  box-shadow: 0 0 28px color-mix(in srgb, var(--team) 70%, transparent), 0 0 2px #fff inset;
+  animation: swing-in 2600ms cubic-bezier(.2,1.3,.4,1) both;
+}
+.swing-word { font-size: 0.7rem; font-weight: 900; letter-spacing: 0.3em; text-transform: uppercase; }
+.swing-num { font-family: var(--font-display), system-ui; font-size: 1.9rem; font-weight: 900; line-height: 1; text-shadow: 0 0 12px var(--team); }
+.swing-abbr { font-size: 0.72rem; font-weight: 800; opacity: 0.9; }
+@keyframes swing-in {
+  0% { opacity: 0; transform: scaleX(0.2); }
+  10% { opacity: 1; transform: scaleX(1.08); }
+  18% { transform: none; }
+  85% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+/* ---- Your player spotlight ---- */
+.spot-tile {
+  width: 11.5rem; padding: 0.6rem 0.7rem; border-radius: 1rem;
+  background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--team) 22%, transparent), transparent 60%), #0e0a16;
+  border: 1px solid color-mix(in srgb, var(--team) 55%, transparent);
+  box-shadow: 0 0 16px -6px var(--team);
+}
+.spot-meter { position: relative; height: 0.45rem; border-radius: 999px; background: rgba(255, 255, 255, 0.1); overflow: visible; }
+.spot-fill { height: 100%; border-radius: 999px; box-shadow: 0 0 8px currentColor; transition: width 700ms ease; }
+.spot-tick { position: absolute; top: -0.2rem; bottom: -0.2rem; width: 2px; margin-left: -1px; background: #fff; border-radius: 2px; box-shadow: 0 0 6px #fff; }
+
+/* ---- Share final ---- */
+.share-final {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  border: 1px solid rgba(57, 255, 20, 0.55);
+  background: radial-gradient(120% 120% at 50% 0%, rgba(57, 255, 20, 0.12), rgba(8, 4, 16, 0.9));
+  box-shadow: 0 0 14px -4px rgba(57, 255, 20, 0.7);
+}
+.share-final:disabled { opacity: 0.6; }
+
+/* ---- Pitch in ---- */
+.pitch-in { animation: pitch-in 500ms cubic-bezier(.2,1.4,.4,1) both; transform-box: fill-box; transform-origin: center; }
+@keyframes pitch-in { from { transform: scale(0.2); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ---- Portal transition: a neon ring opens over page changes. Subtle; off for reduced motion. ---- */
+.portal-wipe { position: fixed; inset: 0; z-index: 60; pointer-events: none; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.portal-wipe::before {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 45%, transparent 0, transparent 30%, rgba(3, 3, 6, 0.55) 70%);
+  animation: portal-veil 520ms ease-out both;
+}
+.portal-wipe-ring {
+  width: 40vmax; height: 40vmax; border-radius: 999px;
+  border: 3px solid #c026ff;
+  box-shadow: 0 0 24px #c026ff, 0 0 60px rgba(124, 58, 237, 0.6), inset 0 0 24px #39ff14;
+  animation: portal-open 520ms cubic-bezier(.3,.7,.2,1) both;
+}
+@keyframes portal-open { 0% { transform: scale(0.08); opacity: 0.9; } 100% { transform: scale(3.2); opacity: 0; } }
+@keyframes portal-veil { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .play-pop-stage, .swing-banner { animation: none; }
+  .play-pop-ring { display: none; }
+  .pitch-in { animation: none; }
+  .portal-wipe { display: none; }
+  .spot-fill { transition: none; }
+}

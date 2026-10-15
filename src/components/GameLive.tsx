@@ -1,6 +1,7 @@
 "use client";
 import Lineups from "@/components/Lineups";
-import { fieldGeom, spotX, type FieldSide } from "@/lib/fieldGeom";
+import { stageColors } from "@/lib/stageColors";
+import { driveTrail, fieldGeom, spotX, type FieldSide, type TrailSeg } from "@/lib/fieldGeom";
 
 import { clutch, heatCheck, isHuge, otLabel, runMeter } from "@/lib/gameFeel";
 import { playCrowd, playSignature } from "@/lib/emotes";
@@ -9,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { pickEmote, playSound, replaySnap, type Emote } from "@/lib/emotes";
 import { CrowdToggle, EmoteLayer, SoundToggle } from "@/components/Emotes";
 import DriveFeed from "@/components/DriveFeed";
+import { bigSwing, PitchMap, PlayPop, ShareFinal, ShotMap, Spotlight, SwingBanner, type Swing } from "@/components/GameGraphics";
 import GameChat from "@/components/GameChat";
 import Mark from "@/components/Mark";
 import { BetsDock, MomentBadge, TaggedText, YourPlayersProvider, useYourPlayers } from "@/components/YourPlayers";
@@ -28,23 +30,6 @@ import {
   type TrackProp,
   type TrackRow,
 } from "@/lib/tracker";
-
-/** Lift near-black team colors so they read on the dark stage. Same hue, more light. */
-function visible(hex: string): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
-  if (!m) return hex;
-  const n = parseInt(m[1], 16);
-  let r = (n >> 16) & 255;
-  let g = (n >> 8) & 255;
-  let b = n & 255;
-  const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  if (lum >= 0.22) return "#" + m[1];
-  const k = lum < 0.06 ? 0.72 : 0.45;
-  r = Math.round(r + (255 - r) * k);
-  g = Math.round(g + (255 - g) * k);
-  b = Math.round(b + (255 - b) * k);
-  return "#" + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
-}
 
 type Run = { teamId: string; us: number; them: number } | null;
 
@@ -99,6 +84,8 @@ export default function GameLive({
   const [edge, setEdge] = useState<{ n: number; color: string } | null>(null);
   const [pop, setPop] = useState<{ n: number; side: "away" | "home"; text: string } | null>(null);
   const [shake, setShake] = useState(0);
+  const [swing, setSwing] = useState<Swing | null>(null);
+  const swingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [tab, setTab] = useState<"play" | "lines" | "chat">("play");
   const seen = useRef<Set<string> | null>(null);
   const scores = useRef<{ away: string | null; home: string | null }>({ away: null, home: null });
@@ -111,6 +98,7 @@ export default function GameLive({
     () => () => {
       if (cinemaTimer.current) clearTimeout(cinemaTimer.current);
       if (emoteTimer.current) clearTimeout(emoteTimer.current);
+      if (swingTimer.current) clearTimeout(swingTimer.current);
     },
     []
   );
@@ -145,7 +133,7 @@ export default function GameLive({
       const awayMoved = data.awayScore !== scores.current.away;
       const homeMoved = data.homeScore !== scores.current.home;
       setBump((b) => ({ away: awayMoved ? b.away + 1 : b.away, home: homeMoved ? b.home + 1 : b.home }));
-      if (awayMoved || homeMoved) setEdge((e) => ({ n: (e?.n ?? 0) + 1, color: visible((homeMoved ? data.homeColor : data.awayColor) || "#f5c542") }));
+      if (awayMoved || homeMoved) setEdge((e) => ({ n: (e?.n ?? 0) + 1, color: stageColors(data)[homeMoved ? 1 : 0] }));
       // Arcade score pop: "+3" over the side that scored.
       const side = homeMoved ? "home" : awayMoved ? "away" : null;
       if (side) {
@@ -155,6 +143,22 @@ export default function GameLive({
           setPop((p) => ({ n: (p?.n ?? 0) + 1, side, text: `+${now - was}` }));
           if (!quiet) playCrowd(clutch(league, data) ? 0.8 : 0.4);
         }
+      }
+    }
+    // Win-chance swing: one play moved ESPN's win chance 10+ points.
+    if (!first && !quiet && prev) {
+      const d = bigSwing(prev.win, data.win);
+      if (d !== null) {
+        const side = d > 0 ? "home" : "away";
+        setSwing((sw) => ({
+          n: (sw?.n ?? 0) + 1,
+          delta: d,
+          side,
+          abbr: side === "home" ? data.homeAbbr : data.awayAbbr,
+          color: stageColors(data)[side === "home" ? 1 : 0],
+        }));
+        if (swingTimer.current) clearTimeout(swingTimer.current);
+        swingTimer.current = setTimeout(() => setSwing(null), 2600);
       }
     }
     scores.current = { away: data.awayScore, home: data.homeScore };
@@ -209,11 +213,14 @@ export default function GameLive({
   const plays = snap ? [...snap.plays].reverse() : [];
   const run = snap ? scoringRun(snap.plays) : null;
   const flipped = snap ? leadChanged(snap.plays) : false;
-  const awayColor = visible(snap?.awayColor || "#7c3aed");
-  const homeColor = visible(snap?.homeColor || "#39ff14");
+  const [awayColor, homeColor] = stageColors(snap);
   const shown = snap ? { ...snap, awayColor, homeColor } : null;
   const bigChips = plays.filter(isBigPlay).slice(0, 3);
   const vars = { ["--away" as string]: awayColor, ["--home" as string]: homeColor } as React.CSSProperties;
+  const football = league === "nfl" || league === "ncaaf";
+  const hoops = league === "nba" || league === "wnba" || league === "ncaam" || league === "ncaaw";
+  const newestPlay = snap?.plays.length ? snap.plays[snap.plays.length - 1] : null;
+  const popPlay = !football && newestPlay && freshIds.includes(newestPlay.id) ? newestPlay : null;
 
   return (
     <YourPlayersProvider league={league} gameId={id} snap={view}>
@@ -238,6 +245,8 @@ export default function GameLive({
             bump={bump}
             freshIds={freshIds}
             emote={emote}
+            swing={swing ? <SwingBanner swing={swing} /> : null}
+            pop={popPlay ? <PlayPop play={popPlay} color={teamColor(snap, popPlay.teamId, awayColor, homeColor)} icon={ICON[playKind(popPlay)]} /> : null}
           />
           <GameFeel league={league} snap={snap} awayColor={awayColor} homeColor={homeColor} />
           {live?.state === "post" && live.plays.length > 3 ? (
@@ -249,12 +258,19 @@ export default function GameLive({
               >
                 {replay === null ? "▶ Replay the finish" : "■ Stop replay"}
               </button>
-              {replay !== null ? <span className="text-[11px] text-zinc-400">Replay · play {replay} of {live.plays.length}</span> : null}
+              {replay !== null ? <span className="text-[11px] text-zinc-400">Replay · play {replay} of {live.plays.length}</span> : <ShareFinal league={league} id={id} label={`${live.awayAbbr} ${live.awayScore ?? ""} · ${live.homeAbbr} ${live.homeScore ?? ""}`} />}
+            </div>
+          ) : live?.state === "post" ? (
+            <div className="mt-2 flex justify-end">
+              <ShareFinal league={league} id={id} label={`${live.awayAbbr} ${live.awayScore ?? ""} · ${live.homeAbbr} ${live.homeScore ?? ""}`} />
             </div>
           ) : null}
           {edge ? <div key={edge.n} className="edge-lights" style={{ ["--edge" as string]: edge.color } as React.CSSProperties} aria-hidden /> : null}
           </div>
           <BetsDock variant="bar" />
+          <Spotlight league={league} gameId={id} snap={snap} />
+          {hoops && snap ? <ShotMap snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} /> : null}
+          {league === "mlb" && snap?.atBat ? <PitchMap atBat={snap.atBat} live={snap.state === "in"} freshIds={freshIds} /> : null}
           {shown && shown.win.length > 1 ? <Momentum snap={shown} flipped={flipped} /> : null}
           {shown ? <PossessionStrip league={league} snap={shown} run={run} /> : null}
           {bigChips.length ? <BigChips plays={bigChips} snap={shown} /> : null}
@@ -381,6 +397,8 @@ function Hero({
   bump,
   freshIds,
   emote,
+  pop,
+  swing,
 }: {
   league: string;
   snap: LiveSnap | null;
@@ -392,6 +410,8 @@ function Hero({
   bump: { away: number; home: number };
   freshIds: string[];
   emote: Emote | null;
+  pop: React.ReactNode;
+  swing: React.ReactNode;
 }) {
   const live = snap?.state === "in";
   const bug = snap?.bug;
@@ -430,8 +450,10 @@ function Hero({
           <p className="w-full pb-6 text-center text-sm text-zinc-500">Waiting on the live feed.</p>
         )}
       </div>
+      {pop}
       <EmoteLayer emote={emote} color={teamColor(snap, emote?.teamId ?? null, awayColor, homeColor)} />
       {cinema ? <Cinema play={cinema} color={teamColor(snap, cinema.teamId, awayColor, homeColor)} /> : null}
+      {swing}
     </div>
   );
 }
@@ -512,7 +534,23 @@ function Field({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: stri
   const redZone = sit ? sit.redZone : !!drive?.redZone;
   const label =
     sit?.text ??
-    (snap.state === "in" && lastDrive && !lastDrive.live && lastDrive.resultLong ? `${lastDrive.abbr} ${lastDrive.resultLong} · next snap soon` : null);
+    (snap.state === "in" && lastDrive && !lastDrive.live && lastDrive.resultLong
+      ? `${lastDrive.abbr} ${lastDrive.resultLong} · next snap soon`
+      : snap.state === "post" && lastDrive
+        ? `Last drive · ${lastDrive.abbr}${lastDrive.resultLong ? " " + lastDrive.resultLong : ""}`
+        : null);
+  // Drive trail: the drive on the field, else the one that just ended (between snaps or at the final).
+  const trailDrive = snap.drives.find((d) => d.live) ?? lastDrive;
+  const trailSide: FieldSide = trailDrive?.teamId === snap.homeId ? "home" : "away";
+  const trailColor = trailDrive?.teamId === snap.homeId ? homeColor : awayColor;
+  const trail = useMemo(() => {
+    if (!trailDrive?.teamId) return [];
+    const byId = new Map(snap.plays.map((p) => [p.id, p]));
+    const plays = trailDrive.playIds.map((pid) => byId.get(pid)).filter((p): p is LivePlay => !!p);
+    return driveTrail(plays, trailDrive.teamId, trailSide);
+  }, [trailDrive, snap.plays, trailSide]);
+  const newest = trail.length ? trail[trail.length - 1] : null;
+  const newestPlay = newest ? snap.plays.find((p) => p.id === newest.id) ?? null : null;
   return (
     <svg viewBox="0 0 120 54" preserveAspectRatio="xMidYMid meet" aria-label="Field">
       <defs>
@@ -555,18 +593,90 @@ function Field({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: stri
           {label}
         </text>
       ) : null}
+      {trail.length ? <DriveTrail trail={trail} color={trailColor} newestPlay={newestPlay} /> : null}
       {start !== null && ball !== null ? (
         <>
-          <rect x={Math.min(start, ball)} y="24.5" width={Math.abs(ball - start)} height="5" rx="2.5" fill={offense} opacity="0.55" />
+          {!trail.length ? <rect x={Math.min(start, ball)} y="24.5" width={Math.abs(ball - start)} height="5" rx="2.5" fill={offense} opacity="0.55" /> : null}
           <line className="ball-mark" x1={ball} y1="2" x2={ball} y2="52" stroke="#38bdf8" strokeWidth="0.8" />
           {first !== null ? <line x1={first} y1="2" x2={first} y2="52" stroke="#f5c542" strokeWidth="0.9" /> : null}
           {geom ? <path d={`M ${ball + geom.dir * 3} 38 l ${geom.dir * 3} 2 l ${-geom.dir * 3} 2 z`} fill={offense} stroke="#fff" strokeWidth="0.25" aria-label={geom.dir > 0 ? "Attacking right" : "Attacking left"} /> : null}
           <ellipse className="ball-mark" cx={ball} cy="27" rx="2.2" ry="1.4" fill="#a0522d" stroke="#fff" strokeWidth="0.3" style={{ filter: "drop-shadow(0 0 3px #f5c542)" }} />
         </>
       ) : (
-        <text x="60" y="30" fontSize="4" textAnchor="middle" fill="rgba(255,255,255,0.6)">{label ? "Waiting on the next snap" : "No yard line posted yet"}</text>
+        trail.length ? null : <text x="60" y="30" fontSize="4" textAnchor="middle" fill="rgba(255,255,255,0.6)">{label ? "Waiting on the next snap" : "No yard line posted yet"}</text>
       )}
     </svg>
+  );
+}
+
+/**
+ * The drive as stacked segments, oldest at the top, one per snap, start spot to end spot.
+ * The newest snap draws in and its ball travels from where it started to where it ended.
+ */
+function DriveTrail({ trail, color, newestPlay }: { trail: TrailSeg[]; color: string; newestPlay: LivePlay | null }) {
+  const top = 10;
+  const room = 30;
+  const lane = Math.min(3.4, room / Math.max(1, trail.length));
+  const first = trail[0];
+  const last = trail[trail.length - 1];
+  const pass = !!newestPlay && /pass|reception|field goal|punt/i.test(newestPlay.typeText) && !/incomplet/i.test(newestPlay.typeText);
+  return (
+    <g aria-label={`Drive trail, ${trail.length} plays`}>
+      <line x1={first.x1} y1="27" x2={last.x2} y2="27" stroke={color} strokeWidth="1.6" strokeLinecap="round" opacity="0.28" />
+      <circle cx={first.x1} cy="27" r="1" fill="none" stroke={color} strokeWidth="0.4" opacity="0.8" />
+      {trail.map((seg, i) => {
+        const y = top + i * lane + lane / 2;
+        const isNew = i === trail.length - 1;
+        const dir = Math.sign(seg.x2 - seg.x1);
+        const stroke = seg.turnover ? "#ff3b5c" : seg.penalty ? "#f5c542" : color;
+        const w = Math.max(0.5, Math.min(1.3, lane * 0.42));
+        const op = 0.35 + 0.65 * ((i + 1) / trail.length);
+        return (
+          <g key={seg.id} opacity={op}>
+            {seg.kick && dir !== 0 ? (
+              <path
+                className={isNew ? "trail-draw" : undefined}
+                d={`M ${seg.x1} ${y} Q ${(seg.x1 + seg.x2) / 2} ${y - 6} ${seg.x2} ${y}`}
+                pathLength={1}
+                stroke={seg.scoring ? "#f5c542" : stroke}
+                strokeWidth={w * 0.7}
+                strokeDasharray={isNew ? undefined : "0.04 0.03"}
+                fill="none"
+              />
+            ) : dir === 0 ? (
+              <circle cx={seg.x1} cy={y} r={w * 0.7} fill={stroke} />
+            ) : (
+              <>
+                <path
+                  className={isNew ? "trail-draw" : undefined}
+                  d={`M ${seg.x1} ${y} H ${seg.x2 - dir * w}`}
+                  pathLength={1}
+                  stroke={stroke}
+                  strokeWidth={w}
+                  strokeLinecap="round"
+                  strokeDasharray={seg.penalty ? "0.06 0.04" : undefined}
+                  fill="none"
+                  style={isNew ? { filter: `drop-shadow(0 0 1.2px ${stroke})` } : undefined}
+                />
+                <path d={`M ${seg.x2} ${y} l ${-dir * w * 1.6} ${-w * 0.9} v ${w * 1.8} z`} fill={stroke} className={isNew ? "trail-head" : undefined} />
+              </>
+            )}
+            {seg.tag ? (
+              <text x={seg.x2 + (dir || 1) * 1.5} y={y + 1} fontSize="2.6" fontWeight="900" fill={seg.scoring ? "#f5c542" : "#fff"} textAnchor={dir < 0 ? "end" : "start"} style={{ paintOrder: "stroke", stroke: "rgba(0,0,0,0.6)", strokeWidth: 0.5 }}>
+                {seg.tag}
+              </text>
+            ) : null}
+          </g>
+        );
+      })}
+      {last.x1 !== last.x2 ? (
+        <g key={"travel" + last.id} className="ball-travel" style={{ ["--dx" as string]: `${last.x1 - last.x2}px` } as React.CSSProperties}>
+          <g className={pass ? "ball-hop" : undefined}>
+            <ellipse cx={last.x2} cy={top + (trail.length - 1) * lane + lane / 2} rx="1.6" ry="1" fill="#a0522d" stroke="#fff" strokeWidth="0.25" style={{ filter: "drop-shadow(0 0 2px #f5c542)" }} />
+          </g>
+        </g>
+      ) : null}
+    </g>
   );
 }
 
