@@ -13,7 +13,7 @@ function loadFont() {
 
 const COLOR = { W: "#39ff14", L: "#ff3b5c", P: "#f2eee6", O: "#a1a1aa" } as const;
 
-/** The night's W/L/P from the user's own Log, as a 1080x1350 PNG. Counts and leg labels only, no money. */
+/** The night's W/L/P from the user's own Log, as a 1080-wide PNG (square for short nights). Counts and leg labels only, no money. */
 export async function GET(req: Request) {
   const night = parseNightQuery(new URL(req.url).searchParams);
   if (!night) return new Response("Bad night.", { status: 400 });
@@ -52,7 +52,7 @@ export async function GET(req: Request) {
     ),
     {
       width: 1080,
-      height: 1350,
+      height: night.rows.length <= 4 ? 1080 : 1350,
       fonts: font ? [{ name: "Orbitron", data: font, weight: 900, style: "normal" }] : undefined,
       headers: { "Cache-Control": "public, max-age=300, s-maxage=3600" },
     }
