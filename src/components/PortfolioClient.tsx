@@ -9,6 +9,7 @@ import { checkHref, legFromLogged, type LegInput } from "@/lib/breakdown";
 import SlipSummary from "@/components/SlipSummary";
 import { pickKind, summarize } from "@/lib/ledger";
 import SharePanel from "@/components/SharePanel";
+import NightRecap from "@/components/NightRecap";
 import LiveSlips from "@/components/LiveSlips";
 import AlertSettings from "@/components/AlertSettings";
 import { validOdds } from "@/lib/odds";
@@ -104,6 +105,7 @@ export default function PortfolioClient() {
 
   return (
     <div>
+      <NightRecap />
       <Summary sum={sum} />
       <LiveSlips />
       <AlertSettings />

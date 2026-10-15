@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Bell from "@/components/Bell";
+import StreakGlow from "@/components/StreakGlow";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { usePrefs, type FavTeam } from "@/components/Prefs";
@@ -75,6 +76,7 @@ export default function SiteHeader() {
             </span>
           </Link>
           <div className="ml-auto flex min-w-0 shrink items-center gap-1 sm:gap-1.5">
+            <StreakGlow />
             <Bell />
             <button
               type="button"

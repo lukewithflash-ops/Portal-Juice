@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/push/img": ["./src/app/api/push/img/*.ttf"],
     "/api/final/[league]/[id]": ["./src/app/api/push/img/*.ttf"],
+    "/api/nightly": ["./src/app/api/push/img/*.ttf"],
   },
   async redirects() {
     return [{ source: "/", destination: "/lines", permanent: false }];
