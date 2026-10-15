@@ -19,10 +19,10 @@ function Inner() {
       />
     );
   }
-  const context = valid ? `The user opened Ask from the game page for league/id ${game}${label ? ` (${label.slice(0, 40)})` : ""}. Use gameDetail and oddsAndForm with these ids.` : undefined;
+  const context = valid ? `The user opened Ask from the game page for league/id ${game}${label ? ` (${label.slice(0, 40)})` : ""}. Use matchupPreview, gameDetail and oddsAndForm with these ids, plus headToHead, teamDefense and playerLog as needed.` : undefined;
   const suggestions = valid
-    ? ["What's the score?", "Who's playing best so far?", "How have these teams been playing?", "What are the odds and line moves?"]
-    : ["Is Chelsea Gray over 7.5 points a good pick?", "How do I upload a slip?", "What's the score of the Cowboys game?", "How do alerts work?"];
+    ? ["Who wins and why?", "Last 5 times they played?", "How do these defenses rank?", "What are the odds and line moves?"]
+    : ["Who wins SEA vs DEN tonight and why?", "Which NFL defenses allow the most rushing yards?", "How has Jalen Brunson done vs the Celtics?", "How do I upload a slip?"];
   return <AskChat storeKey={valid ? `pj-ask:${game}` : "pj-ask"} context={context} suggestions={suggestions} />;
 }
 

@@ -11,6 +11,17 @@ const TOOL_LABEL: Record<string, string> = {
   playerLog: "Reading the game log",
   breakdown: "Running the breakdown",
   siteHelp: "Checking the site guide",
+  rankGames: "Ranking the games",
+  headToHead: "Digging up past meetings",
+  teamProfile: "Reading team form and ATS",
+  teamDefense: "Checking the defense",
+  teamStats: "Ranking team stats",
+  standings: "Reading the standings",
+  injuries: "Checking injuries",
+  depthChart: "Reading the depth chart",
+  matchupPreview: "Pulling the matchup",
+  leagueLeaders: "Checking league leaders",
+  playerSplits: "Reading player splits",
 };
 
 /** Tiny markdown: **bold** and "- " bullets. Text stays text. */
@@ -18,9 +29,11 @@ function Rich({ text }: { text: string }) {
   return (
     <>
       {text.split("\n").map((line, i) => {
+        const head = /^\s*#{1,4}\s+/.test(line);
         const bullet = /^\s*[-*•]\s+/.test(line);
-        const body = line.replace(/^\s*[-*•]\s+/, "");
+        const body = line.replace(/^\s*[-*•]\s+/, "").replace(/^\s*#{1,4}\s+(.*)$/, "**$1**").replace(/\*\*\*\*/g, "");
         const parts = body.split(/(\*\*[^*]+\*\*)/g).map((p, j) => (p.startsWith("**") && p.endsWith("**") ? <strong key={j} className="text-white">{p.slice(2, -2)}</strong> : <span key={j}>{p}</span>));
+        if (head) return <p key={i} className="pt-1 font-bold text-white">{parts}</p>;
         return bullet ? (
           <div key={i} className="flex gap-1.5 pl-1">
             <span className="text-purple-300">•</span>
@@ -91,17 +104,17 @@ export default function AskChat({ storeKey, context, suggestions, compact = fals
       </div>
       <div className={"mt-2 space-y-2 overflow-y-auto " + (compact ? "max-h-[50vh]" : "max-h-[62vh]")}>
         {messages.map((m) => (
-          <div key={m.id} className={m.role === "user" ? "ml-8 rounded-2xl rounded-br-sm bg-purple-500/25 px-3 py-2 text-sm text-white" : "mr-4 space-y-1 rounded-2xl rounded-bl-sm border border-white/10 bg-black/40 px-3 py-2 text-sm leading-relaxed text-zinc-200"}>
+          <div key={m.id} className={m.role === "user" ? "ml-8 rounded-2xl rounded-br-sm bg-purple-500/25 px-3 py-2 text-sm text-white" : "mr-4 space-y-1 rounded-2xl rounded-bl-sm border border-white/10 bg-black/40 px-3 py-2 text-sm leading-relaxed text-zinc-200 break-words"}>
             {m.parts.map((p, i) => {
               if (p.type === "text") return <Rich key={i} text={p.text} />;
               if (p.type.startsWith("tool-")) {
                 const name = p.type.slice(5);
                 const done = "state" in p && (p.state === "output-available" || p.state === "output-error");
                 return (
-                  <div key={i} className="flex items-center gap-1.5 text-[11px] text-purple-200/80">
+                  <span key={i} className="mr-2 inline-flex items-center gap-1 text-[11px] text-purple-200/80">
                     <span className={done ? "text-[color:var(--plus)]" : "animate-pulse"}>{done ? "✓" : "◌"}</span>
                     {TOOL_LABEL[name] ?? name}
-                  </div>
+                  </span>
                 );
               }
               return null;

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { _test } from "../src/lib/askData";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fieldGeom as fgOf, driveTrail } from "../src/lib/fieldGeom";
@@ -1541,4 +1542,20 @@ console.log(`\n${n} passed`);
   const home = driveTrail([{ ...base, id: "1", yardsToEndzone: 75, startTeamId: "H", teamId: "H", endToGoal: 65, endTeamId: "H" }], "H", "home");
   assert(home[0].x1 === 85 && home[0].x2 === 75, "drive trail: home gain goes left");
   console.log("ok - drive trail direction");
+}
+
+{
+  const sea = { league: "nfl", id: "26", abbr: "SEA", name: "Seattle Seahawks", short: "Seahawks", location: "Seattle" };
+  assert(_test.teamScore(sea, "Seahawks") >= 90 && _test.teamScore(sea, "SEA") === 100 && _test.teamScore(sea, "seattle") > 0 && _test.teamScore(sea, "Broncos") === 0, "ask: team names match");
+  const cells = [
+    { side: "opponent" as const, cat: "rushing", name: "rushingYardsPerGame", label: "Rushing Yards Per Game", value: 145.2, display: "145.2" },
+    { side: "opponent" as const, cat: "rushing", name: "rushingYards", label: "Rushing Yards", value: 726, display: "726" },
+    { side: "team" as const, cat: "defensive", name: "avgGoalsAgainst", label: "Goals Against Average", value: 3, display: "3.00" },
+    { side: "team" as const, cat: "offensive", name: "avgGoals", label: "Goals For per Game", value: 3.2, display: "3.20" },
+  ];
+  assert(_test.statMatch(cells, "rushing yards allowed per game", "opponent")[0].name === "rushingYardsPerGame", "ask: allowed per-game stat picked");
+  assert(_test.statMatch(cells, "goals against per game", "team")[0].name === "avgGoalsAgainst", "ask: goals against not goals for");
+  const sched = _test.parseSchedule({ events: [{ id: "1", date: "2024-09-08T20:05Z", season: { year: 2024 }, seasonType: { type: 2 }, competitions: [{ status: { type: { completed: true } }, competitors: [{ homeAway: "home", id: "26", team: { abbreviation: "SEA" }, score: { value: 26 }, winner: true }, { homeAway: "away", id: "7", team: { abbreviation: "DEN" }, score: { value: 20 } }] }] }] });
+  assert(sched[0].done && sched[0].home.score === 26 && sched[0].away.abbr === "DEN", "ask: schedule parse");
+  console.log("ok - ask data helpers");
 }

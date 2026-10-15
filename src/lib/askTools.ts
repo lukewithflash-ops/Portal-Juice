@@ -7,11 +7,31 @@ import { getGameDetail, getLive, getScores } from "@/lib/espn";
 import { chooseLean } from "@/lib/gameLean";
 import { noVig, winPct } from "@/lib/winPct";
 import { leagueById } from "@/lib/slate";
-import { researchGame, researchPlayer } from "@/lib/research";
+import { researchGame } from "@/lib/research";
 import { findPlayer } from "@/lib/slipRead";
 import { SPORT_LEAGUES } from "@/lib/sports";
 import { getSportSlate } from "@/lib/sportsFetch";
 import { LEAGUES } from "@/lib/slate";
+import {
+  TEAM_LEAGUES,
+  depthChart,
+  headToHead,
+  leagueInjuries,
+  leagueLeaders,
+  lgById,
+  matchupPreview,
+  norm as normData,
+  playerLog as playerLogData,
+  playerSplits,
+  resolvePair,
+  resolveTeam,
+  standings,
+  teamDefense,
+  teamProfile,
+  teamStatRank,
+  type Lg,
+  type TeamRef,
+} from "@/lib/askData";
 
 /** Plain-words guide to the site. The model answers site questions from this only. */
 export const SITE_HELP = `Portal Juice guide:
@@ -115,7 +135,7 @@ export const askTools = {
     },
   }),
   gameDetail: tool({
-    description: "Live or final detail for one game: score, clock, and top player box score lines. Use ids from todaysGames.",
+    description: "Live or final detail for one game: score, clock, situation, ESPN live win chance, last plays, and the full player box score. Use ids from todaysGames.",
     inputSchema: z.object({ league: z.string(), id: z.string() }),
     execute: async ({ league, id }) => {
       const s = await getLive(league, id).catch(() => null);
@@ -125,8 +145,9 @@ export const askTools = {
         status: s.detail,
         score: `${s.awayAbbr} ${s.awayScore ?? 0} - ${s.homeScore ?? 0} ${s.homeAbbr}`,
         homeWinChance: s.homeWin,
-        lastPlays: s.plays.slice(-4).map((p) => p.text),
-        box: s.boxes.map((b) => ({ team: b.abbr, columns: b.columns, players: b.players.filter((p) => p.played).slice(0, 8).map((p) => ({ name: p.name, stats: p.stats })) })),
+        lastPlays: s.plays.slice(-6).map((p) => p.text),
+        situation: (s as { situation?: unknown }).situation ?? null,
+        box: s.boxes.map((b) => ({ team: b.abbr, columns: b.columns, players: b.players.filter((p) => p.played).slice(0, 14).map((p) => ({ name: p.name, stats: p.stats })) })),
       };
     },
   }),
@@ -141,18 +162,164 @@ export const askTools = {
     },
   }),
   playerLog: tool({
-    description: "A player's recent game log for one stat (newest first) and season average, from ESPN. Works across leagues.",
-    inputSchema: z.object({ name: z.string(), stat: z.string().describe("Stat in words, e.g. 'points', 'passing yards', 'fantasy score', 'longest rush'") }),
-    execute: async ({ name, stat }) => {
+    description:
+      "A player's game log for one stat from ESPN (newest first): values per game, last-5 and season averages, highs/lows. Optional: last N games, vsTeam (scans up to 6 past seasons for games vs that team, e.g. 'Brunson vs Celtics'), line (prop hit rate: over/under/push counts and %), seasons (how many seasons back). Works for NFL, NBA, MLB, NHL, college, WNBA.",
+    inputSchema: z.object({
+      name: z.string(),
+      stat: z.string().describe("Stat in words, e.g. 'points', 'rushing yards', 'receptions', 'hits', 'shots on goal', 'PRA', 'fantasy score'"),
+      last: z.number().int().min(1).max(40).optional().describe("How many games to show (default 10, or 20 with vsTeam)"),
+      vsTeam: z.string().optional().describe("Opponent team name or abbreviation to filter to"),
+      line: z.number().optional().describe("Prop line to compute the hit rate against"),
+      seasons: z.number().int().min(1).max(8).optional().describe("Seasons to include (default 1; 6 with vsTeam)"),
+    }),
+    execute: async ({ name, stat, last, vsTeam, line, seasons }) => {
       const p = await findPlayer(name, []);
-      if (!p) return { error: `Not enough data: no ESPN player named ${name}.` };
+      if (!p) return { missing: `No ESPN player found named "${name}". Check the spelling.` };
+      const l = lgById(p.league);
+      if (!l) return { missing: `ESPN game logs for ${p.name} (${p.league}) aren't supported here.` };
       const key = statFromMarket(p.league, stat);
-      if (!key) return { error: `Not enough data: can't read "${stat}" from a game log.` };
-      const r = await researchPlayer(p.league, p.id, key).catch(() => null);
-      if (!r || !r.games.length) return { error: "Not enough data: ESPN has no game log for this player and stat." };
-      const v = r.games.map((g) => g.value);
-      const avg = (xs: number[]) => Math.round((xs.reduce((s, x) => s + x, 0) / xs.length) * 10) / 10;
-      return { player: r.name || p.name, team: r.team, league: p.league, stat: statLabel(p.league, key), last10: r.games.slice(0, 10).map((g) => ({ date: g.date.slice(0, 10), value: g.value, opp: g.opp, home: g.home })), last5Avg: avg(v.slice(0, 5)), last10Avg: avg(v.slice(0, 10)), seasonAvg: avg(v), games: v.length };
+      if (!key) return { missing: `Can't read "${stat}" from an ESPN ${l.label} game log. Try a box-score stat (e.g. points, rebounds, passing yards, hits, shots).` };
+      let vsAbbr: string | null = null;
+      if (vsTeam) {
+        const t = await resolveTeam(vsTeam, l.id).catch(() => null);
+        if (!t) return { missing: `No ${l.label} team matching "${vsTeam}".` };
+        vsAbbr = t.team.abbr;
+      }
+      return playerLogData(l, { id: p.id, league: l.id, name: p.name }, key, statLabel(p.league, key), { last, vsAbbr, line: line ?? null, seasons });
+    },
+  }),
+  playerSplits: tool({
+    description: "A player's season splits from ESPN: home/away, wins/losses, by month, by opponent and more (whatever ESPN lists for that sport), with per-game averages.",
+    inputSchema: z.object({ name: z.string() }),
+    execute: async ({ name }) => {
+      const p = await findPlayer(name, []);
+      if (!p) return { missing: `No ESPN player found named "${name}".` };
+      const l = lgById(p.league);
+      if (!l) return { missing: `ESPN splits for ${p.name} aren't supported here.` };
+      return playerSplits(l, { id: p.id, league: l.id, name: p.name });
+    },
+  }),
+  headToHead: tool({
+    description:
+      "Last N meetings between two teams from ESPN schedules (scans back through past seasons, regular season and playoffs): dates, scores, winners, plus the pregame spread/total ESPN has on file (DraftKings when available, otherwise the book ESPN lists, named) with ATS and over/under results. Use for 'last 5 times X played Y', 'history between', 'series record'.",
+    inputSchema: z.object({
+      teamA: z.string().describe("Team name, city, nickname or abbreviation"),
+      teamB: z.string(),
+      league: z.string().optional().describe(`League id if known: ${TEAM_LEAGUES.map((l) => l.id).join(", ")}`),
+      count: z.number().int().min(1).max(15).optional().describe("How many meetings (default 5)"),
+    }),
+    execute: async ({ teamA, teamB, league, count }) => {
+      const pair = await resolvePair(teamA, teamB, league).catch(() => null);
+      if (!pair) return { missing: `Couldn't match both "${teamA}" and "${teamB}" to teams in one ESPN league. Pass the league id.` };
+      return headToHead(pair[0], pair[1], count ?? 5);
+    },
+  }),
+  teamProfile: tool({
+    description:
+      "One team's season snapshot from ESPN: overall/home/away records, points for/against per game, standing, streak, last 10 results, ATS and over/under record from real closing lines (DraftKings via ESPN), next game id.",
+    inputSchema: z.object({ team: z.string(), league: z.string().optional() }),
+    execute: async ({ team, league }) => {
+      const t = await teamOf(team, league);
+      return "missing" in t ? t : teamProfile(t.team);
+    },
+  }),
+  teamDefense: tool({
+    description:
+      "A team's defense / what it allows, with league ranks across all teams (ESPN team stats, opponent splits). NFL/NCAAF: points, total, passing and rushing yards allowed per game, yards per carry/attempt allowed, sacks, takeaways, INTs, opponent 3rd-down %, red-zone TD % allowed. NBA/WNBA/college: opponent PPG, FG%, 3P%, rebounds, turnovers forced, steals, blocks. NHL: goals and shots against per game, save %, PK %. MLB: team ERA, opponent average, WHIP, runs/HR allowed.",
+    inputSchema: z.object({ team: z.string(), league: z.string().optional() }),
+    execute: async ({ team, league }) => {
+      const t = await teamOf(team, league);
+      return "missing" in t ? t : teamDefense(t.team).catch(() => ({ missing: "ESPN team stats didn't load. Try again." }));
+    },
+  }),
+  teamStats: tool({
+    description:
+      "Look up ANY team stat by name for every team in a league and rank them (ESPN team stats). side 'team' = the team's own numbers (offense, own pitching/goalie stats); side 'opponent' = what opponents did vs that team (allowed). Use for 'which defenses allow the most rushing yards' (side opponent, order most), 'best 3-point shooting teams', 'most goals per game', 'lowest team ERA', or one team's value and rank. If no match, it returns the stat names available.",
+    inputSchema: z.object({
+      league: z.string().describe(`League id: ${TEAM_LEAGUES.filter((l) => l.kind === "team").map((l) => l.id).join(", ")}`),
+      stat: z.string().describe("Stat in words, e.g. 'rushing yards per game', 'points per game', 'three point percentage', 'goals against average', 'ERA', 'sacks'"),
+      side: z.enum(["team", "opponent"]).default("team"),
+      order: z.enum(["most", "least"]).default("most").describe("Sort: most = highest first"),
+      team: z.string().optional().describe("A team to report value and rank for"),
+      top: z.number().int().min(3).max(32).optional(),
+    }),
+    execute: async ({ league, stat, side, order, team, top }) => {
+      const l = lgById(league);
+      if (!l || l.kind !== "team") return { missing: `Team stat tables are for ${TEAM_LEAGUES.filter((x) => x.kind === "team").map((x) => x.id).join(", ")}.` };
+      const t = team ? await resolveTeam(team, l.id).catch(() => null) : null;
+      return teamStatRank(l, stat, side, order, t?.team ?? null, top ?? 10).catch(() => ({ missing: "ESPN team stats didn't load. Try again." }));
+    },
+  }),
+  standings: tool({
+    description: "League standings from ESPN by conference/division: W-L(-OTL), win %, games back, streak, points for/against, home/road, last 10, playoff seed.",
+    inputSchema: z.object({ league: z.string() }),
+    execute: async ({ league }) => {
+      const l = lgById(league);
+      if (!l) return { missing: `Unknown league "${league}".` };
+      return standings(l).catch(() => ({ missing: `ESPN has no standings for ${l.label} right now.` }));
+    },
+  }),
+  injuries: tool({
+    description: "Current injury report from ESPN for a team (or the whole league if no team): player, position, status (Out, Questionable...), injury, expected return, latest note.",
+    inputSchema: z.object({ team: z.string().optional(), league: z.string().optional() }),
+    execute: async ({ team, league }) => {
+      let l: Lg | null = lgById(league);
+      let t: TeamRef | null = null;
+      if (team) {
+        const r = await teamOf(team, league);
+        if ("missing" in r) return r;
+        t = r.team;
+        l = lgById(t.league);
+      }
+      if (!l) return { missing: "Pass a team or a league id." };
+      const all = await leagueInjuries(l).catch(() => null);
+      if (!all) return { missing: `ESPN has no ${l.label} injury report right now.` };
+      if (t) {
+        const row = all.find((x) => x.teamId === t!.id);
+        return row ? { team: row.team, players: row.players } : { team: t.name, players: [], note: "No injuries listed by ESPN for this team." };
+      }
+      return { league: l.label, teams: all.map((x) => ({ team: x.team, players: x.players.slice(0, 8).map((p) => `${p.name} (${p.pos}) ${p.status}${p.injury ? ", " + p.injury : ""}`) })) };
+    },
+  }),
+  depthChart: tool({
+    description: "A team's ESPN depth chart (starters and backups by position; NFL/college football), or its roster by position for other leagues.",
+    inputSchema: z.object({ team: z.string(), league: z.string().optional() }),
+    execute: async ({ team, league }) => {
+      const t = await teamOf(team, league);
+      return "missing" in t ? t : depthChart(t.team);
+    },
+  }),
+  matchupPreview: tool({
+    description:
+      "Everything ESPN has for one game: ESPN Matchup Predictor win %, DraftKings spread/total/moneyline with open vs now, venue, weather, injuries both sides, season leaders, last five results, season series, TV. Pass league + id (from todaysGames) or a team to use its next game.",
+    inputSchema: z.object({ league: z.string().optional(), id: z.string().optional(), team: z.string().optional() }),
+    execute: async ({ league, id, team }) => {
+      let l = lgById(league);
+      let gid = id && /^\d+$/.test(id) ? id : null;
+      if (!gid && team) {
+        const t = await teamOf(team, league);
+        if ("missing" in t) return t;
+        l = lgById(t.team.league);
+        const prof = await teamProfile(t.team).catch(() => null);
+        gid = prof?.nextGame?.id ?? null;
+        if (!gid) return { missing: `ESPN lists no upcoming game for ${t.team.name}.` };
+      }
+      if (!l || !gid) return { missing: "Pass league and game id, or a team." };
+      return matchupPreview(l, gid).catch(() => ({ missing: "ESPN summary didn't load. Try again." }));
+    },
+  }),
+  leagueLeaders: tool({
+    description: "Season stat leaders from ESPN for a league (top 10 per category: points, passing yards, home runs, goals...). Optional stat words to filter categories.",
+    inputSchema: z.object({ league: z.string(), stat: z.string().optional() }),
+    execute: async ({ league, stat }) => {
+      const l = lgById(league);
+      if (!l) return { missing: `Unknown league "${league}".` };
+      const r = await leagueLeaders(l).catch(() => null);
+      if (!r) return { missing: `ESPN has no ${l.label} leaders right now.` };
+      if (!stat) return r;
+      const w = normData(stat).split(" ").filter((x) => x.length > 2);
+      const cats = r.categories.filter((c) => w.some((x) => normData(`${c.stat} ${c.key}`).includes(x)));
+      return { season: r.season, categories: cats.length ? cats : r.categories, note: cats.length ? undefined : `No category matched "${stat}"; all categories shown.` };
     },
   }),
   breakdown: tool({
@@ -209,4 +376,10 @@ export function loadTeamWords(): Promise<void> {
       })
     ).then(() => undefined);
   return loaded;
+}
+
+async function teamOf(q: string, league?: string): Promise<{ team: TeamRef } | { missing: string }> {
+  const r = await resolveTeam(q, league).catch(() => null);
+  if (!r) return { missing: `No team matching "${q}"${league ? ` in ${league}` : ""}. Try the full name or pass the league id.` };
+  return { team: r.team };
 }
