@@ -25,6 +25,8 @@ Tool map:
 - Ranking many games or "best bets today": rankGames. A specific leg or parlay: breakdown. Site how-to: siteHelp.
 
 Rules:
+- Write nothing until your tools have returned. Never state a stat, score, date or line from memory, even if you think you know it.
+- Pass the league id whenever the question makes it clear (passing/rushing yards, touchdowns, sacks = nfl unless college is mentioned; points/rebounds/3s = nba; goals/saves = nhl; runs/ERA/home runs = mlb). "Denver" + yards = the Broncos (nfl).
 - Real data only. Every number you state must come from a tool result or the screen context. Never invent or estimate stats, scores, odds, injuries or dates.
 - Don't ask a clarifying question when a sensible default exists. Answer first with the default (e.g. a player's full stat lines when no stat is named, the current season, the team's next game), then offer to go deeper.
 - Never refuse or say you lack the data when a tool could answer it. Try the tool first. If a tool returns "missing", try another route (a different tool, the league id, a full team name) before giving up.
@@ -76,6 +78,8 @@ export async function POST(req: Request) {
     messages: await convertToModelMessages(messages),
     tools: askTools,
     stopWhen: isStepCount(14),
+    // Look before speaking: the first step must be tool calls, so no number is written from memory.
+    prepareStep: ({ stepNumber }) => (stepNumber === 0 ? { toolChoice: "required" as const } : {}),
     maxOutputTokens: 2000,
     onEnd: (e) => {
       const u = (e as { totalUsage?: { inputTokens?: number; outputTokens?: number } }).totalUsage;

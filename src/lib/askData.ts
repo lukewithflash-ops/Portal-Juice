@@ -94,7 +94,7 @@ export function teamList(l: Lg): Promise<TeamRef[]> {
     const d = D(await fetchJson(`${site(l)}/teams?limit=1000`, 86400));
     return L(D(L(D(L(d.sports)[0]).leagues)[0]).teams).map((x) => {
       const t = D(D(x).team);
-      return { league: l.id, id: S(t.id) ?? "", abbr: S(t.abbreviation) ?? "", name: S(t.displayName) ?? "", short: S(t.shortDisplayName) ?? S(t.name) ?? "", location: S(t.location) ?? "" };
+      return { league: l.id, id: S(t.id) ?? "", abbr: S(t.abbreviation) ?? "", name: S(t.displayName) ?? "", short: S(t.name) ?? S(t.shortDisplayName) ?? "", location: S(t.location) ?? "" };
     }).filter((t) => t.id);
   }).then((r) => { if (!r.length) { parsed.delete(`teams:${l.id}`); throw new Error("no teams"); } return r; });
 }
@@ -105,7 +105,8 @@ function teamScore(t: TeamRef, q: string): number {
   const name = norm(t.name), short = norm(t.short), loc = norm(t.location), ab = norm(t.abbr);
   if (qq === ab) return 100;
   if (qq === name) return 100;
-  if (qq === short || qq === `${loc} ${short}`) return 95;
+  if (qq === `${loc} ${short}`) return 95;
+  if (qq === short) return short === loc ? 70 : 95;
   if (qq.endsWith(` ${short}`) && short.length > 2) return 90;
   if (qq === loc) return 70;
   if (name.includes(qq) && qq.length >= 4) return 60;
