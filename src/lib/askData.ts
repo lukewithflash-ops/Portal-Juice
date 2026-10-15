@@ -400,19 +400,23 @@ export async function teamStatRank(l: Lg, stat: string, side: "team" | "opponent
   const m = matches[0];
   const vals = rows.map((r) => ({ r, c: r.stats.find((s) => s.side === m.side && s.name === m.name) })).filter((x) => x.c);
   vals.sort((a, b) => (order === "most" ? b.c!.value - a.c!.value : a.c!.value - b.c!.value));
-  const rankOf = (id: string) => {
+  const lowerBetter = m.side === "opponent" ? !/sack|turnover|interception|takeaway|fumble/i.test(m.name) : /ERA|WHIP|against|allowed|turnover|giveaway|penalt|foul|losses|opponent|sackYardsLost|interceptions$/i.test(m.name) && !/^(goals|assists)$/.test(m.name);
+  const rankBy = (id: string, high: boolean) => {
     const v = vals.find((x) => x.r.id === id)?.c?.value;
-    return v == null ? null : 1 + vals.filter((x) => (order === "most" ? x.c!.value > v : x.c!.value < v)).length;
+    return v == null ? null : 1 + vals.filter((x) => (high ? x.c!.value > v : x.c!.value < v)).length;
   };
   const mine = team ? vals.find((x) => x.r.id === team.id) : null;
   return {
     stat: `${m.side === "opponent" ? "Opponent " : ""}${m.label}`,
     meaning: m.side === "opponent" ? "what opponents did against this team (allowed)" : "the team's own number",
+    betterWhen: lowerBetter ? "lower" : "higher",
     season,
     teams: vals.length,
-    order: order === "most" ? "rank 1 = highest" : "rank 1 = lowest",
-    team: mine ? { team: mine.r.name, value: mine.c!.display, rank: rankOf(mine.r.id) } : team ? { team: team.name, missing: "no value from ESPN" } : undefined,
-    leaderboard: vals.slice(0, Math.min(Math.max(top, 3), 32)).map((x, i) => ({ rank: i + 1, team: x.r.abbr, value: x.c!.display })),
+    sortedBy: order === "most" ? "highest first" : "lowest first",
+    team: mine
+      ? { team: mine.r.name, value: mine.c!.display, rankHighestFirst: rankBy(mine.r.id, true), rankLowestFirst: rankBy(mine.r.id, false), bestRank: rankBy(mine.r.id, !lowerBetter), bestRankMeaning: `1 = best (${lowerBetter ? "lowest" : "highest"})` }
+      : team ? { team: team.name, missing: "no value from ESPN" } : undefined,
+    leaderboard: vals.slice(0, Math.min(Math.max(top, 3), 32)).map((x, i) => ({ position: i + 1, team: x.r.abbr, value: x.c!.display })),
     otherMatches: matches.slice(1, 5).map((c) => `${c.side === "opponent" ? "Opponent " : ""}${c.label}`),
   };
 }
