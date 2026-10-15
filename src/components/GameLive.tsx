@@ -12,6 +12,7 @@ import { CrowdToggle, EmoteLayer, SoundToggle } from "@/components/Emotes";
 import DriveFeed from "@/components/DriveFeed";
 import { bigSwing, PitchMap, PlayPop, ShareFinal, ShotMap, Spotlight, SwingBanner, type Swing } from "@/components/GameGraphics";
 import GameChat from "@/components/GameChat";
+import { LeadShockwave, leadFlip, LineMoveTags, PitcherFatigue, RedZoneAlarm, WinStrip, type Shock } from "@/components/GameUpgrades";
 import Mark from "@/components/Mark";
 import { BetsDock, MomentBadge, TaggedText, YourPlayersProvider, useYourPlayers } from "@/components/YourPlayers";
 import { mentions } from "@/lib/yourPlayers";
@@ -86,6 +87,8 @@ export default function GameLive({
   const [shake, setShake] = useState(0);
   const [swing, setSwing] = useState<Swing | null>(null);
   const swingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [shock, setShock] = useState<Shock | null>(null);
+  const shockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [tab, setTab] = useState<"play" | "lines" | "chat">("play");
   const seen = useRef<Set<string> | null>(null);
   const scores = useRef<{ away: string | null; home: string | null }>({ away: null, home: null });
@@ -99,6 +102,7 @@ export default function GameLive({
       if (cinemaTimer.current) clearTimeout(cinemaTimer.current);
       if (emoteTimer.current) clearTimeout(emoteTimer.current);
       if (swingTimer.current) clearTimeout(swingTimer.current);
+      if (shockTimer.current) clearTimeout(shockTimer.current);
     },
     []
   );
@@ -159,6 +163,15 @@ export default function GameLive({
         }));
         if (swingTimer.current) clearTimeout(swingTimer.current);
         swingTimer.current = setTimeout(() => setSwing(null), 2600);
+      }
+    }
+    // Lead-change shockwave: the other side now leads (ties do not count).
+    if (!first && prev) {
+      const flip = leadFlip(prev, data);
+      if (flip) {
+        setShock((sh) => ({ n: (sh?.n ?? 0) + 1, color: stageColors(data)[flip === "home" ? 1 : 0], abbr: flip === "home" ? data.homeAbbr : data.awayAbbr }));
+        if (shockTimer.current) clearTimeout(shockTimer.current);
+        shockTimer.current = setTimeout(() => setShock(null), 1900);
       }
     }
     scores.current = { away: data.awayScore, home: data.homeScore };
@@ -246,6 +259,8 @@ export default function GameLive({
             freshIds={freshIds}
             emote={emote}
             swing={swing ? <SwingBanner swing={swing} /> : null}
+            shock={shock ? <LeadShockwave shock={shock} /> : null}
+            alarm={football ? <RedZoneAlarm snap={snap} /> : null}
             pop={popPlay ? <PlayPop play={popPlay} color={teamColor(snap, popPlay.teamId, awayColor, homeColor)} icon={ICON[playKind(popPlay)]} /> : null}
           />
           <GameFeel league={league} snap={snap} awayColor={awayColor} homeColor={homeColor} />
@@ -271,7 +286,9 @@ export default function GameLive({
           <Spotlight league={league} gameId={id} snap={snap} />
           {hoops && snap ? <ShotMap snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} /> : null}
           {league === "mlb" && snap?.atBat ? <PitchMap atBat={snap.atBat} live={snap.state === "in"} freshIds={freshIds} /> : null}
-          {shown && shown.win.length > 1 ? <Momentum snap={shown} flipped={flipped} /> : null}
+          {league === "mlb" && snap?.arms?.length ? <PitcherFatigue snap={snap} awayColor={awayColor} homeColor={homeColor} /> : null}
+          {shown && shown.win.length > 1 ? <WinStrip snap={shown} flipped={flipped} /> : null}
+          {live && live.state !== "post" ? <LineMoveTags snap={live} /> : null}
           {shown ? <PossessionStrip league={league} snap={shown} run={run} /> : null}
           {bigChips.length ? <BigChips plays={bigChips} snap={shown} /> : null}
           {top.length > 0 ? (
@@ -399,6 +416,8 @@ function Hero({
   emote,
   pop,
   swing,
+  shock,
+  alarm,
 }: {
   league: string;
   snap: LiveSnap | null;
@@ -412,6 +431,8 @@ function Hero({
   emote: Emote | null;
   pop: React.ReactNode;
   swing: React.ReactNode;
+  shock: React.ReactNode;
+  alarm: React.ReactNode;
 }) {
   const live = snap?.state === "in";
   const bug = snap?.bug;
@@ -453,7 +474,9 @@ function Hero({
       {pop}
       <EmoteLayer emote={emote} color={teamColor(snap, emote?.teamId ?? null, awayColor, homeColor)} />
       {cinema ? <Cinema play={cinema} color={teamColor(snap, cinema.teamId, awayColor, homeColor)} /> : null}
+      {alarm}
       {swing}
+      {shock}
     </div>
   );
 }
@@ -802,37 +825,6 @@ function Cinema({ play, color }: { play: LivePlay; color: string }) {
         <p className="mt-2 line-clamp-2 max-w-[22rem] text-sm font-semibold text-white/90">{play.text}</p>
         {play.points > 0 ? <span className="cinema-stamp">+{play.points}</span> : null}
       </div>
-    </div>
-  );
-}
-
-function Momentum({ snap, flipped }: { snap: LiveSnap; flipped: boolean }) {
-  const pts = snap.win;
-  const n = pts.length;
-  const xy = pts.map((v, i) => [(i / Math.max(1, n - 1)) * 100, 30 - (v / 100) * 28] as const);
-  const d = xy.map(([x, y], i) => (i ? "L" : "M") + x.toFixed(2) + " " + y.toFixed(2)).join(" ");
-  const area = d + " L100 30 L0 30 Z";
-  const last = pts[n - 1];
-  const [lx, ly] = xy[n - 1];
-  return (
-    <div className={"foil-tile mt-3 px-3 pt-2 pb-1 " + (flipped ? "flip-flash" : "")}>
-      <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em]">
-        <span style={{ color: snap.awayColor }}>{snap.awayAbbr} {(100 - last).toFixed(0)}%</span>
-        <span className="text-zinc-500">{flipped ? <span className="text-[color:var(--gold)]">Lead change</span> : "Momentum · win chance"}</span>
-        <span style={{ color: snap.homeColor }}>{last.toFixed(0)}% {snap.homeAbbr}</span>
-      </div>
-      <svg viewBox="0 0 100 32" preserveAspectRatio="none" className="mt-1 h-14 w-full" aria-label="Win chance over the game">
-        <defs>
-          <linearGradient id="mom" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor={snap.homeColor} stopOpacity="0.45" />
-            <stop offset="1" stopColor={snap.awayColor} stopOpacity="0.15" />
-          </linearGradient>
-        </defs>
-        <line x1="0" y1="16" x2="100" y2="16" stroke="rgba(255,255,255,0.18)" strokeDasharray="1.5 1.5" vectorEffect="non-scaling-stroke" />
-        <path d={area} fill="url(#mom)" />
-        <path key={n} className="ribbon-line" d={d} fill="none" stroke={snap.homeColor} strokeWidth="2" vectorEffect="non-scaling-stroke" pathLength={400} />
-        <circle cx={lx} cy={ly} r="1.4" fill="#fff" />
-      </svg>
     </div>
   );
 }

@@ -71,6 +71,20 @@ export type LivePitch = { id: string; n: number; x: number; y: number; call: "ba
 
 export type LiveAtBat = { id: string; text: string | null; bats: string | null; pitches: LivePitch[]; result: string | null; teamId: string | null; final: boolean };
 
+/** Baseball: one pitcher's real pitch count and fastball velocity, first inning vs now (ESPN pitch data). */
+export type LiveArm = {
+  id: string;
+  name: string;
+  teamId: string | null;
+  pitches: number;
+  firstInning: number;
+  /** Average velocity of his main fastball in his first inning, and over his latest ones. */
+  firstMph: number | null;
+  nowMph: number | null;
+  pitchType: string | null;
+  samples: { first: number; now: number };
+};
+
 export type LiveDrive = {
   id: string;
   teamId: string | null;
@@ -182,6 +196,12 @@ export type LiveSnap = {
   shots?: LiveShot[];
   /** Baseball: the current (or last) at-bat with pitch locations, when ESPN posts them. */
   atBat?: LiveAtBat | null;
+  /** Baseball: the latest pitcher for each side, with pitch count and velocity from ESPN pitch rows. */
+  arms?: LiveArm[];
+  /** Indexes into `win` where a new period starts (quarter, period, inning). */
+  winMarks?: { i: number; label: string }[];
+  /** Play id for each point in `win`, so a replay can cut the line at the right play. */
+  winIds?: string[];
 };
 
 function colorOf(raw: unknown): string {
@@ -415,6 +435,7 @@ export function parseLive(data: unknown): LiveSnap | null {
 
   const shots = football ? [] : readShots(rawPlays);
   const atBat = football ? null : readAtBat(rawPlays, state);
+  const arms = football ? [] : readArms(rawPlays, boxes);
 
   const winByPlay = new Map<string, number>();
   let homeWin: number | null = null;
@@ -426,7 +447,23 @@ export function parseLive(data: unknown): LiveSnap | null {
     const pid = str(row.playId);
     if (pid) winByPlay.set(pid, Math.round(n * 1000) / 10);
   }
-  const win = plays.map((p) => winByPlay.get(p.id)).filter((n): n is number => n != null);
+  // Every play of the game, not only the slice kept for the feed.
+  const win: number[] = [];
+  const winIds: string[] = [];
+  const winMarks: { i: number; label: string }[] = [];
+  let lastPeriod = "";
+  for (const raw of rawPlays) {
+    const p = asDict(raw);
+    const w = winByPlay.get(str(p.id) ?? "");
+    if (w == null) continue;
+    const period = str(asDict(p.period).displayValue) || ordinal(num(asDict(p.period).number));
+    if (period && period !== lastPeriod) {
+      if (lastPeriod) winMarks.push({ i: win.length, label: period });
+      lastPeriod = period;
+    }
+    win.push(w);
+    winIds.push(str(p.id) as string);
+  }
 
   return {
     state,
@@ -462,7 +499,63 @@ export function parseLive(data: unknown): LiveSnap | null {
     bug: state === "in" ? readBug(d.situation, str(asDict(asDict(comp.status).type).shortDetail)) : null,
     ...(shots.length ? { shots } : {}),
     ...(atBat ? { atBat } : {}),
+    ...(arms.length ? { arms } : {}),
+    ...(winMarks.length ? { winMarks } : {}),
+    ...(winIds.length ? { winIds } : {}),
   };
+}
+
+const FASTBALLS = new Set(["FF", "SI", "FT", "FA", "FC"]);
+
+/**
+ * Latest pitcher for each side with his real pitch count (pitch rows ESPN posted) and the drop in his
+ * main fastball's velocity from his first inning. Nothing is estimated: no velocity rows, no velocity.
+ */
+export function readArms(rawPlays: unknown[], boxes: LiveBox[]): LiveArm[] {
+  type Row = { pitcher: string; teamId: string | null; inning: number; mph: number | null; type: string | null };
+  const rows: Row[] = [];
+  for (const raw of rawPlays) {
+    const r = asDict(raw);
+    if (r.summaryType !== "P") continue;
+    const pitcher = asList(r.participants).map(asDict).find((x) => x.type === "pitcher");
+    const pid = str(asDict(pitcher?.athlete).id);
+    if (!pid) continue;
+    rows.push({ pitcher: pid, teamId: str(asDict(r.team).id), inning: num(asDict(r.period).number) ?? 0, mph: num(r.pitchVelocity), type: str(asDict(r.pitchType).abbreviation) });
+  }
+  if (!rows.length) return [];
+  const nameOf = (id: string) => {
+    for (const b of boxes) for (const p of b.players) if (p.id === id) return p.name;
+    return null;
+  };
+  const latest = new Map<string, string>();
+  for (const r of rows) if (r.teamId) latest.set(r.teamId, r.pitcher);
+  const out: LiveArm[] = [];
+  for (const [teamId, pid] of latest) {
+    const mine = rows.filter((r) => r.pitcher === pid);
+    const name = nameOf(pid);
+    if (!name) continue;
+    const counts = new Map<string, number>();
+    for (const r of mine) if (r.type && FASTBALLS.has(r.type) && r.mph) counts.set(r.type, (counts.get(r.type) ?? 0) + 1);
+    const main = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+    const timed = mine.filter((r) => r.mph && (!main || r.type === main));
+    const firstInning = mine[0].inning;
+    const first = timed.filter((r) => r.inning === firstInning).map((r) => r.mph as number);
+    // "Now" only counts pitches after his first inning, so the two numbers never share a pitch.
+    const now = timed.filter((r) => r.inning !== firstInning).slice(-8).map((r) => r.mph as number);
+    const avg = (xs: number[]) => (xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10 : null);
+    out.push({
+      id: pid,
+      name,
+      teamId,
+      pitches: mine.length,
+      firstInning,
+      firstMph: first.length >= 2 ? avg(first) : null,
+      nowMph: now.length >= 3 ? avg(now) : null,
+      pitchType: main,
+      samples: { first: first.length, now: now.length },
+    });
+  }
+  return out;
 }
 
 /** Field-goal attempts with real court coordinates. Free throws and ESPN's sentinel spots are skipped. */

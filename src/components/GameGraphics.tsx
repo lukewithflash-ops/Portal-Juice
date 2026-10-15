@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useId, useMemo, useState, useSyncExternalStore } from "react";
 import { headshotFor } from "@/lib/faces";
 import type { LiveAtBat, LivePlay, LiveShot, LiveSnap } from "@/lib/live";
 import { legFromPick, TONE_COLOR, type Leg } from "@/lib/motivation";
@@ -54,8 +54,95 @@ export function PlayPop({ play, color, icon }: { play: LivePlay; color: string; 
 const RIM_Y = 1;
 const BASE_Y = RIM_Y - 5.25;
 
+type ZoneId = "ra" | "paint" | "midL" | "midC" | "midR" | "c3L" | "c3R" | "a3L" | "a3C" | "a3R";
+
+/** Which of the 10 standard zones a shot sits in, from its ESPN court spot and its point value. */
+export function shotZone(s: Pick<LiveShot, "x" | "y" | "points">): ZoneId {
+  const arcY = RIM_Y + Math.sqrt(23.75 ** 2 - 22 ** 2);
+  if (s.points === 3) {
+    if (s.y < arcY) return s.x < 25 ? "c3L" : "c3R";
+    return s.x < 17 ? "a3L" : s.x > 33 ? "a3R" : "a3C";
+  }
+  if (Math.hypot(s.x - 25, s.y - RIM_Y) <= 4) return "ra";
+  if (s.x >= 17 && s.x <= 33 && s.y <= BASE_Y + 19) return "paint";
+  return s.x < 17 ? "midL" : s.x > 33 ? "midR" : "midC";
+}
+
+/** Cold blue → neon purple → hot gold by real FG%. */
+function heat(pct: number): string {
+  if (pct >= 0.55) return "#f5c542";
+  if (pct >= 0.45) return "#39ff14";
+  if (pct >= 0.35) return "#a855f7";
+  return "#38bdf8";
+}
+
+function HotZones({ shots, uid }: { shots: LiveShot[]; uid: string }) {
+  const arcY = RIM_Y + Math.sqrt(23.75 ** 2 - 22 ** 2);
+  const top = 43.25;
+  const tally = new Map<ZoneId, { made: number; att: number }>();
+  for (const s of shots) {
+    const z = shotZone(s);
+    const t = tally.get(z) ?? { made: 0, att: 0 };
+    t.att += 1;
+    if (s.made) t.made += 1;
+    tally.set(z, t);
+  }
+  const inside = `M 3 ${BASE_Y} V ${arcY} A 23.75 23.75 0 0 0 47 ${arcY} V ${BASE_Y} Z`;
+  const clipIn = `${uid}-in`;
+  const maskOut = `${uid}-out`;
+  const shapes: Record<ZoneId, { el: React.ReactNode; at: [number, number] }> = {
+    ra: { el: <path d={`M 21 ${BASE_Y} V ${RIM_Y} A 4 4 0 0 0 29 ${RIM_Y} V ${BASE_Y} Z`} />, at: [25, RIM_Y + 2.2] },
+    paint: { el: <rect x="17" y={BASE_Y} width="16" height="19" />, at: [25, BASE_Y + 13] },
+    midL: { el: <rect x="0" y={BASE_Y} width="17" height={top - BASE_Y} clipPath={`url(#${clipIn})`} />, at: [10, 9] },
+    midC: { el: <rect x="17" y={BASE_Y + 19} width="16" height={top - BASE_Y - 19} clipPath={`url(#${clipIn})`} />, at: [25, BASE_Y + 22.5] },
+    midR: { el: <rect x="33" y={BASE_Y} width="17" height={top - BASE_Y} clipPath={`url(#${clipIn})`} />, at: [40, 9] },
+    c3L: { el: <rect x="0" y={BASE_Y} width="3" height={arcY - BASE_Y} />, at: [1.5, 3] },
+    c3R: { el: <rect x="47" y={BASE_Y} width="3" height={arcY - BASE_Y} />, at: [48.5, 3] },
+    a3L: { el: <rect x="0" y={arcY} width="17" height={top - arcY} mask={`url(#${maskOut})`} />, at: [6, 25] },
+    a3C: { el: <rect x="17" y={arcY} width="16" height={top - arcY} mask={`url(#${maskOut})`} />, at: [25, 34] },
+    a3R: { el: <rect x="33" y={arcY} width="17" height={top - arcY} mask={`url(#${maskOut})`} />, at: [44, 25] },
+  };
+  return (
+    <g aria-label="Hot zones">
+      <defs>
+        <clipPath id={clipIn}>
+          <path d={inside} />
+        </clipPath>
+        <mask id={maskOut}>
+          <rect x="-1" y={BASE_Y - 1} width="52" height={top - BASE_Y + 2} fill="#fff" />
+          <path d={inside} fill="#000" />
+        </mask>
+      </defs>
+      {(Object.keys(shapes) as ZoneId[]).map((z) => {
+        const t = tally.get(z);
+        if (!t) return null;
+        const pct = t.made / t.att;
+        const c = heat(pct);
+        return (
+          <g key={z} fill={c} className={pct >= 0.5 && t.att >= 3 ? "zone-hot" : undefined} style={{ opacity: 0.05 + 0.17 * Math.min(1, t.att / 8) }}>
+            {shapes[z].el}
+          </g>
+        );
+      })}
+      {(Object.keys(shapes) as ZoneId[]).map((z) => {
+        const t = tally.get(z);
+        if (!t || t.att < 2) return null;
+        const [x, y] = shapes[z].at;
+        const small = z === "c3L" || z === "c3R";
+        return (
+          <text key={"t" + z} x={x} y={y} fontSize={small ? 1.5 : 1.9} fontWeight="900" textAnchor="middle" fill="#fff" opacity="0.85" style={{ paintOrder: "stroke", stroke: "rgba(5,4,10,0.85)", strokeWidth: 0.35 }}>
+            {small ? `${t.made}/${t.att}` : `${t.made}/${t.att} · ${Math.round((t.made / t.att) * 100)}%`}
+          </text>
+        );
+      })}
+    </g>
+  );
+}
+
 export function ShotMap({ snap, awayColor, homeColor, freshIds }: { snap: LiveSnap; awayColor: string; homeColor: string; freshIds: string[] }) {
   const [team, setTeam] = useState<"all" | "away" | "home">("all");
+  const [zones, setZones] = useState(true);
+  const uid = useId().replace(/:/g, "");
   const all = snap.shots ?? [];
   const shown = all.filter((s) => team === "all" || (team === "home" ? s.teamId === snap.homeId : s.teamId === snap.awayId));
   if (all.length < 3) return null;
@@ -101,6 +188,7 @@ export function ShotMap({ snap, awayColor, homeColor, freshIds }: { snap: LiveSn
         <line x1="22" y1={BASE_Y + 4} x2="28" y2={BASE_Y + 4} stroke="#fff" strokeWidth="0.3" />
         <circle cx="25" cy={RIM_Y} r="0.75" fill="none" stroke="#f97316" strokeWidth="0.3" />
         <path d={`M 19 43.25 A 6 6 0 0 1 31 43.25`} fill="none" stroke={stroke} strokeWidth="0.2" />
+        {zones ? <HotZones shots={shown} uid={uid} /> : null}
         {shown.map((s: LiveShot) => {
           const color = s.teamId === snap.homeId ? homeColor : awayColor;
           const isNew = freshIds.includes(s.id);
@@ -124,7 +212,12 @@ export function ShotMap({ snap, awayColor, homeColor, freshIds }: { snap: LiveSn
         <span className="text-zinc-500">● made ✕ missed</span>
         <span style={{ color: homeColor }}>{snap.homeAbbr} FG {h.fg} · 3PT {h.three}</span>
       </div>
-      <p className="mt-1 text-[10px] text-zinc-500">Field goal attempts at ESPN court spots. Free throws not plotted.</p>
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <p className="text-[10px] text-zinc-500">ESPN court spots. Zones glow by real FG%: blue cold, purple, green, gold hot. Free throws not plotted.</p>
+        <button type="button" onClick={() => setZones((z) => !z)} className={"flex-none rounded-md px-1.5 py-0.5 text-[10px] font-black " + (zones ? "bg-white/10 text-white" : "text-zinc-500")} aria-pressed={zones}>
+          Hot zones
+        </button>
+      </div>
     </section>
   );
 }

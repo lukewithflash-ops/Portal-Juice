@@ -83,7 +83,14 @@ export function replaySnap(snap: LiveSnap, n: number, league = "nba"): LiveSnap 
     .filter((d) => d.playIds.length);
   if (drives.length) drives[drives.length - 1] = { ...drives[drives.length - 1], live: true };
   const lp = plays[plays.length - 1];
-  const win = snap.win.slice(0, Math.max(1, Math.round((snap.win.length * plays.length) / Math.max(1, snap.plays.length))));
+  // Cut the win line at the newest replayed play that has an ESPN point; else proportionally.
+  let cut = -1;
+  if (snap.winIds?.length) {
+    const at = new Map(snap.winIds.map((id, i) => [id, i]));
+    for (let i = plays.length - 1; i >= 0 && cut < 0; i--) cut = at.get(plays[i].id) ?? -1;
+  }
+  const upto = cut >= 0 ? cut + 1 : Math.round((snap.win.length * plays.length) / Math.max(1, snap.plays.length));
+  const win = snap.win.slice(0, Math.max(1, upto));
   return {
     ...snap,
     state: "in",
