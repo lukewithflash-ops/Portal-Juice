@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { fieldGeom as fgOf } from "../src/lib/fieldGeom";
+import { fieldGeom as fgOf, driveTrail } from "../src/lib/fieldGeom";
 import { yardsFromSpot as yfs } from "../src/lib/live";
 import { soccerFantasy, soccerKey, soccerStat } from "../src/lib/soccerScore";
 import { gradePick, sideOf } from "../src/lib/grade";
@@ -1490,3 +1490,22 @@ t("field direction: PHI @ JAX, JAX ball at JAX 46, 2nd & 7", () => {
 });
 
 console.log(`\n${n} passed`);
+
+// Drive trail: away (attacks right) gains move right; home gains move left; a pick flips the end spot.
+{
+  const base = { typeText: "Rush", text: "run", scoring: false } as const;
+  const away = driveTrail(
+    [
+      { ...base, id: "k", typeText: "Kickoff", yardsToEndzone: 65, startTeamId: "H", teamId: "A", endToGoal: 75, endTeamId: "A" },
+      { ...base, id: "1", yardsToEndzone: 75, startTeamId: "A", teamId: "A", endToGoal: 69, endTeamId: "A" },
+      { ...base, id: "2", yardsToEndzone: 69, startTeamId: "A", teamId: "A", endToGoal: 57, endTeamId: "H", turnover: true },
+    ],
+    "A",
+    "away"
+  );
+  assert(away.length === 2 && away[0].x1 === 35 && away[0].x2 === 41 && away[0].gain === 6, "drive trail: away gain goes right");
+  assert(away[1].x2 === 110 - 43, "drive trail: turnover end flipped onto drive team axis");
+  const home = driveTrail([{ ...base, id: "1", yardsToEndzone: 75, startTeamId: "H", teamId: "H", endToGoal: 65, endTeamId: "H" }], "H", "home");
+  assert(home[0].x1 === 85 && home[0].x2 === 75, "drive trail: home gain goes left");
+  console.log("ok - drive trail direction");
+}

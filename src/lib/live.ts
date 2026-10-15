@@ -56,7 +56,20 @@ export type LivePlay = {
   penalty?: boolean;
   turnover?: boolean;
   driveId?: string | null;
+  /** Football only. Team whose yardsToEndzone the start spot is measured for. */
+  startTeamId?: string | null;
+  /** Football only. Where the play ended: yards to the end zone for endTeamId. */
+  endToGoal?: number | null;
+  endTeamId?: string | null;
 };
+
+/** Basketball shot with ESPN court coordinates (feet: x 0–50 across, y from the baseline). */
+export type LiveShot = { id: string; x: number; y: number; made: boolean; points: number; teamId: string | null; text: string };
+
+/** One pitch of an at-bat, ESPN pitch coordinates (catcher's view). */
+export type LivePitch = { id: string; n: number; x: number; y: number; call: "ball" | "strike" | "foul" | "play"; label: string; pitch: string | null; mph: number | null };
+
+export type LiveAtBat = { id: string; text: string | null; bats: string | null; pitches: LivePitch[]; result: string | null; teamId: string | null; final: boolean };
 
 export type LiveDrive = {
   id: string;
@@ -140,6 +153,9 @@ export type LiveSnap = {
   homeScore: string | null;
   awayColor: string;
   homeColor: string;
+  /** ESPN alternate colors, for dark primaries on the dark stage. */
+  awayAlt?: string | null;
+  homeAlt?: string | null;
   awayId: string;
   homeId: string;
   provider: string | null;
@@ -162,6 +178,10 @@ export type LiveSnap = {
   bug?: LiveBug | null;
   /** Substitutions in order, oldest first (soccer from key events, basketball from play-by-play). */
   subs?: LineupSub[];
+  /** Basketball: every shot with real coordinates this game. */
+  shots?: LiveShot[];
+  /** Baseball: the current (or last) at-bat with pitch locations, when ESPN posts them. */
+  atBat?: LiveAtBat | null;
 };
 
 function colorOf(raw: unknown): string {
@@ -353,6 +373,9 @@ export function parseLive(data: unknown): LiveSnap | null {
             penalty: p.isPenalty === true || /penalty/i.test(str(asDict(p.type).text) || ""),
             turnover: p.isTurnover === true,
             driveId: str(p._drive),
+            startTeamId: str(asDict(start.team).id),
+            endToGoal: num(asDict(p.end).yardsToEndzone),
+            endTeamId: str(asDict(asDict(p.end).team).id),
           }
         : {}),
     });
@@ -390,6 +413,9 @@ export function parseLive(data: unknown): LiveSnap | null {
     }
   }
 
+  const shots = football ? [] : readShots(rawPlays);
+  const atBat = football ? null : readAtBat(rawPlays, state);
+
   const winByPlay = new Map<string, number>();
   let homeWin: number | null = null;
   for (const raw of asList(d.winprobability)) {
@@ -414,6 +440,8 @@ export function parseLive(data: unknown): LiveSnap | null {
     homeScore: str(home.score),
     awayColor: colorOf(awayTeam.color),
     homeColor: colorOf(homeTeam.color),
+    awayAlt: /^[0-9a-f]{6}$/i.test(str(awayTeam.alternateColor) || "") ? `#${str(awayTeam.alternateColor)}` : null,
+    homeAlt: /^[0-9a-f]{6}$/i.test(str(homeTeam.alternateColor) || "") ? `#${str(homeTeam.alternateColor)}` : null,
     awayId: str(awayTeam.id) || "",
     homeId: str(homeTeam.id) || "",
     provider: move?.provider ?? null,
@@ -432,6 +460,71 @@ export function parseLive(data: unknown): LiveSnap | null {
     drives,
     situation,
     bug: state === "in" ? readBug(d.situation, str(asDict(asDict(comp.status).type).shortDetail)) : null,
+    ...(shots.length ? { shots } : {}),
+    ...(atBat ? { atBat } : {}),
+  };
+}
+
+/** Field-goal attempts with real court coordinates. Free throws and ESPN's sentinel spots are skipped. */
+export function readShots(rawPlays: unknown[]): LiveShot[] {
+  const out: LiveShot[] = [];
+  for (const raw of rawPlays) {
+    const p = asDict(raw);
+    if (p.shootingPlay !== true) continue;
+    const type = str(asDict(p.type).text) || "";
+    const text = str(p.text) || "";
+    if (/free throw/i.test(type) || /free throw/i.test(text)) continue;
+    const c = asDict(p.coordinate);
+    const x = num(c.x);
+    const y = num(c.y);
+    if (x === null || y === null || x < 0 || x > 50 || y < -2 || y > 60) continue;
+    const id = str(p.id);
+    if (!id) continue;
+    const pts = num(p.scoreValue) ?? 0;
+    out.push({ id, x, y: Math.max(0, y), made: p.scoringPlay === true, points: pts || (/three point/i.test(text) ? 3 : 2), teamId: str(asDict(p.team).id), text });
+  }
+  return out;
+}
+
+/** The newest at-bat that has pitch coordinates. Nothing is filled in when ESPN sends none. */
+export function readAtBat(rawPlays: unknown[], state: LiveSnap["state"]): LiveAtBat | null {
+  const rows = rawPlays.map(asDict);
+  let lastId: string | null = null;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    if (r.summaryType === "P" && asDict(r.pitchCoordinate).x != null) {
+      lastId = str(r.atBatId);
+      break;
+    }
+  }
+  // Live: follow the batter at the plate, even before the first pitch lands.
+  const current = [...rows].reverse().find((r) => str(r.atBatId) && (r.summaryType === "A" || r.summaryType === "P"));
+  const id = state === "in" && current ? str(current.atBatId) : lastId;
+  if (!id) return null;
+  const mine = rows.filter((r) => str(r.atBatId) === id);
+  const pitches: LivePitch[] = [];
+  for (const r of mine) {
+    if (r.summaryType !== "P") continue;
+    const c = asDict(r.pitchCoordinate);
+    const x = num(c.x);
+    const y = num(c.y);
+    if (x === null || y === null) continue;
+    const t = (str(asDict(r.type).type) || "").toLowerCase();
+    const label = str(asDict(r.type).text) || "Pitch";
+    const call: LivePitch["call"] = /^(ball|pitchout|intent|hit-by-pitch)/.test(t) ? "ball" : t === "foul-ball" || t.startsWith("foul-ball-") ? "foul" : /^(strike|foul-tip)/.test(t) ? "strike" : "play";
+    pitches.push({ id: str(r.id) || String(pitches.length), n: pitches.length + 1, x, y, call, label, pitch: str(asDict(r.pitchType).abbreviation) || str(asDict(r.pitchType).text), mph: num(r.pitchVelocity) });
+  }
+  if (!pitches.length) return null;
+  const start = mine.find((r) => r.summaryType === "A");
+  const result = [...mine].reverse().find((r) => r.summaryType === "N" || str(asDict(r.type).type) === "play-result");
+  return {
+    id,
+    text: str(start?.text),
+    bats: str(asDict(start?.bats ?? mine[0]?.bats).abbreviation),
+    pitches,
+    result: str(result?.text),
+    teamId: str(asDict((start ?? mine[0])?.team).id),
+    final: !!result,
   };
 }
 
