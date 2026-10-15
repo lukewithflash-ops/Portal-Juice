@@ -758,14 +758,14 @@ html[data-team] .portal-bg::after {
   position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 999px; background: #fff;
   box-shadow: 0 0 0 2px var(--team, #a855f7), 0 0 12px var(--team, #a855f7);
 }
-.zone-hot { animation: zone-glow 2.4s ease-in-out infinite; }
-@keyframes zone-glow { 0%, 100% { fill-opacity: 1; } 50% { fill-opacity: 0.55; } }
+/* Hot zones stay still: an animated SVG mask repaints the whole court every frame on iPhone. */
+.zone-hot { stroke: #fff7d1; stroke-width: 0.25; stroke-opacity: 0.9; }
 .arm-bar { position: relative; height: 0.5rem; border-radius: 999px; background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 0 0 1px rgba(168, 85, 247, 0.35); overflow: hidden; }
 .arm-fill { height: 100%; border-radius: 999px; box-shadow: 0 0 10px currentColor; transition: width 0.7s cubic-bezier(.2,1,.3,1); }
 .arm-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255, 255, 255, 0.55); }
 @media (prefers-reduced-motion: reduce) {
   .rz-edges { animation: none !important; opacity: 0.8; }
-  .rz-tag, .shock-word, .move-arrow, .zone-hot { animation: none !important; }
+  .rz-tag, .shock-word, .move-arrow { animation: none !important; }
   .shock-ring { display: none; }
   .shock-word { opacity: 1; }
   .arm-fill { transition: none; }
