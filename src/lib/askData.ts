@@ -730,6 +730,7 @@ export async function playerLog(l: Lg, p: PlayerRef, key: string, label: string,
     high: vals.length ? Math.max(...vals) : null,
     low: vals.length ? Math.min(...vals) : null,
     hitRate: line != null ? { line, shown: hit(vals), last5: hit(pool.slice(0, 5).map((g) => g.value)), season: hit(thisSeason) } : undefined,
+    note: shown.length && opts.last && shown.length < opts.last ? `Only ${shown.length} games in ESPN's log for this window (asked for ${opts.last}). Say so.` : undefined,
     missing: !shown.length ? (opts.vsAbbr ? `No games vs ${opts.vsAbbr} in ESPN logs over the last ${want} seasons.` : "ESPN has no games logged for this stat.") : undefined,
   };
 }
