@@ -7,7 +7,7 @@ export const contentType = "image/png";
 
 export default async function Image({ params }: { params: Promise<{ league: string; id: string }> }) {
   const { league, id } = await params;
-  const game = await getGame(league, id);
+  const game = await getGame(league, id).catch(() => null);
   const matchup = game ? `${game.away.abbr}  @  ${game.home.abbr}` : "Game";
   const total = game?.price?.total;
   const provider = game?.price?.provider;

@@ -40,14 +40,25 @@ import {
 
 const REVALIDATE = 60;
 
-export async function getJson(url: string): Promise<unknown> {
-  const res = await fetch(url, {
-    cache: "no-store",
-    headers: { accept: "application/json", "user-agent": "PortalJuice/1.0" },
-    signal: AbortSignal.timeout(12_000),
-  });
-  if (!res.ok) throw new Error(String(res.status));
-  return res.json();
+/** ESPN said the thing does not exist (400/404). Anything else is a hiccup worth retrying. */
+export class EspnMissing extends Error {}
+
+export async function getJson(url: string, tries = 2): Promise<unknown> {
+  for (let i = 0; ; i++) {
+    try {
+      const res = await fetch(url, {
+        cache: "no-store",
+        headers: { accept: "application/json", "user-agent": "PortalJuice/1.0" },
+        signal: AbortSignal.timeout(i ? 8_000 : 12_000),
+      });
+      if (res.status === 400 || res.status === 404) throw new EspnMissing(String(res.status));
+      if (!res.ok) throw new Error(String(res.status));
+      return await res.json();
+    } catch (e) {
+      if (e instanceof EspnMissing || i + 1 >= tries) throw e;
+      await new Promise((r) => setTimeout(r, 350));
+    }
+  }
 }
 
 async function loadSlate(day: string): Promise<Slate> {
@@ -258,8 +269,9 @@ export async function getGame(leagueId: string, id: string): Promise<Game | null
           competitions: [comp],
         };
         return parseGame(league, event, 0, odds) ?? null;
-      } catch {
-        return null;
+      } catch (e) {
+        if (e instanceof EspnMissing) return null;
+        throw e;
       }
     },
     ["pj-game2", league.id, id],
@@ -499,8 +511,11 @@ async function loadDetail(leagueId: string, id: string): Promise<DetailBundle | 
     summary = await getJson(
       `https://site.api.espn.com/apis/site/v2/sports/${league.sport}/${league.slug}/summary?event=${id}`
     );
-  } catch {
-    return null;
+  } catch (e) {
+    // A real "no such game" can be cached. A timeout or 5xx must throw so unstable_cache
+    // does not keep a null for a minute and bounce every tap back to /games.
+    if (e instanceof EspnMissing) return null;
+    throw e;
   }
   const d = summary as { header?: Record<string, unknown>; pickcenter?: unknown[] };
   const header = (d.header ?? {}) as Record<string, unknown>;

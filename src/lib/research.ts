@@ -306,7 +306,7 @@ export type RosterPlayer = { id: string; name: string; team: string; pos: string
 export async function gameRoster(leagueId: string, id: string): Promise<{ players: RosterPlayer[]; props: { athleteId: string; name: string; team: string; market: string; line: string; openLine: string | null }[] }> {
   const league = leagueById(leagueId);
   if (!league) return { players: [], props: [] };
-  const bundle = await getGameDetail(leagueId, id);
+  const bundle = await getGameDetail(leagueId, id).catch(() => null);
   if (!bundle) return { players: [], props: [] };
   const players: RosterPlayer[] = [];
   await Promise.all(

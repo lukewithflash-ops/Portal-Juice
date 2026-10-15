@@ -1,5 +1,5 @@
 import "server-only";
-import { getJson } from "@/lib/espn";
+import { EspnMissing, getJson } from "@/lib/espn";
 import { parseMatch, parseMatchFeed, parseMatchPrice, parseMatchStats, parseSportScoreboard, sportLeague, summaryProjection, type Match, type MatchEvent, type SportSlate, type StatRow } from "@/lib/sports";
 import { winPct } from "@/lib/winPct";
 
@@ -19,7 +19,8 @@ export type MatchPage = { match: Match; feed: MatchEvent[]; stats: StatRow[]; ha
 export async function getMatch(id: string, matchId: string): Promise<MatchPage | null> {
   const league = sportLeague(id);
   if (!league || league.kind === "golf" || !/^\d+$/.test(matchId)) return null;
-  const board = await getJson(`${BASE}${league.path}/scoreboard`).catch(() => null);
+  let failed = 0;
+  const board = await getJson(`${BASE}${league.path}/scoreboard`).catch(() => ((failed += 1), null));
   let match: Match | null = null;
   for (const ev of ((board as { events?: Record<string, unknown>[] } | null)?.events ?? [])) {
     const comps = [
@@ -32,7 +33,7 @@ export async function getMatch(id: string, matchId: string): Promise<MatchPage |
   }
   let summary: unknown = null;
   if (league.kind === "soccer" || league.kind === "team") {
-    summary = await getJson(`${BASE}${league.path}/summary?event=${matchId}`).catch(() => null);
+    summary = await getJson(`${BASE}${league.path}/summary?event=${matchId}`).catch((e) => ((failed += e instanceof EspnMissing ? 0 : 1), null));
   }
   if (!match && summary) {
     const comp = ((summary as { header?: { competitions?: unknown[] } }).header?.competitions ?? [])[0];
@@ -42,6 +43,8 @@ export async function getMatch(id: string, matchId: string): Promise<MatchPage |
       match.price = parseMatchPrice(pc);
     }
   }
+  // Both feeds down is a hiccup, not a missing match: throw so the page retries instead of bouncing.
+  if (!match && failed && !summary) throw new Error("ESPN feed unavailable");
   if (!match) return null;
   if (summary) {
     const proj = summaryProjection(summary);

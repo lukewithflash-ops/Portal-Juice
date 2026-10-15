@@ -23,7 +23,7 @@ export default async function MatchPage({ params }: { params: Promise<Params> })
   const { league, id } = await params;
   const l = sportLeague(league);
   if (!l) redirect(gameRoute(league, id));
-  const page = await getMatch(league, id).catch(() => null);
+  const page = await getMatch(league, id);
   if (!page) redirect(`/games?league=${league}`);
   const { match: m, feed, stats } = page;
   return (

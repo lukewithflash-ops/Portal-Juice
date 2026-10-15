@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { chatEnabled, cleanHandle, cleanText, listNotes, postNote } from "@/lib/chat";
 import { leagueById } from "@/lib/slate";
+import { sportLeague } from "@/lib/sports";
 
 export const dynamic = "force-dynamic";
 
 function okGame(league: string, id: string) {
-  return Boolean(leagueById(league) && /^\d+$/.test(id));
+  const sport = sportLeague(league);
+  return Boolean((leagueById(league) || (sport && (sport.kind === "team" || sport.kind === "soccer"))) && /^\d+$/.test(id));
 }
 
 export async function GET(_req: Request, ctx: { params: Promise<{ league: string; id: string }> }) {

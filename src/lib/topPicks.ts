@@ -36,7 +36,7 @@ async function build(league: string, id: string): Promise<TopPicks> {
       }
     }
   }
-  const bundle = await getGameDetail(league, id);
+  const bundle = await getGameDetail(league, id).catch(() => null);
   const seen = new Set<string>();
   const props = (bundle?.props ?? [])
     .map((p) => ({ p, stat: statFromMarket(league, p.market), line: num(p.line) }))

@@ -19,7 +19,7 @@ type Params = { league: string; id: string };
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const { league, id } = await params;
-  const bundle = await getGameDetail(league, id);
+  const bundle = await getGameDetail(league, id).catch(() => null);
   if (!bundle) return { title: "Game" };
   const { game } = bundle;
   const title = `${game.away.abbr} at ${game.home.abbr}`;
@@ -35,7 +35,8 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 export default async function GamePage({ params }: { params: Promise<Params> }) {
   const { league, id } = await params;
   if (!leagueById(league)) redirect(gameRoute(league, id));
-  const bundle = await getGameDetail(league, id).catch(() => null);
+  // A feed hiccup throws to error.tsx, which retries in place. Only a game ESPN does not know goes back to /games.
+  const bundle = await getGameDetail(league, id);
   if (!bundle) redirect("/games");
   const { game } = bundle;
   const win = winPct({
