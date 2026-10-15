@@ -8,22 +8,24 @@ import type { LivePlay, LiveSnap } from "@/lib/live";
 import { unitsNeeded, type Leg } from "@/lib/motivation";
 import { freshSubs } from "@/lib/lineup";
 
-export type AlertKind = "tile" | "score" | "lead" | "big" | "close" | "cleared" | "final" | "player" | "sub";
+export type AlertKind = "tile" | "score" | "lead" | "big" | "close" | "almost" | "redzone" | "cleared" | "final" | "player" | "sub";
 
 export const ALERT_KINDS: { kind: AlertKind; label: string; hint: string }[] = [
   { kind: "tile", label: "Live game on lock screen", hint: "One quiet notification per game you follow that updates in place: score, clock, your props. Buzzes only for big moments." },
   { kind: "cleared", label: "Prop cleared", hint: "A logged leg hits its line." },
   { kind: "player", label: "Your player", hint: "A player on your slips moves toward the line. One per player every 90 seconds." },
   { kind: "sub", label: "Your player subbed out", hint: "A player on your picks goes to the bench or is subbed off." },
+  { kind: "almost", label: "Almost there", hint: "Late in the game (4th quarter, final period, 8th inning on), a logged leg is one stat from its line." },
   { kind: "close", label: "Prop close", hint: "1 or 2 away from the line." },
   { kind: "final", label: "Game final", hint: "Final score for your games." },
   { kind: "lead", label: "Lead change", hint: "The lead flips." },
+  { kind: "redzone", label: "Red zone", hint: "Football: a drive crosses the 20. Only in starred games, your team's game, or games with your picks." },
   { kind: "big", label: "Big plays", hint: "Touchdowns, turnovers, goals, home runs: only in starred games, your team's game, or plays by players on your picks." },
   { kind: "score", label: "End of each quarter", hint: "The score at the end of each quarter, period, or half." },
 ];
 
 export type AlertPrefs = Record<AlertKind, boolean>;
-export const DEFAULT_ALERTS: AlertPrefs = { tile: true, cleared: true, player: true, close: true, final: true, lead: true, big: true, score: true, sub: true };
+export const DEFAULT_ALERTS: AlertPrefs = { tile: true, cleared: true, player: true, close: true, final: true, lead: true, big: true, score: true, sub: true, almost: true, redzone: true };
 
 export type GameAlert = {
   kind: AlertKind;
@@ -67,6 +69,8 @@ export function playNames(text: string, names: string[]): boolean {
  */
 export function keepAlert(a: GameAlert, followed: boolean, pickNames: string[]): boolean {
   if (a.kind === "sub") return a.play ? playNames(a.play, pickNames) : false;
+  // Red zone: only games you starred, your team's game, or a game with your picks. Never a generic ping.
+  if (a.kind === "redzone") return followed || pickNames.length > 0;
   if (a.kind !== "big") return true;
   return followed || (a.play ? playNames(a.play, pickNames) : false);
 }
@@ -121,6 +125,9 @@ export function gameEvents(league: string, id: string, prev: LiveSnap | null, ne
   if (big && prev.plays.length) {
     out.push({ kind: "big", key: `${g}:big:${big.id}`, title: bigLabel(big), body: big.text.slice(0, 140), url, play: big.text });
   }
+  // Red zone: the offense crossed the 20 on this drive (football, from ESPN's posted spot).
+  const rz = redZoneEntry(prev, next);
+  if (rz) out.push({ kind: "redzone", key: `${g}:rz:${rz.key}`, title: `🚨 Red zone · ${rz.abbr}`, body: `${rz.text} · ${scoreLine(next)} · ${next.detail}`, url });
   // Subs: kept only when the player going out is on your picks (see keepAlert).
   for (const sub of freshSubs(league, prev, next).slice(-4)) {
     if (!sub.outName) continue;
@@ -133,8 +140,31 @@ export function gameEvents(league: string, id: string, prev: LiveSnap | null, ne
   return out;
 }
 
-/** Updates for one logged leg. */
-export function legEvents(prev: Leg | null, next: Leg): GameAlert[] {
+/** The moment a football offense crosses the 20, or null. Keyed by drive so it fires once per trip. */
+export function redZoneEntry(prev: Pick<LiveSnap, "situation"> | null, next: LiveSnap): { key: string; abbr: string; text: string } | null {
+  const sit = next.situation;
+  if (!sit || !sit.redZone || !sit.teamId || next.state !== "in") return null;
+  const was = prev?.situation;
+  if (was && was.redZone && was.teamId === sit.teamId) return null;
+  const abbr = sit.teamId === next.homeId ? next.homeAbbr : sit.teamId === next.awayId ? next.awayAbbr : null;
+  if (!abbr) return null;
+  const drive = next.drives?.find((d) => d.live)?.id ?? `${sit.teamId}:${next.period ?? 0}:${next.clock ?? ""}`;
+  return { key: drive, abbr, text: sit.text ?? sit.spot ?? "Inside the 20" };
+}
+
+/** Late in the game: 4th quarter or later, the final period, or the 8th inning on. */
+export function lateGame(league: string, period: number | null | undefined, state?: string): boolean {
+  if (state && state !== "in") return false;
+  if (period == null) return false;
+  if (league === "mlb") return period >= 8;
+  if (league === "nhl") return period >= 3;
+  if (league === "ncaam") return period >= 2;
+  if (league === "nfl" || league === "ncaaf" || league === "nba" || league === "wnba" || league === "ncaaw") return period >= 4;
+  return period >= 2;
+}
+
+/** Updates for one logged leg. `late` turns on the late-game "Almost there" ping. */
+export function legEvents(prev: Leg | null, next: Leg, late = false, wasLate = late): GameAlert[] {
   if (!prev) return [];
   const url = gameRoute(next.league, next.gameId);
   const out: GameAlert[] = [];
@@ -174,7 +204,16 @@ export function legEvents(prev: Leg | null, next: Leg): GameAlert[] {
   if (next.side === "Over" && !next.final && next.value !== null && next.status !== "cleared") {
     const need = unitsNeeded(next.line, next.value);
     const before = prev.value === null ? Infinity : unitsNeeded(prev.line, prev.value);
-    if (need >= 1 && need <= 2 && need < before) {
+    if (late && need === 1 && (before > 1 || !wasLate)) {
+      out.push({
+        kind: "almost",
+        key: `${next.pickId}:almost`,
+        title: "Almost there",
+        body: `${next.name} ${next.value} of ${next.line} ${next.market} · one more clears it.`,
+        url,
+        meter,
+      });
+    } else if (need >= 1 && need <= 2 && need < before) {
       out.push({
         kind: "close",
         key: `${next.pickId}:close:${need}`,

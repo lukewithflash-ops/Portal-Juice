@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { usePrefs } from "@/components/Prefs";
 import { POLL_ERROR_MS, usePoll } from "@/components/usePoll";
-import { gameEvents, keepAlert, legEvents, type GameAlert } from "@/lib/alerts";
+import { gameEvents, keepAlert, lateGame, legEvents, type GameAlert } from "@/lib/alerts";
 import { getAlertPrefs, getServerAlertPrefs, subscribeAlertPrefs } from "@/lib/alertPrefsStore";
 import { getFollows, getServerFollows, subscribeFollows } from "@/lib/follows";
 import { isBehind, type LiveSnap } from "@/lib/live";
@@ -213,13 +213,17 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
 
   // Leg updates: close calls and clears, only on a change we watched happen.
   const lastLegs = useRef<Record<string, Leg>>({});
+  const lastLate = useRef<Record<string, boolean>>({});
   useEffect(() => {
     const alerts: GameAlert[] = [];
     let cleared: Leg | null = null;
     for (const l of legs) {
       const was = lastLegs.current[l.pickId] ?? null;
       lastLegs.current[l.pickId] = l;
-      const ev = legEvents(was, l);
+      const s = state.current.snaps[keyOf(l.league, l.gameId)];
+      const late = lateGame(l.league, s?.period, s?.state);
+      const ev = legEvents(was, l, late, lastLate.current[l.pickId] ?? false);
+      lastLate.current[l.pickId] = late;
       alerts.push(...ev);
       if (ev.some((e) => e.kind === "cleared")) cleared = l;
     }
@@ -334,7 +338,7 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-const ICON: Record<GameAlert["kind"], string> = { tile: "📺", score: "🔢", lead: "🔁", big: "💥", close: "🔥", cleared: "🟡", final: "🏁", player: "⭐", sub: "🪑" };
+const ICON: Record<GameAlert["kind"], string> = { tile: "📺", score: "🔢", lead: "🔁", big: "💥", close: "🔥", cleared: "🟡", final: "🏁", player: "⭐", sub: "🪑", almost: "⏳", redzone: "🚨" };
 
 /** "Your player" moment: gold ring around the face, the gain, and how close to the line. */
 function PlayerToast({ t }: { t: Toast }) {

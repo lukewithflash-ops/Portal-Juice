@@ -2,7 +2,7 @@ import "server-only";
 import { APP_ICON, BADGE, tileDue, gameOf, liveTile, styleAlert, type TileLeg, type PushPayload, type PushScene } from "@/lib/pushStyle";
 import webpush from "web-push";
 import { gameRoute } from "@/lib/gameRoute";
-import { gameEvents, keepAlert, legEvents, readAlertPrefs, type AlertPrefs, type GameAlert } from "@/lib/alerts";
+import { gameEvents, keepAlert, lateGame, legEvents, readAlertPrefs, type AlertPrefs, type GameAlert } from "@/lib/alerts";
 import { chatEnabled, redis } from "@/lib/chat";
 import { getLive, getScores } from "@/lib/espn";
 import type { LiveSnap } from "@/lib/live";
@@ -240,10 +240,10 @@ export async function saveSubscription(
 }
 
 /** Slim copy of a game kept between cron runs so the next run can tell what changed. */
-type SlimGame = Pick<LiveSnap, "state" | "awayScore" | "homeScore" | "awayAbbr" | "homeAbbr" | "detail"> & { playIds: string[] };
+type SlimGame = Pick<LiveSnap, "state" | "awayScore" | "homeScore" | "awayAbbr" | "homeAbbr" | "detail"> & { playIds: string[]; situation?: LiveSnap["situation"]; period?: number | null };
 
 function slim(s: LiveSnap): SlimGame {
-  return { state: s.state, awayScore: s.awayScore, homeScore: s.homeScore, awayAbbr: s.awayAbbr, homeAbbr: s.homeAbbr, detail: s.detail, playIds: s.plays.map((p) => p.id) };
+  return { state: s.state, awayScore: s.awayScore, homeScore: s.homeScore, awayAbbr: s.awayAbbr, homeAbbr: s.homeAbbr, detail: s.detail, playIds: s.plays.map((p) => p.id), situation: s.situation ?? null, period: s.period ?? null };
 }
 
 function unslim(g: SlimGame): LiveSnap {
@@ -342,9 +342,9 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
       if (!snap) continue;
       const key = `${tail}:${p.id}`;
       const raw = (await redis(["HGET", LEGS, key])) as string | null;
-      let prevLeg: Leg | null = null;
+      let prevLeg: (Leg & { late?: boolean }) | null = null;
       try {
-        prevLeg = raw ? (JSON.parse(raw) as Leg) : null;
+        prevLeg = raw ? (JSON.parse(raw) as Leg & { late?: boolean }) : null;
       } catch {
         prevLeg = null;
       }
@@ -353,8 +353,9 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
       const gkey = `${p.league}/${p.gameId}`;
       if (snap.state === "post") recapReady.push(p);
       tileLegs.set(gkey, [...(tileLegs.get(gkey) ?? []), { name: leg.name, value: leg.value, line: leg.line, side: leg.side }]);
-      out.push(...legEvents(prevLeg, leg));
-      await redis(["HSET", LEGS, key, JSON.stringify({ status: leg.status, value: leg.value, line: leg.line, side: leg.side })]);
+      const late = lateGame(p.league, snap.period, snap.state);
+      out.push(...legEvents(prevLeg, leg, late, prevLeg?.late ?? false));
+      await redis(["HSET", LEGS, key, JSON.stringify({ status: leg.status, value: leg.value, line: leg.line, side: leg.side, late })]);
     }
     const muted = new Set(((await redis(["SMEMBERS", `pj:push:mute:${await deviceId(row.endpoint)}`]).catch(() => [])) as string[] | null) ?? []);
     const fav = favGame(row.team);

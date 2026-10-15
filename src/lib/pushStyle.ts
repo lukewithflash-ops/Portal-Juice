@@ -93,6 +93,18 @@ export function styleAlert(a: GameAlert, scene: PushScene | null, fav: FavTeam, 
       body = `${a.body}${clock}`;
       big = true;
       break;
+    case "almost":
+      emoji = "🔥";
+      title = m ? `🔥 Almost there · ${m.name} ${m.value ?? "—"} of ${m.line} ${shortMarket(m.market)}` : "🔥 Almost there";
+      body = `${a.body}${clock}`;
+      big = true;
+      break;
+    case "redzone":
+      emoji = "🚨";
+      title = `${a.title}${scene ? ` · ${score(scene)}` : ""}`;
+      body = a.body;
+      big = true;
+      break;
     case "big": {
       const b = bigTag(a.title, league);
       emoji = b.emoji;

@@ -26,7 +26,7 @@ import { marketFavorites, biggestMoves, hotTrends, mvpHomework } from "../src/li
 import { playKind, playerFromText, isShotAttempt } from "../src/lib/tracker";
 import { clockSpan, isBigPlay, paceOf, parseLine, scoringRun, statNumber, trackProps } from "../src/lib/tracker";
 import type { LivePlay, LiveSnap } from "../src/lib/live";
-import { gameEvents, keepAlert, legEvents } from "../src/lib/alerts";
+import { gameEvents, keepAlert, lateGame, legEvents, redZoneEntry } from "../src/lib/alerts";
 import { groupSlips, legFromPick, unitsNeeded } from "../src/lib/motivation";
 import type { Pick } from "../src/lib/types";
 import { freshestStatus, isBehind, parseLive, situationFromScoreboard, statusFromScoreboard, yardsFromSpot, type LiveStatus } from "../src/lib/live";
@@ -711,6 +711,39 @@ t("leg updates: close at 2 and 1 away, cleared once", () => {
   assert.deepEqual(hit.map((e) => e.kind), ["cleared"]);
   assert.equal(hit[0].title, "Hit!");
   assert.deepEqual(legEvents(l("25"), l("27")), []);
+});
+
+t("almost there: late game, one stat away, fires once on the way in", () => {
+  const l = (pts: string) => legFromPick(legPick(), legSnap(pts))!;
+  // Line 24.5: 24 is one away.
+  assert.deepEqual(legEvents(l("22"), l("24"), true, true).map((e) => e.kind), ["player", "almost"]);
+  assert.match(legEvents(l("22"), l("24"), true, true).find((e) => e.kind === "almost")!.body, /one more clears it/);
+  // Early in the game it stays a normal close call.
+  assert.deepEqual(legEvents(l("22"), l("24"), false, false).map((e) => e.kind), ["player", "close"]);
+  // Already one away when the 4th starts: fires once at the turn, not again after.
+  assert.deepEqual(legEvents(l("24"), l("24"), true, false).map((e) => e.kind), ["almost"]);
+  assert.deepEqual(legEvents(l("24"), l("24"), true, true), []);
+  assert.equal(lateGame("nba", 4, "in"), true);
+  assert.equal(lateGame("nba", 3, "in"), false);
+  assert.equal(lateGame("mlb", 8, "in"), true);
+  assert.equal(lateGame("mlb", 7, "in"), false);
+  assert.equal(lateGame("nhl", 3, "in"), true);
+  assert.equal(lateGame("nfl", 4, "post"), false);
+});
+
+t("red zone: fires once when the offense crosses the 20; only for followed games or games with picks", () => {
+  const base = legSnap("10");
+  const sit = (toGoal: number, teamId = base.homeId) => ({ down: 1, distance: 10, yardsToEndzone: toGoal, text: `1st & 10 at X ${toGoal}`, short: null, spot: null, teamId, redZone: toGoal <= 20, source: "play" as const });
+  const a = { ...base, state: "in" as const, situation: sit(35), drives: [] };
+  const b = { ...a, situation: sit(18) };
+  const hit = redZoneEntry(a, b);
+  assert.ok(hit);
+  assert.equal(redZoneEntry(b, { ...b, situation: sit(9) }), null);
+  const ev = gameEvents("nfl", "9", a, b).find((e) => e.kind === "redzone")!;
+  assert.ok(ev && /Red zone/.test(ev.title));
+  assert.equal(keepAlert(ev, false, []), false);
+  assert.equal(keepAlert(ev, true, []), true);
+  assert.equal(keepAlert(ev, false, ["Someone Here"]), true);
 });
 
 t("live motivation has no money or card wording", () => {
