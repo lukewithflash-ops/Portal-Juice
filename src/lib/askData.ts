@@ -376,7 +376,7 @@ function statMatch(cells: StatCell[], words: string, side: "team" | "opponent" |
   const perGame = /per game|pg\b|avg|average|a game/.test(q);
   const pct = /pct|percent|%/.test(words.toLowerCase());
   const scored = cells.filter((c) => !side || c.side === side).map((c) => {
-    const lab = norm(`${c.label} ${c.name.replace(/([A-Z])/g, " $1")}`);
+    const lab = norm(`${c.label} ${c.name.replace(/([a-z])([A-Z])/g, "$1 $2")} ${c.name}`);
     let s = 0;
     for (const t of toks) if (lab.split(" ").some((w) => w === t || (t.length > 3 && (w.startsWith(t) || t.startsWith(w)) && w.length > 2))) s += 2;
     if (perGame === /per game|avg/.test(lab)) s += 1;
@@ -608,7 +608,13 @@ export async function matchupPreview(l: Lg, eventId: string) {
     team: S(D(t.team).abbreviation),
     leaders: L(t.leaders).map(D).slice(0, 4).map((c) => `${S(c.displayName)}: ${S(D(D(L(c.leaders)[0]).athlete).displayName) ?? "?"} ${S(D(L(c.leaders)[0]).displayValue) ?? ""}`.trim()),
   }));
-  const five = L(d.lastFiveGames).map(D).map((t) => ({ team: S(D(t.team).abbreviation), games: L(t.events).map(D).map((e) => `${S(e.gameResult) ?? "?"} ${S(e.score) ?? ""} ${S(e.atVs) ?? ""} ${S(D(e.opponent).abbreviation) ?? ""}`.replace(/\s+/g, " ").trim()) }));
+  const five = L(d.lastFiveGames).map(D).map((t) => ({
+    team: S(D(t.team).abbreviation),
+    newestFirst: L(t.events)
+      .map(D)
+      .sort((x, y) => ((S(x.gameDate) ?? "") < (S(y.gameDate) ?? "") ? 1 : -1))
+      .map((e) => `${(S(e.gameDate) ?? "").slice(0, 10)} ${S(e.gameResult) ?? "?"} ${S(e.score) ?? ""} ${S(e.atVs) ?? ""} ${S(D(e.opponent).abbreviation) ?? ""}`.replace(/\s+/g, " ").trim()),
+  }));
   const series = L(d.seasonseries).map(D).map((s) => ({ summary: S(s.summary), games: L(s.events).map(D).map((e) => `${S(e.date)?.slice(0, 10)} ${L(e.competitors).map(D).map((c) => `${S(D(c.team).abbreviation)} ${S(c.score)}`).join(" - ")}`) }));
   const st = D(D(comp.status).type);
   return {
