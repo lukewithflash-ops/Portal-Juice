@@ -104,7 +104,7 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
       if (!on[a.kind] || fired.current.has(a.key)) continue;
       fired.current.add(a.key);
       // The game page already shows its own scores and big plays.
-      if ((a.kind === "score" || a.kind === "big") && here === a.url) continue;
+      if ((a.kind === "score" || a.kind === "big" || a.kind === "redzone") && here === a.url) continue;
       if (a.kind === "player" && a.player) {
         const last = lastPlayer.current[a.player.pickId] ?? 0;
         if (now - last < PLAYER_GAP_MS) continue;
