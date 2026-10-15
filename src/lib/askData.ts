@@ -756,7 +756,7 @@ export async function playerGames(l: Lg, p: PlayerRef, opts: { last?: number; vs
   const want = Math.max(1, Math.min(opts.seasons ?? (opts.vsAbbr ? 6 : 1), 8));
   const cur = await fullSeason(l, p.id, null);
   const labels = cur.labels;
-  let rows = cur.rows;
+  const rows = cur.rows;
   if (want > 1 || !rows.length) {
     const older = await Promise.all(Array.from({ length: want }, (_, i) => fullSeason(l, p.id, thisYear - 1 - i)));
     const seen = new Set(rows.map((r) => r.date + r.opp));
