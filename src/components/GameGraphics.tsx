@@ -177,9 +177,9 @@ export function PitchMap({ atBat, live, freshIds }: { atBat: LiveAtBat; live: bo
         </svg>
         <ol className="min-w-0 flex-1 space-y-1 text-[11px]">
           {atBat.pitches.map((p) => (
-            <li key={p.id} className="flex items-center gap-1.5">
-              <span className="flex h-4 w-4 flex-none items-center justify-center rounded-full text-[9px] font-black text-black" style={{ background: CALL_COLOR[p.call] }}>{p.n}</span>
-              <span className="truncate text-zinc-300">
+            <li key={p.id} className="flex items-start gap-1.5">
+              <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full text-[9px] font-black text-black" style={{ background: CALL_COLOR[p.call] }}>{p.n}</span>
+              <span className="leading-tight text-zinc-300">
                 <span className="font-bold text-white">{p.label}</span>
                 {p.pitch ? ` · ${p.pitch}` : ""}
                 {p.mph ? ` ${p.mph}` : ""}
