@@ -76,9 +76,7 @@ function heat(pct: number): string {
   return "#38bdf8";
 }
 
-function HotZones({ shots, uid }: { shots: LiveShot[]; uid: string }) {
-  const arcY = RIM_Y + Math.sqrt(23.75 ** 2 - 22 ** 2);
-  const top = 43.25;
+function zoneTally(shots: Pick<LiveShot, "x" | "y" | "points" | "made">[]) {
   const tally = new Map<ZoneId, { made: number; att: number }>();
   for (const s of shots) {
     const z = shotZone(s);
@@ -87,20 +85,94 @@ function HotZones({ shots, uid }: { shots: LiveShot[]; uid: string }) {
     if (s.made) t.made += 1;
     tally.set(z, t);
   }
+  return tally;
+}
+
+/**
+ * Spots a zone label may sit on, best first. Each stays inside its zone.
+ * The rim label never sits on the rim: it goes just out past the restricted area (or behind the rim).
+ */
+const LABEL_SPOTS: Record<ZoneId, [number, number][]> = {
+  ra: [[25, RIM_Y + 5.4], [25, BASE_Y + 1.5], [25, RIM_Y + 7.2]],
+  paint: [[25, 11.6], [25, 13.4], [25, 9.6]],
+  midC: [[25, 18.6], [25, 21.2], [25, 16.4]],
+  midL: [[9, 9], [9, 4.5], [9, 13.5], [11.5, 17.5], [8.5, 0.5]],
+  midR: [[41, 9], [41, 4.5], [41, 13.5], [38.5, 17.5], [41.5, 0.5]],
+  c3L: [[1.5, 3], [1.5, -1.5], [1.5, 6.5]],
+  c3R: [[48.5, 3], [48.5, -1.5], [48.5, 6.5]],
+  a3L: [[6, 25], [6, 30.5], [8.5, 36], [4.5, 20]],
+  a3C: [[25, 34], [25, 38.5], [25, 30.5], [25, 41.6]],
+  a3R: [[44, 25], [44, 30.5], [41.5, 36], [45.5, 20]],
+};
+
+export type ZoneLabel = { z: ZoneId; x: number; y: number; w: number; h: number; text: string; size: number };
+
+/** Place each zone's FG% pill on the spot with the fewest shot markers under it, never on another pill. */
+export function placeZoneLabels(shots: Pick<LiveShot, "x" | "y" | "points" | "made">[]): ZoneLabel[] {
+  const tally = zoneTally(shots);
+  const placed: ZoneLabel[] = [];
+  // Busiest zones pick first.
+  const zones = (Object.keys(LABEL_SPOTS) as ZoneId[]).filter((z) => (tally.get(z)?.att ?? 0) >= 2).sort((a, b) => tally.get(b)!.att - tally.get(a)!.att);
+  for (const z of zones) {
+    const t = tally.get(z)!;
+    const small = z === "c3L" || z === "c3R";
+    const text = small ? `${t.made}/${t.att}` : `${t.made}/${t.att} · ${Math.round((t.made / t.att) * 100)}%`;
+    const size = small ? 1.4 : 1.7;
+    const w = text.length * size * 0.56 + 1.1;
+    const h = size + 0.9;
+    let best: ZoneLabel | null = null;
+    let bestScore = Infinity;
+    LABEL_SPOTS[z].forEach(([cx, cy], i) => {
+      const x = Math.max(w / 2 - 0.9, Math.min(50.9 - w / 2, cx));
+      const box = { l: x - w / 2 - 0.9, r: x + w / 2 + 0.9, t: cy - h / 2 - 0.9, b: cy + h / 2 + 0.9 };
+      const under = shots.filter((s) => s.x >= box.l && s.x <= box.r && s.y >= box.t && s.y <= box.b).length;
+      const clash = placed.some((p) => Math.abs(p.x - x) < (p.w + w) / 2 + 0.3 && Math.abs(p.y - cy) < (p.h + h) / 2 + 0.3);
+      const score = under * 10 + (clash ? 1000 : 0) + i;
+      if (score < bestScore) {
+        bestScore = score;
+        best = { z, x, y: cy, w, h, text, size };
+      }
+    });
+    if (best) placed.push(best);
+  }
+  return placed;
+}
+
+/** Zone FG% pills. Drawn after the shot markers so nothing covers them. */
+function ZoneLabels({ shots }: { shots: LiveShot[] }) {
+  const labels = placeZoneLabels(shots);
+  return (
+    <g aria-label="Zone shooting" data-testid="zone-labels" style={{ pointerEvents: "none" }}>
+      {labels.map((l) => (
+        <g key={l.z} data-zone={l.z}>
+          <rect x={l.x - l.w / 2} y={l.y - l.h / 2} width={l.w} height={l.h} rx={l.h / 2} fill="rgba(6,4,14,0.86)" stroke="rgba(192,132,252,0.55)" strokeWidth="0.12" />
+          <text x={l.x} y={l.y} dy="0.36em" fontSize={l.size} fontWeight="900" textAnchor="middle" fill="#fff">
+            {l.text}
+          </text>
+        </g>
+      ))}
+    </g>
+  );
+}
+
+function HotZones({ shots, uid }: { shots: LiveShot[]; uid: string }) {
+  const arcY = RIM_Y + Math.sqrt(23.75 ** 2 - 22 ** 2);
+  const top = 43.25;
+  const tally = zoneTally(shots);
   const inside = `M 3 ${BASE_Y} V ${arcY} A 23.75 23.75 0 0 0 47 ${arcY} V ${BASE_Y} Z`;
   const clipIn = `${uid}-in`;
   const maskOut = `${uid}-out`;
-  const shapes: Record<ZoneId, { el: React.ReactNode; at: [number, number] }> = {
-    ra: { el: <path d={`M 21 ${BASE_Y} V ${RIM_Y} A 4 4 0 0 0 29 ${RIM_Y} V ${BASE_Y} Z`} />, at: [25, RIM_Y + 2.2] },
-    paint: { el: <rect x="17" y={BASE_Y} width="16" height="19" />, at: [25, BASE_Y + 13] },
-    midL: { el: <rect x="0" y={BASE_Y} width="17" height={top - BASE_Y} clipPath={`url(#${clipIn})`} />, at: [10, 9] },
-    midC: { el: <rect x="17" y={BASE_Y + 19} width="16" height={top - BASE_Y - 19} clipPath={`url(#${clipIn})`} />, at: [25, BASE_Y + 22.5] },
-    midR: { el: <rect x="33" y={BASE_Y} width="17" height={top - BASE_Y} clipPath={`url(#${clipIn})`} />, at: [40, 9] },
-    c3L: { el: <rect x="0" y={BASE_Y} width="3" height={arcY - BASE_Y} />, at: [1.5, 3] },
-    c3R: { el: <rect x="47" y={BASE_Y} width="3" height={arcY - BASE_Y} />, at: [48.5, 3] },
-    a3L: { el: <rect x="0" y={arcY} width="17" height={top - arcY} mask={`url(#${maskOut})`} />, at: [6, 25] },
-    a3C: { el: <rect x="17" y={arcY} width="16" height={top - arcY} mask={`url(#${maskOut})`} />, at: [25, 34] },
-    a3R: { el: <rect x="33" y={arcY} width="17" height={top - arcY} mask={`url(#${maskOut})`} />, at: [44, 25] },
+  const shapes: Record<ZoneId, { el: React.ReactNode }> = {
+    ra: { el: <path d={`M 21 ${BASE_Y} V ${RIM_Y} A 4 4 0 0 0 29 ${RIM_Y} V ${BASE_Y} Z`} /> },
+    paint: { el: <rect x="17" y={BASE_Y} width="16" height="19" /> },
+    midL: { el: <rect x="0" y={BASE_Y} width="17" height={top - BASE_Y} clipPath={`url(#${clipIn})`} /> },
+    midC: { el: <rect x="17" y={BASE_Y + 19} width="16" height={top - BASE_Y - 19} clipPath={`url(#${clipIn})`} /> },
+    midR: { el: <rect x="33" y={BASE_Y} width="17" height={top - BASE_Y} clipPath={`url(#${clipIn})`} /> },
+    c3L: { el: <rect x="0" y={BASE_Y} width="3" height={arcY - BASE_Y} /> },
+    c3R: { el: <rect x="47" y={BASE_Y} width="3" height={arcY - BASE_Y} /> },
+    a3L: { el: <rect x="0" y={arcY} width="17" height={top - arcY} mask={`url(#${maskOut})`} /> },
+    a3C: { el: <rect x="17" y={arcY} width="16" height={top - arcY} mask={`url(#${maskOut})`} /> },
+    a3R: { el: <rect x="33" y={arcY} width="17" height={top - arcY} mask={`url(#${maskOut})`} /> },
   };
   return (
     <g aria-label="Hot zones">
@@ -122,17 +194,6 @@ function HotZones({ shots, uid }: { shots: LiveShot[]; uid: string }) {
           <g key={z} fill={c} className={pct >= 0.5 && t.att >= 3 ? "zone-hot" : undefined} style={{ opacity: 0.05 + 0.17 * Math.min(1, t.att / 8) }}>
             {shapes[z].el}
           </g>
-        );
-      })}
-      {(Object.keys(shapes) as ZoneId[]).map((z) => {
-        const t = tally.get(z);
-        if (!t || t.att < 2) return null;
-        const [x, y] = shapes[z].at;
-        const small = z === "c3L" || z === "c3R";
-        return (
-          <text key={"t" + z} x={x} y={y} fontSize={small ? 1.5 : 1.9} fontWeight="900" textAnchor="middle" fill="#fff" opacity="0.85" style={{ paintOrder: "stroke", stroke: "rgba(5,4,10,0.85)", strokeWidth: 0.35 }}>
-            {small ? `${t.made}/${t.att}` : `${t.made}/${t.att} · ${Math.round((t.made / t.att) * 100)}%`}
-          </text>
         );
       })}
     </g>
@@ -206,6 +267,7 @@ export function ShotMap({ snap, awayColor, homeColor, freshIds }: { snap: LiveSn
             </g>
           );
         })}
+        {zones ? <ZoneLabels shots={shown} /> : null}
       </svg>
       <div className="mt-1.5 flex items-center justify-between text-[11px] font-bold">
         <span style={{ color: awayColor }}>{snap.awayAbbr} FG {a.fg} · 3PT {a.three}</span>
