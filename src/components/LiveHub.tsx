@@ -22,6 +22,7 @@ const HUB_LIVE_MS = 15_000;
 const HUB_IDLE_MS = 60_000;
 const MAX_GAMES = 8;
 /** On My Live: every 2.5s while a game is live, more games per pull. */
+const NO_FEED = /^(ufc|pga|mma\.|golf\.|racing\.|boxing\.)/;
 const MYLIVE_MS = 2_500;
 const MYLIVE_MAX = 16;
 export const MY_LIVE_PATH = "/live";
@@ -177,6 +178,8 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
     const targets: { league: string; id: string }[] = [];
     const add = (league: string, id: string) => {
       if (targets.some((t) => t.league === league && t.id === id)) return;
+      // UFC and golf have no live game feed to pull.
+      if (NO_FEED.test(league)) return;
       const prior = had[keyOf(league, id)];
       const row = board.find((r) => r.id === id);
       // Finished games settle once; games not started are read once until the scoreboard says live.
