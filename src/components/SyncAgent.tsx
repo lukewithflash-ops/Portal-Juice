@@ -12,7 +12,8 @@ export default function SyncAgent() {
       last = localStamp();
     });
     const tick = setInterval(() => {
-      if (!getAccount().user || document.visibilityState !== "visible") return;
+      // Local edits go up even from a background tab; pulls wait until the app is in view.
+      if (!getAccount().user) return;
       const now = localStamp();
       if (now !== last) {
         last = now;
@@ -26,15 +27,19 @@ export default function SyncAgent() {
     }, 15000);
     const onVis = () => {
       if (document.visibilityState === "visible") void refreshAccount().then(() => syncNow()).then(() => (last = localStamp()));
+      // Leaving the app: send anything not yet sent.
+      else if (getAccount().user && localStamp() !== last) void syncNow().then(() => (last = localStamp()));
     };
     const onOnline = () => void syncNow();
     document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pagehide", onVis);
     window.addEventListener("online", onOnline);
     return () => {
       clearInterval(tick);
       clearInterval(pull);
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pagehide", onVis);
       window.removeEventListener("online", onOnline);
     };
   }, []);

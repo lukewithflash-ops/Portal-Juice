@@ -122,7 +122,9 @@ async function run(opts: { full?: boolean; reset?: ListCol[] }) {
   }
   let doc: CloudDoc;
   try {
-    const res = await fetch("/api/sync", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ push, reset: opts.reset, endpoint: await pushEndpoint() }) });
+    const body = JSON.stringify({ push, reset: opts.reset, endpoint: await pushEndpoint() });
+    // keepalive lets a small sync finish even if the page is closing.
+    const res = await fetch("/api/sync", { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: body.length < 60_000 });
     if (res.status === 401) {
       set({ user: null, status: "idle" });
       return;
