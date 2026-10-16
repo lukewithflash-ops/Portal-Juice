@@ -62,6 +62,9 @@ function shortMarket(m: string): string {
   const map: [RegExp, string][] = [
     [/points.*rebounds.*assists|pts\s*\+\s*reb\s*\+\s*ast|pra/i, "PRA"],
     [/3-point|three point|3pm/i, "3PM"],
+    [/rush.*\+.*rec|rush.*rec.*yard/i, "rush+rec yds"],
+    [/pass.*\+.*rush|pass.*rush.*yard/i, "pass+rush yds"],
+    [/fantasy/i, "fantasy"],
     [/pass.*yard/i, "pass yds"],
     [/rush.*yard/i, "rush yds"],
     [/receiv.*yard/i, "rec yds"],
