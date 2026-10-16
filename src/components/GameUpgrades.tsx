@@ -19,7 +19,7 @@ export function RedZoneAlarm({ snap }: { snap: LiveSnap | null }) {
       <div key={"rz" + drive} className="rz-edges" aria-hidden />
       <span key={"rzt" + drive} className="rz-tag" role="status" aria-live="polite">
         🚨 Red zone · {abbr}
-        {sit.yardsToEndzone != null ? ` ${sit.yardsToEndzone}` : ""}
+        {sit.yardsToEndzone != null ? ` · ${sit.yardsToEndzone} yd${sit.yardsToEndzone === 1 ? "" : "s"} out` : ""}
       </span>
     </>
   );
