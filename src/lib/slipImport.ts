@@ -522,8 +522,11 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
       return { row, leg, game: gameRef(g), issue, manual: true };
     }
     if (!player) return { row, leg: null, game: null, manual: true, issue: "Player not found in games from the last week or the next two. Match it below, or save it as a manual leg.", options: gameOptions(row, games, now) };
-    const cands = pool.filter((x) => x.league === player.league && player.teamId && (x.home.id === player.teamId || x.away.id === player.teamId));
-    const g = pickGame(cands.length ? cands : games.filter((x) => player.teamId && (x.home.id === player.teamId || x.away.id === player.teamId)), row, now);
+    // Team ids repeat across leagues (WNBA 5 is not MLB 5): same league only. Soccer search hits say "soccer".
+    const soccer = (lg: string) => !TENNIS.has(lg) && !BASKETBALL.has(lg) && !["nfl", "ncaaf", "mlb", "nhl", "ufc"].includes(lg);
+    const sameLeague = (x: SlateGame) => x.league === player.league || (player.league === "soccer" && soccer(x.league));
+    const cands = games.filter((x) => sameLeague(x) && player.teamId && (x.home.id === player.teamId || x.away.id === player.teamId));
+    const g = pickGame(cands, row, now);
     if (!g) return { row, leg: null, game: null, manual: true, issue: `${player.name}’s team has no game in the window. Match it below, or save it as a manual leg.`, options: gameOptions({ ...row, league: row.league ?? player.league }, games, now) };
     const stat = statFromMarket(g.league, row.market);
     const leg: LegInput = {

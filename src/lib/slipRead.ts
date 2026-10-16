@@ -279,6 +279,8 @@ export async function findPlayer(name: string, games: SlateGame[]): Promise<Foun
   const isSoccer = (lg: string) => SPORT_LEAGUES.some((l) => l.id === lg && l.kind === "soccer");
   const sameLeague = (h: FoundPlayer, g: SlateGame) => g.league === h.league || (h.league === "soccer" && isSoccer(g.league));
   const order = (g: SlateGame) => (g.state === "in" ? 0 : g.state === "pre" ? 1 : 2);
+  // Only people whose name matches what was printed: search also returns loose matches.
+  hits = hits.filter((h) => nameClose(h.name, q));
   for (const h of hits) {
     if (!h.teamId) continue;
     const g = games.filter((x) => sameLeague(h, x) && (x.home.id === h.teamId || x.away.id === h.teamId)).sort((a, b) => order(a) - order(b))[0];
@@ -299,7 +301,8 @@ async function propPlayer(row: SlipRow, games: SlateGame[]): Promise<FoundPlayer
     const r = await rosterPlayer(row, games);
     if (r) return r;
   }
-  return hit;
+  // A hit from another league than the slip names is someone else.
+  return hit && (!row.league || row.league === hit.league) ? hit : null;
 }
 
 /** Grade a finished leg from ESPN: the final box for props, the final score for sides and totals. */
