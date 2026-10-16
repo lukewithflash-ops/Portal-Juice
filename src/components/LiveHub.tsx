@@ -176,7 +176,7 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
       : null;
     const targets: { league: string; id: string }[] = [];
     const add = (league: string, id: string) => {
-      if (targets.length >= cap || targets.some((t) => t.league === league && t.id === id)) return;
+      if (targets.some((t) => t.league === league && t.id === id)) return;
       const prior = had[keyOf(league, id)];
       const row = board.find((r) => r.id === id);
       // Finished games settle once; games not started are read once until the scoreboard says live.
@@ -190,6 +190,18 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
     for (const f of starred) add(f.league, f.id);
     // My Live also shows today's finals for picks already graded (read once).
     if (mine) for (const p of done) add(p.league as string, p.gameId as string);
+    // Over the cap: live games first, then games starting soonest, so a long list never crowds out what is on now.
+    if (targets.length > cap) {
+      const rank = (t: { league: string; id: string }) => {
+        const row = board.find((r) => r.id === t.id && r.league === t.league);
+        const prior = had[keyOf(t.league, t.id)];
+        if (row?.state === "in" || prior?.state === "in") return 0;
+        const at = Date.parse(row?.start ?? prior?.start ?? "");
+        return Number.isFinite(at) ? 1 + Math.max(0, at - Date.now()) / 864e5 : 50;
+      };
+      targets.sort((a, b) => rank(a) - rank(b));
+      targets.length = cap;
+    }
     // One batched call for every game.
     let pulled: (readonly [{ league: string; id: string }, LiveSnap] | null)[] = [];
     if (targets.length) {
