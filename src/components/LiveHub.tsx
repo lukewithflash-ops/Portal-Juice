@@ -21,6 +21,10 @@ import type { ScoreRow } from "@/lib/slate";
 const HUB_LIVE_MS = 15_000;
 const HUB_IDLE_MS = 60_000;
 const MAX_GAMES = 8;
+/** On My Live: every 2.5s while a game is live, more games per pull. */
+const MYLIVE_MS = 2_500;
+const MYLIVE_MAX = 16;
+export const MY_LIVE_PATH = "/live";
 /** Basketball scores move every few seconds. One score update a minute per game. */
 const SCORE_GAP_MS = 60_000;
 const PLAYER_GAP_MS = 90_000;
@@ -51,9 +55,15 @@ type Hub = {
   legs: Leg[];
   slips: SlipLive[];
   snaps: Record<string, LiveSnap>;
+  /** Today's scoreboard rows (core leagues). */
+  rows: ScoreRow[];
+  /** Your team's game today, if any. */
+  favRow: ScoreRow | null;
+  /** When the last pull landed (ms), for the "updated" stamp. */
+  pulledAt: number;
 };
 
-const Ctx = createContext<Hub>({ moments: {}, live: [], legs: [], slips: [], snaps: {} });
+const Ctx = createContext<Hub>({ moments: {}, live: [], legs: [], slips: [], snaps: {}, rows: [], favRow: null, pulledAt: 0 });
 export const useLiveHub = () => useContext(Ctx);
 
 const keyOf = (league: string, id: string) => `${league}/${id}`;
@@ -73,6 +83,8 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
   const fired = useRef<Set<string>>(new Set());
   const lastScore = useRef<Record<string, number>>({});
   const lastPlayer = useRef<Record<string, number>>({});
+  const [pulledAt, setPulledAt] = useState(0);
+  const onMyLive = pathname === MY_LIVE_PATH;
 
   const open = useMemo(
     () => picks.filter((p) => p.status === "open" && p.gameId && p.league && p.market),
@@ -90,9 +102,16 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
     );
   }, [rows, team]);
 
-  const state = useRef({ open, follows, snaps, prefs, pathname });
+  /** Picks settled today with a game: My Live shows their final score once. */
+  const doneToday = useMemo(() => {
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return picks.filter((p) => p.status !== "open" && p.gameId && p.league && p.date === today);
+  }, [picks]);
+
+  const state = useRef({ open, follows, snaps, prefs, pathname, doneToday });
   useEffect(() => {
-    state.current = { open, follows, snaps, prefs, pathname };
+    state.current = { open, follows, snaps, prefs, pathname, doneToday };
   });
 
   /** Queue updates that pass your settings. Each event fires once. */
@@ -145,7 +164,9 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
       board = ((await res.json()) as { scores: ScoreRow[] }).scores;
       setRows(board);
     }
-    const { open: legsOpen, follows: starred, snaps: had } = state.current;
+    const { open: legsOpen, follows: starred, snaps: had, pathname: here, doneToday: done } = state.current;
+    const mine = here === MY_LIVE_PATH;
+    const cap = mine ? MYLIVE_MAX : MAX_GAMES;
     const fav = team
       ? board.find(
           (r) =>
@@ -155,27 +176,37 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
       : null;
     const targets: { league: string; id: string }[] = [];
     const add = (league: string, id: string) => {
-      if (targets.length >= MAX_GAMES || targets.some((t) => t.league === league && t.id === id)) return;
+      if (targets.length >= cap || targets.some((t) => t.league === league && t.id === id)) return;
       const prior = had[keyOf(league, id)];
       const row = board.find((r) => r.id === id);
       // Finished games settle once; games not started are read once until the scoreboard says live.
       if (prior?.state === "post" && (!row || row.state === "post")) return;
-      if (prior && prior.state === "pre" && (!row || row.state === "pre")) return;
+      // Without a scoreboard row (other leagues), look again once the posted start time passes.
+      if (prior && prior.state === "pre" && (row ? row.state === "pre" : !prior.start || Date.parse(prior.start) > Date.now())) return;
       targets.push({ league, id });
     };
     for (const p of legsOpen) add(p.league as string, p.gameId as string);
-    if (fav && fav.state !== "pre") add(fav.league, fav.id);
+    if (fav && (fav.state !== "pre" || mine)) add(fav.league, fav.id);
     for (const f of starred) add(f.league, f.id);
-    const pulled = await Promise.all(
-      targets.map(async (t) => {
-        try {
-          const r = await fetch(`/api/live/${t.league}/${t.id}`, { cache: "no-store", signal });
-          return r.ok ? ([t, (await r.json()) as LiveSnap] as const) : null;
-        } catch {
-          return null;
+    // My Live also shows today's finals for picks already graded (read once).
+    if (mine) for (const p of done) add(p.league as string, p.gameId as string);
+    // One batched call for every game.
+    let pulled: (readonly [{ league: string; id: string }, LiveSnap] | null)[] = [];
+    if (targets.length) {
+      try {
+        const q = targets.map((t) => `${t.league}:${t.id}`).join(",");
+        const r = await fetch(`/api/live/batch?g=${encodeURIComponent(q)}`, { cache: "no-store", signal });
+        if (r.ok) {
+          const got = ((await r.json()) as { snaps: Record<string, LiveSnap | null> }).snaps ?? {};
+          pulled = targets.map((t) => {
+            const snap = got[keyOf(t.league, t.id)];
+            return snap ? ([t, snap] as const) : null;
+          });
         }
-      })
-    );
+      } catch {
+        if (signal.aborted) throw new Error("aborted");
+      }
+    }
     const next = { ...had };
     const alerts: GameAlert[] = [];
     let changed = false;
@@ -195,10 +226,11 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
       setSnaps(next);
     }
     if (alerts.length) push.current(alerts);
+    if (mine) setPulledAt(Date.now());
     if (!res.ok) return POLL_ERROR_MS;
     const anyLive = Object.values(next).some((s) => s.state === "in") || fav?.state === "in";
-    return anyLive ? HUB_LIVE_MS : HUB_IDLE_MS;
-  }, "hub:" + (team ? team.league + team.abbr : "") + "|" + pickKey + "|" + followKey);
+    return anyLive ? (mine ? MYLIVE_MS : HUB_LIVE_MS) : mine ? HUB_LIVE_MS : HUB_IDLE_MS;
+  }, "hub:" + (onMyLive ? "mine|" : "") + (team ? team.league + team.abbr : "") + "|" + pickKey + "|" + followKey);
 
   const legs = useMemo(() => {
     const out: Leg[] = [];
@@ -287,7 +319,10 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
   }, [favRow, legs, rows, snaps, follows]);
 
   const slips = useMemo(() => groupSlips(legs), [legs]);
-  const value = useMemo<Hub>(() => ({ moments, live, legs, slips, snaps }), [moments, live, legs, slips, snaps]);
+  const value = useMemo<Hub>(
+    () => ({ moments, live, legs, slips, snaps, rows, favRow, pulledAt }),
+    [moments, live, legs, slips, snaps, rows, favRow, pulledAt]
+  );
 
   // Closed-app push needs a server check. While the app is open, nudge it (the server throttles to one a minute).
   useEffect(() => {

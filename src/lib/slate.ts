@@ -156,6 +156,8 @@ export type ScoreRow = {
   homeAbbr: string;
   awayId: string;
   homeId: string;
+  /** Scheduled start, ISO. */
+  start?: string;
 };
 
 /** Lay fresher scoreboard values over a game from the server render. */

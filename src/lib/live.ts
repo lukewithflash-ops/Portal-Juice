@@ -202,6 +202,8 @@ export type LiveSnap = {
   winMarks?: { i: number; label: string }[];
   /** Play id for each point in `win`, so a replay can cut the line at the right play. */
   winIds?: string[];
+  /** Scheduled start, ISO, from the summary header. */
+  start?: string | null;
 };
 
 function colorOf(raw: unknown): string {

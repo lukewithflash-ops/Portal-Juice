@@ -805,3 +805,15 @@ html[data-streak] .site-chrome .wordmark { filter: drop-shadow(0 0 calc(8px + 3p
 @media (prefers-reduced-motion: reduce) {
   .night-num, .night-row, .streak-chip { animation: none !important; }
 }
+
+/* My Live: compact live tiles, neon edges. */
+.live-badge { border-color: color-mix(in srgb, var(--minus) 70%, transparent); color: #fff; background: color-mix(in srgb, var(--minus) 18%, #07060d); box-shadow: 0 0 10px -2px var(--minus); }
+.ml-tile { transition: border-color 0.4s ease, box-shadow 0.4s ease; }
+.ml-tile:active { transform: scale(0.99); }
+.ml-bar { transition: width 0.6s ease; }
+.ml-empty { box-shadow: 0 0 30px -12px #a855f7, inset 0 0 0 1px rgba(168, 85, 247, 0.15); }
+@media (prefers-reduced-motion: reduce) {
+  .ml-tile, .ml-bar, .my-live .xp-fill { transition: none !important; }
+  .ml-tile:active { transform: none; }
+  .my-live .play-in, .my-live .level-up { animation: none !important; }
+}

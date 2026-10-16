@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { EntrySlip } from "@/components/EntrySlip";
 import { useLiveHub, type HubGame } from "@/components/LiveHub";
 import { usePrefs } from "@/components/Prefs";
+import { usePathname } from "next/navigation";
+import { MY_LIVE_PATH } from "@/components/LiveHub";
 
 const HIDE_KEY = "pj-banner-hide";
 const SLIM_KEY = "pj-banner-slim";
@@ -46,6 +48,7 @@ function lift(hex: string): string {
 export default function LiveBanner() {
   const { live } = useLiveHub();
   const { team } = usePrefs();
+  const pathname = usePathname();
   const [hidden, setHidden] = useState<string[]>([]);
   const [slim, setSlim] = useState<string[]>([]);
   const [idx, setIdx] = useState(0);
@@ -84,7 +87,8 @@ export default function LiveBanner() {
     return () => clearInterval(t);
   }, [games.length]);
 
-  if (!games.length) return null;
+  // My Live already shows every one of these games in full.
+  if (!games.length || pathname === MY_LIVE_PATH) return null;
 
   const hide = (k: string) => {
     const v = [...hidden, k];

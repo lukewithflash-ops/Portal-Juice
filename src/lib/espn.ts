@@ -681,6 +681,8 @@ export async function getLive(leagueId: string, id: string): Promise<LiveSnap | 
     return null;
   }
   let snap = parseLive(data);
+  const startAt = (data as { header?: { competitions?: { date?: string }[] } })?.header?.competitions?.[0]?.date;
+  if (snap && typeof startAt === "string") snap = { ...snap, start: startAt };
   if (snap && extra?.kind === "soccer") {
     const { boxes, subs } = await soccerBoxes(data, extra.path, id, snap.state).catch(() => ({ boxes: snap!.boxes, subs: [] }));
     snap = { ...snap, boxes, subs };
@@ -728,6 +730,7 @@ export async function getScores(): Promise<{ fetchedAt: string; scores: ScoreRow
             homeAbbr: g.home.abbr,
             awayId: g.away.id,
             homeId: g.home.id,
+            start: g.start,
           })
         );
       } catch {

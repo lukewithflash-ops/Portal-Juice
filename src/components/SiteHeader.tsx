@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Bell from "@/components/Bell";
 import StreakGlow from "@/components/StreakGlow";
+import { useLiveHub } from "@/components/LiveHub";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { usePrefs, type FavTeam } from "@/components/Prefs";
@@ -16,6 +17,7 @@ export default function SiteHeader() {
   const firstPath = useRef(path);
   const [showTagline, setShowTagline] = useState(true);
   const { odds, setOdds, team, setTeam } = usePrefs();
+  const liveCount = useLiveHub().live.length;
   // Portal ring spins open on launch (once a session) and on big moments.
   const [spinN, setSpinN] = useState(0);
   useEffect(() => {
@@ -76,6 +78,17 @@ export default function SiteHeader() {
             </span>
           </Link>
           <div className="ml-auto flex min-w-0 shrink items-center gap-1 sm:gap-1.5">
+            {liveCount > 0 ? (
+              <Link
+                href="/live"
+                className="live-badge tabular flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-black"
+                aria-label={`My Live: ${liveCount} of your games live`}
+                data-testid="live-badge"
+              >
+                <span className="tv-live-dot" aria-hidden />
+                {liveCount}
+              </Link>
+            ) : null}
             <StreakGlow />
             <Bell />
             <button
@@ -100,7 +113,7 @@ export default function SiteHeader() {
           </div>
         </div>
         {open ? <TeamPicker team={team} onPick={setTeam} onClose={() => setOpen(false)} /> : null}
-        <nav aria-label="Portal Juice" className="-mx-4 mt-1 flex items-center gap-1 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav aria-label="Portal Juice" className="-mx-3 mt-1 flex items-center gap-1 overflow-x-auto px-3 pb-2 sm:-mx-4 sm:px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {NAV.map((n) => {
             const active =
               n.href === "/lines" ? path === "/lines" : path === n.href || path.startsWith(n.href + "/");
@@ -118,6 +131,11 @@ export default function SiteHeader() {
                 }
               >
                 {n.label}
+                {n.href === "/live" && liveCount > 0 ? (
+                  <span className="tabular ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 align-[1px] text-[10px] font-black text-black" style={{ background: "var(--plus)" }} aria-label={`${liveCount} live`}>
+                    {liveCount}
+                  </span>
+                ) : null}
               </Link>
             );
           })}

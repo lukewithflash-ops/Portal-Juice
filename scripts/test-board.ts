@@ -1,3 +1,5 @@
+import { _test as myLive } from "../src/lib/myLive";
+import { parseBatch, slimSnap } from "../src/lib/liveSlim";
 import assert from "node:assert/strict";
 import { _test } from "../src/lib/askData";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
@@ -1558,4 +1560,53 @@ console.log(`\n${n} passed`);
   const sched = _test.parseSchedule({ events: [{ id: "1", date: "2024-09-08T20:05Z", season: { year: 2024 }, seasonType: { type: 2 }, competitions: [{ status: { type: { completed: true } }, competitors: [{ homeAway: "home", id: "26", team: { abbreviation: "SEA" }, score: { value: 26 }, winner: true }, { homeAway: "away", id: "7", team: { abbreviation: "DEN" }, score: { value: 20 } }] }] }] });
   assert(sched[0].done && sched[0].home.score === 26 && sched[0].away.abbr === "DEN", "ask: schedule parse");
   console.log("ok - ask data helpers");
+}
+
+// My Live: team legs against the live score, parlay status, quiet feed, batch parsing.
+{
+  const snap = (over: Record<string, unknown> = {}) =>
+    ({
+      state: "in", clock: "5:00", detail: "Q3 5:00", awayAbbr: "DAL", homeAbbr: "PHI", awayName: "Dallas Cowboys", homeName: "Philadelphia Eagles",
+      awayScore: "17", homeScore: "14", awayColor: "#002244", homeColor: "#004c54", awayId: "6", homeId: "21", provider: null, total: null, totalOpen: null,
+      spreadDetail: null, spreadHome: null, spreadOpen: null, awayMl: null, homeMl: null, homeWin: 40, win: [40], period: 3, boxes: [], plays: [], drives: [], situation: null,
+      ...over,
+    }) as unknown as import("../src/lib/live").LiveSnap;
+  const pick = (over: Record<string, unknown>) =>
+    ({ id: "p", sport: "NFL", subject: "Dallas Cowboys", line: -3.5, odds: -110, stake: 0, book: "Not set", date: "2026-10-16", status: "open", createdAt: "2026-10-16T20:00:00Z", league: "nfl", gameId: "1", market: "Spread", selection: null, ...over }) as import("../src/lib/types").Pick;
+  const sp = myLive.teamView(pick({}), snap(), "s")!;
+  assert(sp.state === "behind" && sp.valueText === "+3" && /Needs 0.5/.test(sp.note), "my live: spread needs half a point");
+  const ml = myLive.teamView(pick({ market: "Moneyline", line: 0 }), snap(), "s")!;
+  assert(ml.state === "alive" && ml.chance === 60, "my live: moneyline uses ESPN win chance for the side");
+  const tot = myLive.teamView(pick({ market: "Total", line: 30.5, selection: "Over", subject: "DAL @ PHI" }), snap(), "s")!;
+  assert(tot.state === "hit" && tot.tone === "gold", "my live: over clears once the total passes the line");
+  const under = myLive.teamView(pick({ market: "Total", line: 30.5, selection: "Under", subject: "DAL @ PHI" }), snap(), "s")!;
+  assert(under.state === "missed", "my live: under misses once the total passes");
+  const fin = myLive.teamView(pick({}), snap({ state: "post", awayScore: "24", homeScore: "14" }), "s")!;
+  assert(fin.state === "hit" && fin.auto, "my live: final spread auto-graded");
+  const pre = myLive.teamView(pick({}), snap({ state: "pre", awayScore: null, homeScore: null }), "s")!;
+  assert(pre.state === "waiting", "my live: not started waits");
+  const slips = myLive.groupViews([{ ...sp, pickId: "a" }, { ...fin, pickId: "b", key: "nfl/2" }, { ...under, pickId: "c" }], { "nfl/1": "in", "nfl/2": "post" });
+  assert(slips.length === 1 && slips[0].hit === 1 && slips[0].missed === 1 && slips[0].alive === 1 && slips[0].state === "missed", "my live: parlay counts hit/alive/missed");
+  const plays = [
+    { id: "1", text: "D.Prescott pass short right to C.Lamb for 12 yards", typeText: "Pass", scoring: false, points: 0, period: "3", clock: "6:00", awayScore: 17, homeScore: 14, teamId: "6" },
+    { id: "2", text: "J.Hurts 3 yard run (field goal attempt) TOUCHDOWN", typeText: "Rushing Touchdown", scoring: true, points: 6, period: "3", clock: "5:10", awayScore: 17, homeScore: 20, teamId: "21" },
+    { id: "3", text: "Pass incomplete", typeText: "Pass", scoring: false, points: 0, period: "3", clock: "5:00", awayScore: 17, homeScore: 20, teamId: "6" },
+  ];
+  const lamb = { ...sp, kind: "prop" as const, name: "CeeDee Lamb" };
+  const g = (reasons: ("picks" | "follow" | "team")[], legs: (typeof sp)[]) => ({ key: "nfl/1", league: "nfl", id: "1", state: "in" as const, snap: snap({ plays }), row: null, start: null, reasons, legs });
+  const quiet = myLive.buildFeed([g(["picks"], [lamb])]);
+  assert(quiet.length === 1 && quiet[0].mine && quiet[0].text.includes("C.Lamb"), "my live feed: only your player in an unfollowed game");
+  const loud = myLive.buildFeed([g(["follow"], [])]);
+  assert(loud.length === 1 && loud[0].tag === "Touchdown", "my live feed: followed game gets key plays, not every play");
+  assert(myLive.buildFeed([g(["picks"], [])]).length === 0, "my live feed: no generic scores");
+  assert(myLive.fmtLine(3.5) === "+3.5" && myLive.fmtLine(-3) === "-3", "my live: line format");
+  const b = parseBatch("nfl:1, nba:22,bad,nfl:1,../x:9");
+  assert(b.length === 2 && b[1].league === "nba" && b[1].id === "22", "live batch: parse, dedupe, reject junk");
+  const many = parseBatch(Array.from({ length: 30 }, (_, i) => `nba:${i + 1}`).join(","));
+  assert(many.length === 16, "live batch: capped at 16");
+  const big = snap({ plays: Array.from({ length: 100 }, (_, i) => ({ ...plays[0], id: String(i) })), win: [1, 2, 3], shots: [{}] });
+  const slim = slimSnap("nba", big);
+  assert(slim.plays.length === 40 && slim.plays[39].id === "99" && slim.win.length === 1 && !slim.shots, "live batch: slim keeps recent plays");
+  assert(slimSnap("nfl", big).plays.length === 100, "live batch: football keeps every play");
+  console.log("ok - my live");
 }

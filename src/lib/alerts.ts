@@ -81,7 +81,7 @@ const lead = (s: { awayScore: string | null; homeScore: string | null }) => {
   return d > 0 ? 1 : d < 0 ? -1 : 0;
 };
 
-function bigLabel(p: LivePlay): string {
+export function bigLabel(p: LivePlay): string {
   const t = `${p.typeText} ${p.text}`.toLowerCase();
   if (/touchdown/.test(t)) return "Touchdown";
   if (/intercept/.test(t)) return "Picked off";
