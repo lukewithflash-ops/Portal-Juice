@@ -5,6 +5,7 @@ import AddSlip from "@/components/AddSlip";
 import QuickPick from "@/components/QuickPick";
 import Link from "next/link";
 import { ParlayNotes, PastNotes } from "@/components/Notes";
+import SaveDataButton from "@/components/SaveDataButton";
 import LogRow from "@/components/LogRow";
 import { useLiveHub } from "@/components/LiveHub";
 import { useLogLooks } from "@/components/useLogLeans";
@@ -127,6 +128,7 @@ export default function PortfolioClient() {
         <Link href="/notes" className="text-xs font-black text-purple-200 hover:text-white" data-testid="log-notes-link">
           📝 Notes
         </Link>
+        <SaveDataButton back="/lines/portfolio" />
       </div>
       <AddSlip />
 

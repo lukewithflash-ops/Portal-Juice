@@ -1,5 +1,6 @@
 "use client";
 
+import SaveDataButton from "@/components/SaveDataButton";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import ResetStats from "@/components/ResetStats";
@@ -140,7 +141,8 @@ export default function MyStatsClient() {
       <Rows title="By book" groups={s.byBook} />
       <Heatmap days={s.days} />
       <div className="flex justify-end sm:col-span-2">
-        <ResetStats onDone={() => setToast(Date.now())} />
+        <div className="mt-6 flex justify-center"><SaveDataButton back="/lines/stats" /></div>
+      <ResetStats onDone={() => setToast(Date.now())} />
       </div>
       {toastEl}
     </div>

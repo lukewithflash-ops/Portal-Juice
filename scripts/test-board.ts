@@ -1,4 +1,5 @@
 import { pickGame, playerNameHit, gradeTennis, parseSlipRows as parseSlip2, slipDateOf, propMarketOf as pm2, tennisGames } from "../src/lib/slipImport";
+import { diffList, emptyDoc, mergePush, resetCols } from "../src/lib/syncCore";
 import { filterNotes, liveTag, matchupKey, notesForMatchup, notesForPick, notesForPlayer, pickPlayer } from "../src/lib/notesCore";
 import { _test as myLive } from "../src/lib/myLive";
 import { parseBatch, slimSnap } from "../src/lib/liveSlim";
@@ -1687,5 +1688,20 @@ console.log(`\n${n} passed`);
     assert(liveTag("nba", { state: "in", period: 3, clock: "4:12", detail: "", awayAbbr: "TOR", homeAbbr: "DET", awayScore: "78", homeScore: "71" }) === "Q3 4:12 · TOR 78-71 DET", "notes: live tag");
     assert(filterNotes(notes, picks as never, { q: "foul" }).length === 1 && filterNotes(notes, picks as never, { kind: "parlay" }).length === 1, "notes: search and filter");
     console.log("ok - notes");
+  }
+  // Sync: newest change wins per item, deletes spread, lists merge without duplicates.
+  {
+    const pick = (id: string, status = "open") => ({ id, subject: "A", status, createdAt: "2026-10-16T10:00:00Z" });
+    let doc = emptyDoc();
+    doc = mergePush(doc, { cols: { picks: { put: { a: { v: pick("a"), t: 100 }, b: { v: pick("b"), t: 100 } }, del: {} } }, singles: { "pj-leader-handle": { v: "luke", t: 100 } } }, 1000);
+    doc = mergePush(doc, { cols: { picks: { put: { c: { v: pick("c"), t: 200 }, a: { v: pick("a", "win"), t: 50 } }, del: { b: 150 } } }, singles: {} }, 1000);
+    const ids = Object.keys(doc.cols.picks.items).sort().join();
+    assert(ids === "a,c" && (doc.cols.picks.items.a.v as { status: string }).status === "open" && doc.cols.picks.tomb.b === 150 && doc.singles["pj-leader-handle"]?.v === "luke", "sync: newest wins, deletes leave tombstones");
+    doc = mergePush(doc, { cols: { picks: { put: { b: { v: pick("b"), t: 120 } }, del: {} } }, singles: {} }, 1000);
+    assert(!doc.cols.picks.items.b, "sync: an older edit can't undo a delete");
+    const d = diffList("picks", { a: JSON.stringify(pick("a")), z: "{}" }, [pick("a"), pick("n")], 5);
+    assert(Object.keys(d.put).join() === "n" && Object.keys(d.del).join() === "z", "sync: device diff");
+    assert(resetCols(doc, ["picks"], 2000).cols.picks.items && Object.keys(resetCols(doc, ["picks"], 2000).cols.picks.items).length === 0, "sync: cloud reset");
+    console.log("ok - sync");
   }
 }

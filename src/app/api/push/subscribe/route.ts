@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { chatEnabled } from "@/lib/chat";
 import { saveSubscription, vapidPublic } from "@/lib/push";
+import { currentUser, linkPush } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,10 @@ export async function POST(req: Request) {
       games: body.games,
       team: body.team,
       prefs: body.prefs,
+      uid: (await currentUser().catch(() => null))?.id ?? null,
     });
+    const u = await currentUser().catch(() => null);
+    if (u) await linkPush(u.id, endpoint).catch(() => {});
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ enabled: false, error: "Push opens when the store is connected." }, { status: 503 });

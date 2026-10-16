@@ -1,7 +1,8 @@
 "use client";
 
 import { clearNotes } from "@/lib/noteStore";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { afterReset, getAccount, getServerAccount, subscribeAccount } from "@/lib/syncClient";
 import { clearPicks, getPicks } from "@/lib/pickStore";
 
 /** Device keys that hold stats built from the log. Follows, alerts, push and settings are left alone. */
@@ -27,6 +28,8 @@ export default function ResetStats({ onDone }: { onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [wipeNotes, setWipeNotes] = useState(false);
+  const [scope, setScope] = useState<"device" | "cloud">("device");
+  const account = useSyncExternalStore(subscribeAccount, getAccount, getServerAccount);
   const cancel = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -41,7 +44,10 @@ export default function ResetStats({ onDone }: { onDone: () => void }) {
     setBusy(true);
     await resetEverything();
     if (wipeNotes) clearNotes();
+    // Right away, before the background sync notices the empty log.
+    await afterReset(scope, wipeNotes ? ["picks", "notes"] : ["picks"]);
     setWipeNotes(false);
+    setScope("device");
     setBusy(false);
     setOpen(false);
     onDone();
@@ -70,6 +76,19 @@ export default function ResetStats({ onDone }: { onDone: () => void }) {
             <p className="mt-2 text-center text-[12px] font-bold text-purple-200" data-testid="reset-notes-kept">
               {wipeNotes ? "Your notes will be deleted too." : "Notes are kept."}
             </p>
+            {account.user ? (
+              <fieldset className="mt-3 rounded-xl border border-white/10 bg-black/30 p-2 text-[12px] text-zinc-300" data-testid="reset-scope">
+                <legend className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-purple-200">Where</legend>
+                <label className="flex items-center gap-2 py-0.5">
+                  <input type="radio" name="reset-scope" checked={scope === "device"} onChange={() => setScope("device")} data-testid="reset-scope-device" />
+                  This device only <span className="text-zinc-500">(your account keeps its copy)</span>
+                </label>
+                <label className="flex items-center gap-2 py-0.5">
+                  <input type="radio" name="reset-scope" checked={scope === "cloud"} onChange={() => setScope("cloud")} data-testid="reset-scope-cloud" />
+                  This device and my account <span className="text-zinc-500">(every device)</span>
+                </label>
+              </fieldset>
+            ) : null}
             <label className="mt-1 flex items-center justify-center gap-2 text-[12px] text-zinc-400">
               <input type="checkbox" checked={wipeNotes} onChange={(e) => setWipeNotes(e.target.checked)} data-testid="reset-wipe-notes" />
               Also delete my notes

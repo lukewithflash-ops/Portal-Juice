@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Orbitron } from "next/font/google";
 import InstallCapture from "@/components/InstallCapture";
 import DeployWatch from "@/components/DeployWatch";
+import SyncAgent from "@/components/SyncAgent";
 import { PrefsProvider } from "@/components/Prefs";
 import NotifyBanner from "@/components/NotifyBanner";
 import SiteHeader from "@/components/SiteHeader";
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <LiveHubProvider>
             <InstallCapture />
             <DeployWatch />
+            <SyncAgent />
             <div className="flex min-h-screen flex-col">
               {/* One sticky stack: nav, live banner, then page bars (league chips). Solid, no gaps. */}
               <div className="top-stack">

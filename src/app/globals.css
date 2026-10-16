@@ -866,3 +866,16 @@ html[data-streak] .site-chrome .wordmark { filter: drop-shadow(0 0 calc(8px + 3p
 @media (prefers-reduced-motion: reduce) {
   .note-tag, .note-pop { animation: none; }
 }
+
+/* Account */
+.acct-signin { border: 1px solid rgba(57, 255, 20, 0.55); background: rgba(57, 255, 20, 0.1); box-shadow: 0 0 8px rgba(57, 255, 20, 0.25); }
+.acct-avatar > span:first-child, .acct-avatar > img { background: linear-gradient(135deg, #7c3aed, #c026d3); box-shadow: 0 0 0 1.5px rgba(192, 132, 252, 0.8), 0 0 10px rgba(168, 85, 247, 0.6); }
+.acct-dot { position: absolute; right: -1px; bottom: -1px; width: 8px; height: 8px; border-radius: 999px; background: var(--plus); border: 2px solid #07050d; }
+.acct-dot-sync { background: #22d3ee; animation: note-glow 1s ease-in-out infinite; }
+.acct-dot-warn { background: #f59e0b; }
+.auth-btn { display: flex; width: 100%; align-items: center; justify-content: center; gap: 8px; border-radius: 12px; padding: 11px 14px; font-weight: 900; font-size: 15px; }
+.auth-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.auth-apple { background: #fff; color: #000; }
+.auth-google { background: #fff; color: #1f1f1f; border: 1px solid #dadce0; }
+.auth-panel { background: linear-gradient(160deg, rgba(36, 18, 60, 0.9), rgba(8, 6, 16, 0.95)); border: 1px solid rgba(192, 132, 252, 0.45); box-shadow: 0 0 24px -8px rgba(168, 85, 247, 0.6); border-radius: 18px; }
+@media (prefers-reduced-motion: reduce) { .acct-dot-sync { animation: none; } }

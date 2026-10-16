@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Bell from "@/components/Bell";
+import AccountButton from "@/components/AccountButton";
 import StreakGlow from "@/components/StreakGlow";
 import { useLiveHub } from "@/components/LiveHub";
 import { usePathname } from "next/navigation";
@@ -110,6 +111,7 @@ export default function SiteHeader() {
             >
               {team ? team.abbr : "Team"}
             </button>
+            <AccountButton />
           </div>
         </div>
         {open ? <TeamPicker team={team} onPick={setTeam} onClose={() => setOpen(false)} /> : null}

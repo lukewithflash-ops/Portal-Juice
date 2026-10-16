@@ -201,6 +201,8 @@ type Stored = {
   games?: PushGame[];
   team?: PushTeam | null;
   prefs?: AlertPrefs;
+  /** Signed-in account this device belongs to. */
+  uid?: string;
 };
 
 function cleanProp(raw: unknown): PushProp | null {
@@ -230,12 +232,21 @@ function cleanTeam(raw: unknown): PushTeam | null {
 export async function saveSubscription(
   sub: webpush.PushSubscription,
   props: unknown[],
-  extra: { games?: unknown; team?: unknown; prefs?: unknown } = {}
+  extra: { games?: unknown; team?: unknown; prefs?: unknown; uid?: string | null } = {}
 ): Promise<void> {
   if (!chatEnabled()) throw new Error("no-store");
   const cleaned = props.map(cleanProp).filter((p): p is PushProp => p !== null).slice(0, 20);
   const games = (Array.isArray(extra.games) ? extra.games : []).map(cleanGame).filter((g): g is PushGame => g !== null).slice(0, 30);
-  const row: Stored = { endpoint: sub.endpoint, sub, props: cleaned, games, team: cleanTeam(extra.team), prefs: readAlertPrefs(extra.prefs) };
+  let uid = extra.uid ?? undefined;
+  if (!uid) {
+    const prev = (await redis(["HGET", SUBS, sub.endpoint])) as string | null;
+    try {
+      uid = prev ? (JSON.parse(prev) as Stored).uid : undefined;
+    } catch {
+      uid = undefined;
+    }
+  }
+  const row: Stored = { endpoint: sub.endpoint, sub, props: cleaned, games, team: cleanTeam(extra.team), prefs: readAlertPrefs(extra.prefs), ...(uid ? { uid } : {}) };
   await redis(["HSET", SUBS, sub.endpoint, JSON.stringify(row)]);
 }
 
@@ -279,6 +290,19 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
       rows.push(JSON.parse(String(flat[i + 1])) as Stored);
     } catch {
       /* skip a bad row */
+    }
+  }
+
+  // Signed-in accounts: every device gets alerts for the account's picks and games, not just its own.
+  const byUser = new Map<string, Stored[]>();
+  for (const r of rows) if (r.uid) byUser.set(r.uid, [...(byUser.get(r.uid) ?? []), r]);
+  for (const group of byUser.values()) {
+    if (group.length < 2) continue;
+    const props = [...new Map(group.flatMap((r) => r.props).map((p) => [p.id, p])).values()].slice(0, 40);
+    const games = [...new Map(group.flatMap((r) => r.games ?? []).map((g) => [`${g.league}/${g.id}`, g])).values()].slice(0, 40);
+    for (const r of group) {
+      r.props = props;
+      r.games = games;
     }
   }
 
