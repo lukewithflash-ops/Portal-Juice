@@ -52,7 +52,7 @@ export async function syncPush(): Promise<"ok" | "off" | "no-store"> {
 
 async function swReady(): Promise<ServiceWorkerRegistration> {
   const have = await navigator.serviceWorker.getRegistration();
-  if (!have) await navigator.serviceWorker.register("/sw.js");
+  if (!have) await navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
   return await Promise.race([
     navigator.serviceWorker.ready,
     new Promise<never>((_, rej) => setTimeout(() => rej(new Error("sw-timeout")), 8000)),

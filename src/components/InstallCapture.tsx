@@ -23,7 +23,7 @@ export default function InstallCapture() {
     };
     window.addEventListener("beforeinstallprompt", onPrompt);
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
+      navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch(() => {});
     }
     return () => window.removeEventListener("beforeinstallprompt", onPrompt);
   }, []);
