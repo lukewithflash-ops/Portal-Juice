@@ -1,5 +1,7 @@
 "use client";
 
+import { NoteTag, PastNotes } from "@/components/Notes";
+import { matchupKey } from "@/lib/notesCore";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -546,6 +548,11 @@ export function LeanMeter({ r }: { r: LegReport }) {
   );
 }
 
+function pairOf(r: LegReport) {
+  const m = /\b([A-Z0-9]{2,5}) (?:@|vs\.?) ([A-Z0-9]{2,5})\b/.exec(r.sub);
+  return m ? <NoteTag matchup={matchupKey(r.league, m[1], m[2])} label={`${m[1]} vs ${m[2]}`} /> : null;
+}
+
 function LegPanel({ r, flag }: { r: LegReport; flag: "weakest" | "strongest" | null }) {
   const [open, setOpen] = useState(false);
   const edge = flag === "strongest" ? "gold-edge" : "";
@@ -560,8 +567,12 @@ function LegPanel({ r, flag }: { r: LegReport; flag: "weakest" | "strongest" | n
                 {flag === "strongest" ? "Strongest leg" : "Weakest leg"}
               </span>
             ) : null}
-            <h3 className="text-[15px] font-bold text-[color:var(--flat)]">{r.title}</h3>
-            <p className="text-[11px] text-zinc-500">{r.sub}</p>
+            <h3 className="text-[15px] font-bold text-[color:var(--flat)]">
+              {r.title} {r.player ? <NoteTag player={r.player} /> : null}
+            </h3>
+            <p className="text-[11px] text-zinc-500">
+              {r.sub} {pairOf(r)}
+            </p>
           </div>
           {r.implied != null ? (
             <div className="text-right">
@@ -572,6 +583,7 @@ function LegPanel({ r, flag }: { r: LegReport; flag: "weakest" | "strongest" | n
             </div>
           ) : null}
         </div>
+        {r.player ? <PastNotes name={r.player.name} id={r.player.id} /> : null}
         <LeanMeter r={r} />
         <div className="grid gap-3 sm:grid-cols-2">
           <PointList title="Pros" tone="plus" start={1} items={r.pros.map((p) => p.text)} empty="No pros from the numbers." />

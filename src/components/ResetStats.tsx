@@ -1,5 +1,6 @@
 "use client";
 
+import { clearNotes } from "@/lib/noteStore";
 import { useEffect, useRef, useState } from "react";
 import { clearPicks, getPicks } from "@/lib/pickStore";
 
@@ -25,6 +26,7 @@ async function resetEverything() {
 export default function ResetStats({ onDone }: { onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [wipeNotes, setWipeNotes] = useState(false);
   const cancel = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -38,6 +40,8 @@ export default function ResetStats({ onDone }: { onDone: () => void }) {
   async function confirm() {
     setBusy(true);
     await resetEverything();
+    if (wipeNotes) clearNotes();
+    setWipeNotes(false);
     setBusy(false);
     setOpen(false);
     onDone();
@@ -63,6 +67,13 @@ export default function ResetStats({ onDone }: { onDone: () => void }) {
             <p id="reset-body" className="mt-2 text-center text-[13px] leading-snug text-zinc-300">
               This clears your logged picks, record, streak and recap history on this device. This can&apos;t be undone.
             </p>
+            <p className="mt-2 text-center text-[12px] font-bold text-purple-200" data-testid="reset-notes-kept">
+              {wipeNotes ? "Your notes will be deleted too." : "Notes are kept."}
+            </p>
+            <label className="mt-1 flex items-center justify-center gap-2 text-[12px] text-zinc-400">
+              <input type="checkbox" checked={wipeNotes} onChange={(e) => setWipeNotes(e.target.checked)} data-testid="reset-wipe-notes" />
+              Also delete my notes
+            </label>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button ref={cancel} type="button" onClick={() => setOpen(false)} className="rounded-xl border border-white/25 bg-white/10 px-3 py-2.5 text-sm font-black text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--plus)]" data-testid="reset-cancel">
                 Cancel

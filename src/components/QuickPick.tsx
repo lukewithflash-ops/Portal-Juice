@@ -1,5 +1,7 @@
 "use client";
 
+import { NoteTag, PastNotes } from "@/components/Notes";
+import { matchupKey } from "@/lib/notesCore";
 import { useState } from "react";
 import { STAT_CHOICES, type GameRef, type ImportLeg, type SlipKind, type SlipRow } from "@/lib/slipImport";
 import { pickFromLeg } from "@/lib/legPick";
@@ -108,6 +110,8 @@ export default function QuickPick({ onDone }: { onDone?: () => void }) {
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm sm:col-span-6" data-testid="quick-found">
           <span className="rounded bg-white/10 px-1.5 text-[10px] font-black uppercase text-zinc-300">{found.game.league}</span>
           <span className="font-bold text-white">{found.leg?.athleteName ?? found.row.subject}</span>
+          {found.leg?.athleteName ? <NoteTag player={{ name: found.leg.athleteName, id: found.leg.athleteId ?? null }} /> : null}
+          <NoteTag matchup={matchupKey(found.game.league, found.game.away, found.game.home)} label={`${found.game.away} vs ${found.game.home}`} />
           <span className="text-zinc-400">{found.game.awayName ?? found.game.away} vs {found.game.homeName ?? found.game.home} · {when(found.game)}</span>
           {found.result ? <span className="font-black text-[color:var(--gold)]">{found.result === "win" ? "W" : found.result === "loss" ? "L" : "P"}</span> : null}
           <button type="button" onClick={save} className="ml-auto rounded-lg border border-[color:var(--plus)]/60 bg-[color:var(--plus)]/15 px-3 py-1 text-xs font-black text-white" data-testid="quick-save">
@@ -115,6 +119,9 @@ export default function QuickPick({ onDone }: { onDone?: () => void }) {
           </button>
         </div>
       ) : null}
+      <div className="sm:col-span-6">
+        <PastNotes name={found?.leg?.athleteName ?? who.trim()} id={found?.leg?.athleteId ?? null} />
+      </div>
       {msg ? <p className="text-xs text-zinc-400 sm:col-span-6" data-testid="quick-msg">{msg}</p> : null}
     </form>
   );

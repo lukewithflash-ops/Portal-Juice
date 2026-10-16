@@ -5,6 +5,15 @@ import Mark from "@/components/Mark";
 import { mvpHomework, pct, type Favorite, type HotTrend, type LineMove } from "@/lib/best";
 import type { MvpRow } from "@/lib/espn";
 import { checkHref, type LegInput } from "@/lib/breakdown";
+import { NoteTag } from "@/components/Notes";
+import { matchupKey } from "@/lib/notesCore";
+
+/** Note chip for "SAC @ SA" on a /games/<league>/<id> link. */
+function pairTag(href: string, label: string) {
+  const l = /^\/games\/([a-z]+)\//.exec(href)?.[1];
+  const m = /\b([A-Z0-9]{2,5}) @ ([A-Z0-9]{2,5})\b/.exec(label);
+  return l && m ? <NoteTag matchup={matchupKey(l, m[1], m[2])} label={`${m[1]} vs ${m[2]}`} /> : null;
+}
 
 export const BEST_NOTE = "Ranked by the numbers. Not a guarantee.";
 
@@ -80,7 +89,7 @@ export function FavoriteList({ rows }: { rows: Favorite[] }) {
           key={r.id}
           rank={i + 1}
           href={r.href}
-          title={r.side}
+          title={<>{r.side} {pairTag(r.href, r.label)}</>}
           sub={`${r.label} · moneyline`}
           homework={r.homework}
           metric={pct(r.implied)}
@@ -101,7 +110,7 @@ export function MoveList({ rows }: { rows: LineMove[] }) {
           key={r.id}
           rank={i + 1}
           href={r.href}
-          title={r.label}
+          title={<>{r.label} {pairTag(r.href, r.label)}</>}
           sub={r.provider}
           homework={r.homework}
           metric={`${r.delta > 0 ? "▲" : "▼"} ${Math.abs(Math.round(r.delta * 10) / 10)}`}
@@ -122,7 +131,7 @@ export function TrendList({ rows }: { rows: HotTrend[] }) {
           key={r.id}
           rank={i + 1}
           href={gameRoute(r.league, r.gameId)}
-          title={r.name}
+          title={<>{r.name} <NoteTag player={{ name: r.name, id: r.id.split("-")[1] ?? null }} /></>}
           sub={`${r.team} · ${r.matchup}`}
           homework={r.homework}
           mark={<Mark team={r.team} headshotUrl={r.headshot} label={r.name} size={36} />}
@@ -149,7 +158,7 @@ export function MvpList({ rows, provider }: { rows: MvpRow[]; provider: string }
           key={r.id}
           rank={i + 1}
           href="/mvp"
-          title={r.name}
+          title={<>{r.name} <NoteTag player={{ name: r.name }} /></>}
           sub={r.team}
           homework={homework}
           mark={<Mark team={r.team} headshotUrl={r.headshot} label={r.name} size={36} />}

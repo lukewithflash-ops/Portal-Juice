@@ -134,6 +134,8 @@ export type LegReport = {
   pickWord?: string;
   /** Games behind the numbers, when it is a player log. */
   sample?: number | null;
+  /** The player on a prop leg (ESPN athlete id when known). */
+  player?: { name: string; id: string | null };
 };
 
 export const LEAN_NOTE = "Ranked by the numbers. Not a guarantee.";
@@ -591,7 +593,8 @@ function propLeg(input: LegInput, g: GameResearch, p: PlayerResearch | null): Le
   const cons: Point[] = [];
   const label = statLabel(g.league, input.stat);
   const title = `${input.athleteName ?? p?.name ?? "Player"} ${pick === "over" ? "over" : "under"} ${line ?? ""} ${/[A-Z]{2}|\(/.test(label) ? label : label.toLowerCase()}`.replace(/\s+/g, " ").trim();
-  const base: Omit<LegReport, "score" | "lean" | "facts" | "pros" | "cons"> = { pickWord: pick, title, sub: g.label, league: g.league, gameId: g.id, sameGameKey: `${g.league}/${g.id}`, implied: input.odds != null ? implied(input.odds) : null, odds: input.odds ?? null, mark: { abbr: p?.team ?? "", img: p?.headshot ?? null, logo: false } };
+  const who = input.athleteName ?? p?.name;
+  const base: Omit<LegReport, "score" | "lean" | "facts" | "pros" | "cons"> = { player: who ? { name: who, id: input.athleteId ?? null } : undefined, pickWord: pick, title, sub: g.label, league: g.league, gameId: g.id, sameGameKey: `${g.league}/${g.id}`, implied: input.odds != null ? implied(input.odds) : null, odds: input.odds ?? null, mark: { abbr: p?.team ?? "", img: p?.headshot ?? null, logo: false } };
   if (!p || !p.games.length) {
     facts.push({ label: "Game log", value: "Not enough data: ESPN has no game log for this player and stat" });
     for (const t of [g.away, g.home]) {

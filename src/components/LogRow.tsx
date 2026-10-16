@@ -5,6 +5,8 @@ import PortalRecap from "@/components/PortalRecap";
 import Link from "next/link";
 import { useState } from "react";
 import Mark from "@/components/Mark";
+import { NoteSnippet, NoteTag, PickNotes } from "@/components/Notes";
+import { pickPlayer } from "@/lib/notesCore";
 import { LegMeter } from "@/components/LegMeter";
 import type { PickLook } from "@/components/useLogLeans";
 import { checkHref, legFromLogged } from "@/lib/breakdown";
@@ -42,6 +44,8 @@ export default function LogRow({
   const color = rowColor(pick, leg);
   const legIn = legFromLogged(pick);
   const ml = /money|^ml$/i.test(pick.market ?? "");
+  const pl = pickPlayer(pick);
+  const player = pl ? { ...pl, id: leg?.athleteId ?? null } : null;
   const side = pick.selection ? `${pick.selection} ${pick.line}` : ml ? "to win" : fmtLine(pick.line, pick.line < 0);
 
   return (
@@ -52,12 +56,14 @@ export default function LogRow({
           <div className="flex items-center gap-1.5">
             {live ? <span className="h-1.5 w-1.5 flex-none animate-pulse rounded-full bg-[color:var(--minus)]" aria-label="Live" /> : null}
             <span className="truncate text-sm font-bold text-[color:var(--flat)]">{pick.subject}</span>
+            {player ? <NoteTag player={player} /> : null}
           </div>
           <div className="truncate text-[11px] text-zinc-500">
             {pick.market ? `${pick.market} · ` : ""}
             {side}
             {look?.sub ? ` · ${look.sub}` : ""} · {pick.book} · {shortDate(pick.date)}
           </div>
+          {!open ? <NoteSnippet pick={pick} /> : null}
         </div>
         <div className="flex-none text-right">
           <div className="tabular text-base font-black text-[color:var(--flat)]">{pick.odds > 0 ? `+${pick.odds}` : pick.odds}</div>
@@ -113,6 +119,7 @@ export default function LogRow({
               </button>
             </div>
           </div>
+          <PickNotes pick={pick} athleteId={leg?.athleteId} />
         </div>
       ) : null}
     </li>

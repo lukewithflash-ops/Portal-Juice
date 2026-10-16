@@ -838,3 +838,31 @@ html[data-streak] .site-chrome .wordmark { filter: drop-shadow(0 0 calc(8px + 3p
   .reset-ring { animation: none; }
   .stats-toast { animation: none; }
 }
+
+/* Notes */
+.note-tag {
+  display: inline-flex; align-items: center; gap: 2px; flex: none;
+  height: 16px; padding: 0 5px; border-radius: 999px; cursor: pointer;
+  font-size: 10px; font-weight: 900; line-height: 1; color: #fde68a;
+  background: rgba(250, 204, 21, 0.12); border: 1px solid rgba(250, 204, 21, 0.55);
+  box-shadow: 0 0 6px rgba(250, 204, 21, 0.45); vertical-align: middle;
+  animation: note-glow 2.8s ease-in-out infinite;
+}
+.note-tag:focus-visible { outline: 2px solid var(--plus); outline-offset: 1px; }
+@keyframes note-glow { 50% { box-shadow: 0 0 10px rgba(250, 204, 21, 0.75); } }
+.note-pop {
+  position: fixed; width: 292px; padding: 8px 10px; border-radius: 14px; z-index: 81;
+  background: linear-gradient(160deg, rgba(36, 18, 60, 0.98), rgba(8, 6, 16, 0.98));
+  border: 1px solid rgba(192, 132, 252, 0.6);
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.15), 0 0 24px rgba(168, 85, 247, 0.45), 0 18px 40px rgba(0, 0, 0, 0.6);
+  animation: note-pop-in 0.16s ease-out both;
+}
+@keyframes note-pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+.note-zone { margin-top: 6px; }
+.note-item { background: rgba(168, 85, 247, 0.07); border: 1px solid rgba(168, 85, 247, 0.22); }
+.note-clock { color: #67e8f9; background: rgba(34, 211, 238, 0.1); border-radius: 4px; padding: 0 4px; font-weight: 900; }
+.note-snippet { color: #e9d5ff; }
+.note-add { background: linear-gradient(135deg, #7c3aed, #c026d3); box-shadow: 0 0 10px rgba(192, 38, 211, 0.45); }
+@media (prefers-reduced-motion: reduce) {
+  .note-tag, .note-pop { animation: none; }
+}

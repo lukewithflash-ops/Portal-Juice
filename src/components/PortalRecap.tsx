@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { Pick } from "@/lib/types";
+import { useNotes } from "@/components/Notes";
+import { notesForPick } from "@/lib/notesCore";
 
 type R = { v?: number; wrong?: string[]; next?: string[]; text: string; result: "hit" | "miss" | "push" | "unknown"; value: number | null; line: number; facts: string[] } | { error: string };
 const KEY = "pj-recap5:";
@@ -73,6 +75,26 @@ export default function PortalRecap({ pick, auto = false }: { pick: Pick; auto?:
       ) : null}
       <p className="mt-1 text-[10px] text-zinc-500">Pick numbers are season-to-date, figured after the game. Not a guarantee.</p>
       {r.facts.length ? <p className="mt-1 text-[10px] text-zinc-500">Box: {r.facts.join(" · ")}</p> : null}
+      <RecapNotes pick={pick} />
+    </div>
+  );
+}
+
+/** Your own notes on this pick, next to what the box score says. */
+function RecapNotes({ pick }: { pick: Pick }) {
+  const notes = notesForPick(useNotes(), pick);
+  if (!notes.length) return null;
+  return (
+    <div className="mt-2" data-testid="recap-notes">
+      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-200">📝 Your notes</div>
+      <ul className="mt-0.5 space-y-0.5 text-[12px] text-zinc-200">
+        {notes.map((n) => (
+          <li key={n.id}>
+            ▸ {n.tag ? <span className="note-clock tabular mr-1 text-[10px]">{n.tag}</span> : null}
+            {n.text}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

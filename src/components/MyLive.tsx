@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useLiveHub } from "@/components/LiveHub";
 import FollowStar from "@/components/FollowStar";
+import { LiveNotes, NoteSnippet, NoteTag, ParlayNotes } from "@/components/Notes";
+import { matchupKey } from "@/lib/notesCore";
 import AllLive, { useAllLive } from "@/components/AllLive";
 import { gameRoute } from "@/lib/gameRoute";
 import { getFollows, getServerFollows, subscribeFollows } from "@/lib/follows";
@@ -352,6 +354,7 @@ function EmptyState({ unlinked }: { unlinked: number }) {
 }
 
 function LiveTile({ g, compact, now }: { g: GameView; compact: boolean; now: Date }) {
+  const [noting, setNoting] = useState(false);
   const s = g.snap;
   const t = teamsOf(s, g.row);
   const href = gameRoute(g.league, g.id);
@@ -388,6 +391,7 @@ function LiveTile({ g, compact, now }: { g: GameView; compact: boolean; now: Dat
           {live ? <span className="tv-live-dot shrink-0" aria-hidden /> : null}
           <span className={"tabular min-w-0 truncate " + (live ? "text-white" : final ? "text-zinc-400" : "text-purple-300")}>{statusText(g, now)}</span>
           <span className="ml-auto flex shrink-0 items-center gap-1 pr-6">
+            <NoteTag matchup={matchupKey(g.league, t.awayAbbr, t.homeAbbr)} label={`${t.awayAbbr} vs ${t.homeAbbr}`} />
             {g.reasons.includes("team") ? <span className="text-white/80">Team</span> : null}
             {g.legs.length ? (
               <span className="rounded-full bg-black/40 px-1.5 py-px" style={{ color: hit ? "var(--gold)" : "#fff" }}>
@@ -410,6 +414,14 @@ function LiveTile({ g, compact, now }: { g: GameView; compact: boolean; now: Dat
       <div className="absolute right-1.5 top-1">
         {followed || !g.reasons.includes("picks") ? <FollowStar league={g.league} id={g.id} label={label} /> : null}
       </div>
+      {!compact && g.state !== "post" ? (
+        <div className="border-t border-white/10 px-2.5 pb-1.5">
+          <button type="button" onClick={() => setNoting((v) => !v)} aria-expanded={noting} className="py-1 text-[11px] font-black text-purple-200/90" data-testid="ml-note-toggle">
+            {noting ? "Hide notes" : "📝 Live note"}
+          </button>
+          {noting ? <LiveNotes league={g.league} gameId={g.id} snap={s ?? null} compact /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -647,13 +659,24 @@ function SlipBox({ slip, byKey, now, compact }: { slip: SlipView; byKey: Record<
           {slip.legs.map((l) => (
             <LegRow key={l.pickId} leg={l} game={byKey[l.key]} now={now} />
           ))}
+          <div className="px-3 pb-2">
+            <SlipNotes slipKey={slip.key} pickIds={slip.legs.map((l) => l.pickId)} />
+          </div>
         </div>
       ) : null}
     </div>
   );
 }
 
+function SlipNotes({ slipKey, pickIds }: { slipKey: string; pickIds: string[] }) {
+  const picks = useSyncExternalStore(subscribe, getPicks, getServerPicks);
+  const legs = useMemo(() => picks.filter((p) => pickIds.includes(p.id)), [picks, pickIds]);
+  return <ParlayNotes slipId={slipKey} legs={legs} />;
+}
+
 function LegRow({ leg, game, now }: { leg: LegView; game: GameView | undefined; now: Date }) {
+  const picks = useSyncExternalStore(subscribe, getPicks, getServerPicks);
+  const pick = picks.find((p) => p.id === leg.pickId);
   const color = TONE_COLOR[leg.tone];
   const t = game ? teamsOf(game.snap, game.row) : null;
   const live = game?.state === "in";
@@ -662,7 +685,10 @@ function LegRow({ leg, game, now }: { leg: LegView; game: GameView | undefined; 
     <Link href={gameRoute(leg.league, leg.gameId)} className="block px-3 py-2" data-testid="ml-leg">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-bold text-white">{leg.name}</div>
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-[13px] font-bold text-white">{leg.name}</span>
+            {leg.kind === "prop" ? <NoteTag player={{ name: leg.name, id: leg.athleteId }} /> : null}
+          </div>
           <div className="flex items-center gap-1.5 text-[11px]">
             <span className="rounded px-1 font-black" style={{ color, background: "rgba(255,255,255,0.06)" }}>
               {leg.side}
@@ -701,6 +727,7 @@ function LegRow({ leg, game, now }: { leg: LegView; game: GameView | undefined; 
         <span className="shrink-0">{statusText(game, now)}</span>
         <span className="min-w-0 truncate">· {leg.note}</span>
       </div>
+      {pick ? <NoteSnippet pick={pick} /> : null}
     </Link>
   );
 }

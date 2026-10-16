@@ -1,4 +1,5 @@
 import { pickGame, playerNameHit, gradeTennis, parseSlipRows as parseSlip2, slipDateOf, propMarketOf as pm2, tennisGames } from "../src/lib/slipImport";
+import { filterNotes, liveTag, matchupKey, notesForMatchup, notesForPick, notesForPlayer, pickPlayer } from "../src/lib/notesCore";
 import { _test as myLive } from "../src/lib/myLive";
 import { parseBatch, slimSnap } from "../src/lib/liveSlim";
 import assert from "node:assert/strict";
@@ -1671,4 +1672,20 @@ console.log(`\n${n} passed`);
   const row0 = { subject: "J. Brown", kind: "prop" as const, market: "points", line: 22.5, selection: "Over" as const, odds: null, team: "PHI", opponent: "BOS" };
   assert(leagueFromTeams(row0, gs) === null && leagueFromTeams({ ...row0, date: "2026-10-16" }, gs) === "nba" && leagueFromTeams({ ...row0, opponent: "NYK" }, gs) === null, "slip: league from the printed matchup and date");
   assert(liveStat({ points: "11", rebounds: "0", assists: "1" }, "Pts+Reb+Ast") === 12 && liveStat({ shotsTotal: "0" }, "Shots On Goal") === 0 && liveStat({ hits: "2" }, "hits") === 2, "tracker: short labels, hockey shots, baseball hits");
+  // Notes: matchups by team pair any date, players by id or name, live tag from the clock and score.
+  {
+    const pk = (id: string, subject: string, extra: Record<string, unknown> = {}) => ({ id, sport: "NBA" as const, subject, line: 20.5, odds: -110, stake: 0, book: "Log", date: "2026-10-16", status: "open" as const, createdAt: "2026-10-16T20:00:00Z", league: "nba", gameId: "9", market: "points", ...extra });
+    const picks = [pk("a", "Scottie Barnes"), pk("b", "Cade Cunningham", { slipId: "s1", status: "win" as const }), pk("c", "TOR @ DET", { market: "spread", slipId: "s1" })];
+    const notes = [
+      { id: "1", text: "Barnes in foul trouble", createdAt: "2026-10-16T21:00:00Z", kind: "live" as const, league: "nba", gameId: "9", matchup: matchupKey("nba", "TOR", "DET")!, pickIds: ["a"] },
+      { id: "2", text: "Cade loves this matchup", createdAt: "2026-10-16T20:00:00Z", kind: "parlay" as const, slipId: "s1", pickIds: ["b", "c"] },
+      { id: "3", text: "Barnes again", createdAt: "2026-10-01T20:00:00Z", kind: "player" as const, players: [{ name: "S. Barnes", id: "4433134" }] },
+    ];
+    assert(matchupKey("nba", "DET", "TOR") === matchupKey("nba", "tor", "det") && notesForMatchup(notes, "nba:DET-TOR").length === 1, "notes: matchup by team pair, any side");
+    assert(notesForPlayer(notes, picks, { name: "Scottie Barnes" }).length === 2 && notesForPlayer(notes, picks, { name: "Cade Cunningham" }).length === 1 && notesForPlayer(notes, picks, { name: "Scottie Pippen" }).length === 0, "notes: player by name and linked picks");
+    assert(notesForPick(notes, picks[1] as never).map((n) => n.id).join() === "1,2" && pickPlayer(picks[2] as never) === null, "notes: pick gets its parlay and game notes; team sides have no player");
+    assert(liveTag("nba", { state: "in", period: 3, clock: "4:12", detail: "", awayAbbr: "TOR", homeAbbr: "DET", awayScore: "78", homeScore: "71" }) === "Q3 4:12 · TOR 78-71 DET", "notes: live tag");
+    assert(filterNotes(notes, picks as never, { q: "foul" }).length === 1 && filterNotes(notes, picks as never, { kind: "parlay" }).length === 1, "notes: search and filter");
+    console.log("ok - notes");
+  }
 }

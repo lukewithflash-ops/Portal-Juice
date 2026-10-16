@@ -12,6 +12,7 @@ import { CrowdToggle, EmoteLayer, SoundToggle } from "@/components/Emotes";
 import DriveFeed from "@/components/DriveFeed";
 import { bigSwing, PitchMap, PlayPop, ShareFinal, ShotMap, Spotlight, SwingBanner, type Swing } from "@/components/GameGraphics";
 import GameChat from "@/components/GameChat";
+import { LiveNotes } from "@/components/Notes";
 import { LeadShockwave, leadFlip, LineMoveTags, PitcherFatigue, RedZoneAlarm, WinStrip, type Shock } from "@/components/GameUpgrades";
 import Mark from "@/components/Mark";
 import { BetsDock, MomentBadge, TaggedText, YourPlayersProvider, useYourPlayers } from "@/components/YourPlayers";
@@ -284,6 +285,7 @@ export default function GameLive({
           </div>
           <BetsDock variant="bar" />
           <Spotlight league={league} gameId={id} snap={snap} />
+          <LiveNotes league={league} gameId={id} snap={snap} />
           {hoops && snap ? <ShotMap snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} /> : null}
           {league === "mlb" && snap?.atBat ? <PitchMap atBat={snap.atBat} live={snap.state === "in"} freshIds={freshIds} /> : null}
           {league === "mlb" && snap?.arms?.length ? <PitcherFatigue snap={snap} awayColor={awayColor} homeColor={homeColor} /> : null}

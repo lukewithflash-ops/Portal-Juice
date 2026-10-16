@@ -1,5 +1,7 @@
 "use client";
 
+import { NoteTag } from "@/components/Notes";
+import { matchupKey } from "@/lib/notesCore";
 import { gameRoute } from "@/lib/gameRoute";
 import Link from "next/link";
 import { OddsText } from "@/components/Prefs";
@@ -168,6 +170,9 @@ export default function GameTile({
           </p>
         </div>
         <div className="flex shrink-0 items-start gap-1.5">
+        <span className="relative z-10 mt-0.5">
+          <NoteTag matchup={matchupKey(game.league, game.away.abbr, game.home.abbr)} label={`${game.away.abbr} vs ${game.home.abbr}`} />
+        </span>
         {game.state !== "post" ? <FollowStar league={game.league} id={game.id} label={`${game.away.abbr} @ ${game.home.abbr}`} /> : null}
         {game.state === "in" ? (
           <span className="pill pill-win shrink-0">Live{game.clock ? ` ${game.clock}` : ""}</span>

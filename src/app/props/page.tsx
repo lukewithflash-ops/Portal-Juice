@@ -2,6 +2,8 @@ import { gameRoute } from "@/lib/gameRoute";
 import type { Metadata } from "next";
 import Link from "next/link";
 import Mark from "@/components/Mark";
+import { NoteTag } from "@/components/Notes";
+import { matchupKey } from "@/lib/notesCore";
 import { OddsText } from "@/components/Prefs";
 import { getPropsBoard } from "@/lib/espn";
 import { ptTime } from "@/lib/time";
@@ -37,7 +39,8 @@ export default async function PropsPage() {
                 <h2 className="text-sm font-black text-[color:var(--flat)]">
                   <Link href={gameRoute(g.game.league, g.game.id)} className="hover:text-white">
                     {g.game.away.abbr} @ {g.game.home.abbr}
-                  </Link>
+                  </Link>{" "}
+                  <NoteTag matchup={matchupKey(g.game.league, g.game.away.abbr, g.game.home.abbr)} label={`${g.game.away.abbr} vs ${g.game.home.abbr}`} />
                   <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
                     {g.game.leagueLabel}
                     {g.provider ? ` · ${g.provider}` : ""}
@@ -57,7 +60,9 @@ export default async function PropsPage() {
                   <li key={`${g.game.id}-${p.athleteId}-${p.market}`} className="foil-tile flex items-center gap-2 px-3 py-2">
                     <Mark team={p.team} headshotUrl={p.headshot} label={p.name} size={32} league={g.game.league} />
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-bold text-[color:var(--flat)]">{p.name}</div>
+                      <div className="truncate text-sm font-bold text-[color:var(--flat)]">
+                        {p.name} <NoteTag player={{ name: p.name, id: p.athleteId ?? null }} />
+                      </div>
                       <div className="truncate text-[11px] text-zinc-500">{p.market}</div>
                     </div>
                     <div className="tabular text-right font-black text-[color:var(--flat)]">

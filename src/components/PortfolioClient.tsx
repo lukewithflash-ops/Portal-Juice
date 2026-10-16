@@ -3,6 +3,8 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import AddSlip from "@/components/AddSlip";
 import QuickPick from "@/components/QuickPick";
+import Link from "next/link";
+import { ParlayNotes, PastNotes } from "@/components/Notes";
 import LogRow from "@/components/LogRow";
 import { useLiveHub } from "@/components/LiveHub";
 import { useLogLooks } from "@/components/useLogLeans";
@@ -40,6 +42,7 @@ export default function PortfolioClient() {
   const picks = useSyncExternalStore(subscribe, getPicks, getServerPicks);
   const [formOpen, setFormOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [subjectDraft, setSubjectDraft] = useState("");
 
   const sum = summarize(picks);
   const { legs: liveLegs, snaps } = useLiveHub();
@@ -100,6 +103,7 @@ export default function PortfolioClient() {
       createdAt: new Date().toISOString(),
     });
     setError(null);
+    setSubjectDraft("");
     e.currentTarget.reset();
     setFormOpen(false);
   }
@@ -120,6 +124,9 @@ export default function PortfolioClient() {
           Log a pick.
         </button>
         <p className="text-xs text-zinc-500">For picks you already made at a book. Saved on this device only.</p>
+        <Link href="/notes" className="text-xs font-black text-purple-200 hover:text-white" data-testid="log-notes-link">
+          📝 Notes
+        </Link>
       </div>
       <AddSlip />
 
@@ -136,7 +143,8 @@ export default function PortfolioClient() {
             </select>
           </Field>
           <Field label="Player or side" wide>
-            <input name="subject" className="field" placeholder="e.g. CeeDee Lamb rec yds over" autoComplete="off" />
+            <input name="subject" className="field" placeholder="e.g. CeeDee Lamb rec yds over" autoComplete="off" onChange={(e) => setSubjectDraft(e.target.value)} />
+            <PastNotes name={subjectDraft.trim()} />
           </Field>
           <Field label="Line">
             <input name="line" className="field" inputMode="decimal" type="number" step="0.5" placeholder="83.5" />
@@ -198,7 +206,10 @@ export default function PortfolioClient() {
         {slipChecks.length ? (
           <div className="mt-3 space-y-2">
             {slipChecks.slice(0, 8).map(([id, ls], i) => (
-              <SlipSummary key={id} legs={ls} href={checkHref(ls)} auto={i < 4} />
+              <div key={id}>
+                <SlipSummary legs={ls} href={checkHref(ls)} auto={i < 4} />
+                {ls.length > 1 ? <ParlayNotes slipId={id} legs={picks.filter((p) => p.slipId === id)} /> : null}
+              </div>
             ))}
           </div>
         ) : null}

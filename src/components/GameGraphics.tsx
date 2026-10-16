@@ -1,5 +1,6 @@
 "use client";
 
+import { NoteSnippet, NoteTag } from "@/components/Notes";
 import { useId, useMemo, useState, useSyncExternalStore } from "react";
 import { headshotFor } from "@/lib/faces";
 import type { LiveAtBat, LivePlay, LiveShot, LiveSnap } from "@/lib/live";
@@ -398,7 +399,10 @@ export function Spotlight({ league, gameId, snap }: { league: string; gameId: st
                   </span>
                 )}
                 <div className="min-w-0">
-                  <div className="truncate text-[13px] font-black text-white">{l.name}</div>
+                  <div className="flex items-center gap-1">
+                    <span className="truncate text-[13px] font-black text-white">{l.name}</span>
+                    <NoteTag player={{ name: l.name, id: l.athleteId ?? null }} />
+                  </div>
                   <div className="truncate text-[10px] font-bold uppercase tracking-wider" style={{ color: l.side === "Over" ? "var(--plus)" : "#38bdf8" }}>
                     {l.side} {l.line} {l.market}
                   </div>
@@ -417,6 +421,7 @@ export function Spotlight({ league, gameId, snap }: { league: string; gameId: st
                 <span className="spot-tick" style={{ left: "80%" }} />
               </div>
               <div className="mt-1 text-[10px] text-zinc-500">{l.pace !== null && !l.final ? `pace ${l.pace}` : l.final ? "Final" : l.progress}</div>
+              {picks.find((p) => p.id === l.pickId) ? <NoteSnippet pick={picks.find((p) => p.id === l.pickId)!} /> : null}
             </li>
           );
         })}

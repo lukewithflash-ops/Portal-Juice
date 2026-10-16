@@ -1,5 +1,7 @@
 "use client";
 
+import { NoteTag } from "@/components/Notes";
+import { matchupKey } from "@/lib/notesCore";
 import Link from "next/link";
 import { useState } from "react";
 import { usePoll, POLL_ERROR_MS } from "@/components/usePoll";
@@ -108,6 +110,7 @@ function Side({ s, lead, sets }: { s: AllLiveGame["away"]; lead: boolean; sets?:
       )}
       <span className={"min-w-0 flex-1 truncate text-[13px] font-bold " + (lead ? "text-white" : "text-white/75")}>
         {s.short || s.name}
+        {sets ? <span className="ml-1"><NoteTag player={{ name: s.name }} /></span> : null}
         {s.serving ? <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--plus)] align-middle" title="Serving" aria-label="serving" data-testid="serving" /> : null}
       </span>
       {sets?.length ? (
@@ -131,6 +134,7 @@ function AllRow({ g }: { g: AllLiveGame }) {
         <LeagueBadge league={g.league} label={g.label} />
         <span className="tv-live-dot shrink-0" aria-hidden />
         <span className="tabular min-w-0 truncate text-white">{g.detail || "Live"}</span>
+        {!g.sets && !g.leaders ? <NoteTag matchup={matchupKey(g.league, g.away.short, g.home.short)} label={`${g.away.short} vs ${g.home.short}`} /> : null}
         {g.event ? <span className="ml-auto min-w-0 truncate normal-case tracking-normal text-zinc-500">{g.event}</span> : null}
       </div>
       {g.leaders ? (

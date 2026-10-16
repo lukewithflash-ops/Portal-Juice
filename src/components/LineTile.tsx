@@ -1,5 +1,7 @@
 "use client";
 
+import { NoteTag } from "@/components/Notes";
+import { matchupKey } from "@/lib/notesCore";
 import CountUp from "@/components/CountUp";
 import Mark from "@/components/Mark";
 import { dirClass, juiceDir, lineDir } from "@/lib/move";
@@ -47,7 +49,12 @@ export default function LineTile({
         <div className="min-w-0 flex-1">
           {/* 3rd: name */}
           <h3 className="truncate text-sm font-bold leading-tight text-[color:var(--flat)]">
-            {row.subject}
+            {row.subject}{" "}
+            {row.kind === "prop" ? (
+              <NoteTag player={{ name: row.subject }} />
+            ) : row.sport !== "SOCCER" && row.sport !== "TENNIS" ? (
+              <NoteTag matchup={matchupKey(row.sport.toLowerCase(), row.team, row.opponent)} label={`${row.team} vs ${row.opponent}`} />
+            ) : null}
           </h3>
           <p className="mt-0.5 truncate text-[11px] text-zinc-400">
             <span className="font-semibold text-zinc-300">{row.team}</span>
