@@ -206,8 +206,14 @@ async function pull(): Promise<AllLive> {
   const extra = pool(
     named.map((l) => () =>
       guarded(l.id, async () => {
+        // ESPN's default board and the "limit" board can cover different days: read both, keep every live match once.
         const q = GROUPS[l.id] ? `?limit=300${GROUPS[l.id]}` : "?limit=300";
-        return liveFromBoard(l, await getJson(`${BASE}${l.path}/scoreboard${q}`, 2));
+        const [a, b] = await Promise.allSettled([getJson(`${BASE}${l.path}/scoreboard${q}`, 2), getJson(`${BASE}${l.path}/scoreboard${GROUPS[l.id] ? "?" + GROUPS[l.id].slice(1) : ""}`, 2)]);
+        if (a.status === "rejected" && b.status === "rejected") throw a.reason;
+        const seen = new Set<string>();
+        return [a, b]
+          .flatMap((r) => (r.status === "fulfilled" ? liveFromBoard(l, r.value) : []))
+          .filter((g) => (seen.has(g.key) ? false : (seen.add(g.key), true)));
       }),
     ),
   );
