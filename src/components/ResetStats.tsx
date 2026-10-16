@@ -9,12 +9,9 @@ const SESSION_KEYS = ["pj-log-looks-v1"];
 
 async function resetEverything() {
   const picks = getPicks();
-  // Server copies: recap cache for these picks, and a Leaders entry this device published.
+  // Server copy: recap cache for these picks. Leaders entries, follows and push stay.
   const jobs: Promise<unknown>[] = [];
   if (picks.length) jobs.push(fetch("/api/recap", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reset: picks }) }).catch(() => null));
-  const handle = localStorage.getItem("pj-leader-handle");
-  const token = localStorage.getItem("pj-leader-token");
-  if (handle && token) jobs.push(fetch("/api/leaders", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ handle, token, remove: true }) }).then(() => localStorage.removeItem("pj-leader-handle")).catch(() => null));
   for (let i = localStorage.length - 1; i >= 0; i--) {
     const k = localStorage.key(i);
     if (k && LOCAL_PREFIXES.some((p) => k.startsWith(p))) localStorage.removeItem(k);
