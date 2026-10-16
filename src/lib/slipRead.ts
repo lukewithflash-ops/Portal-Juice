@@ -357,6 +357,7 @@ Return JSON:
 {"legs":[{"subject":string,"kind":"prop"|"spread"|"total"|"moneyline","market":string,"line":number|null,"side":"over"|"under"|null,"odds":number|null,"league":string|null,"date":string|null,"team":string|null,"opponent":string|null,"settled":boolean}],"stake":null,"book":string|null,"entry":string|null,"date":string|null,"lines":[string]}
 Read EVERY leg on the slip, top to bottom, even when there are many (up to 20). Each player block on a pick'em slip is one leg. Each line of a parlay or same-game parlay is one leg.
 - subject: the player for props (full name as printed), the team for spread/moneyline, the matchup ("AWAY @ HOME") for game totals. Tennis: the player.
+- Keep each leg's own details together: the matchup, date and teams for a leg come from that leg's own row or the game header it sits under, never from a neighboring leg.
 - market: the stat as printed for props (e.g. "Points", "Pts+Rebs+Asts", "3-PT Made", "Passing Yards", "Aces", "Total Games", "Games Won", "Double Faults", "Fantasy Score", "Break Points Won"); "spread", "moneyline" or "total" otherwise.
 - line: the number for that leg (spread keeps its sign). null if not printed. Demon/goblin/discounted lines: use the number shown.
 - side: "More", "Higher", "Over", an up arrow, or "O 24.5" means over; "Less", "Lower", "Under", a down arrow, or "U 24.5" means under. Moneyline and spread: null.
