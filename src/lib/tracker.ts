@@ -82,7 +82,14 @@ const AST = T(["assists", "AST"]);
 
 /** The box score terms behind a market. Empty when we cannot compute it live. */
 export function marketTerms(market: string): Term[] {
-  const m = market.toLowerCase();
+  // Short labels ("Pts+Reb+Ast", "Rebs+Asts", "Blk+Stl") read like the long ones.
+  const m = market
+    .toLowerCase()
+    .replace(/\bpts\b/g, "points")
+    .replace(/\brebs?\b/g, "rebounds")
+    .replace(/\basts?\b/g, "assists")
+    .replace(/\bblks?\b/g, "blocks")
+    .replace(/\bstls?\b/g, "steals");
   // Tennis (games and sets come from the set scores; aces and faults only when ESPN posts them).
   if (/games? won/.test(m)) return [T(["t:gamesWon"])];
   if (/total games/.test(m)) return [T(["t:totalGames"])];
@@ -121,6 +128,15 @@ export function marketTerms(market: string): Term[] {
   if (m.includes("points")) return [PTS];
   if (m.includes("assist")) return [AST];
   if (m.includes("rebound")) return [REB];
+  // Hockey and baseball box keys (soccer reads its own map first).
+  if (/shots? on goal|\bsog\b|^shots$/.test(m.trim())) return [T(["shotsTotal", "SOG", "shotsOnGoal"])];
+  if (/^(goalie |goalkeeper )?saves$/.test(m.trim())) return [T(["saves", "SV"])];
+  if (/^hits$/.test(m.trim())) return [T(["hits", "H", "HT"])];
+  if (/home runs?/.test(m)) return [T(["homeRuns", "HR"])];
+  if (/^rbis?$/.test(m.trim())) return [T(["RBIs", "RBI"])];
+  if (/^runs( scored)?$/.test(m.trim())) return [T(["runs", "R"])];
+  if (/strikeouts|pitcher ks?\b/.test(m)) return [T(["strikeouts", "K"])];
+  if (/^walks$/.test(m.trim())) return [T(["walks", "BB"])];
   if (m.includes("goal")) return [T(["goals"])];
   const sk = soccerKey(m);
   if (sk) return [T([sk])];

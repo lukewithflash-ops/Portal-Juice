@@ -23,6 +23,8 @@ import {
   type SlipKind,
   type SlipRow,
   salvageJson,
+  expandNickname,
+  leagueFromTeams,
 } from "@/lib/slipImport";
 
 const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
@@ -331,8 +333,11 @@ export async function matchRows(rows: SlipRow[], slipDate: string | null = null)
   const games = await windowGames(printed);
   const now = Date.now();
   return Promise.all(
-    list.map(async (r) => {
-      const player = r.kind === "prop" ? await propPlayer(r, games) : null;
+    list.map(async (r0) => {
+      // The matchup printed beside a leg names its league ("PHI vs BOS" on a Friday is the NBA game).
+      const lg = leagueFromTeams(r0, games);
+      const r = lg ? { ...r0, league: lg } : r0;
+      const player = r.kind === "prop" ? await propPlayer({ ...r, subject: expandNickname(r.subject) }, games) : null;
       const m = matchRow(r, games, player, now);
       const result = await gradeLeg(m, games);
       return result ? { ...m, result } : m;
@@ -356,9 +361,23 @@ export function visionConfigured(oidcHeader: string | null): boolean {
   return Boolean(gatewayAuth(oidcHeader));
 }
 
+/** "Thu 2026-10-15 (yesterday), Fri 2026-10-16 (today), Sat 2026-10-17 …" around today, so a bare weekday maps to one date. */
+function calendar(today: string): string {
+  const base = Date.parse(today + "T12:00:00Z");
+  const out: string[] = [];
+  for (let d = -6; d <= 6; d++) {
+    const t = new Date(base + d * 86400000);
+    const wd = t.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+    const tag = d === 0 ? " (today)" : d === -1 ? " (yesterday)" : d === 1 ? " (tomorrow)" : d < 0 ? " (last)" : "";
+    out.push(`${wd} ${t.toISOString().slice(0, 10)}${tag}`);
+  }
+  return out.join(", ");
+}
+
 function prompt(today: string): string {
   return `You read sportsbook and pick'em slip screenshots (PrizePicks, Underdog, DraftKings, FanDuel, BetMGM, Caesars, ESPN Bet, Fliff, Sleeper and similar). Copy ONLY what is printed. Never guess or add anything.
 Today is ${today}. Use it only to turn printed words like "Today", "Tomorrow", "Fri", "10/14" or "Oct 14" into a YYYY-MM-DD date.
+Weekday calendar (a bare weekday means the date in this list; past weekdays for finished legs, coming ones for open legs): ${calendar(today)}.
 Return JSON:
 {"legs":[{"subject":string,"kind":"prop"|"spread"|"total"|"moneyline","market":string,"line":number|null,"side":"over"|"under"|null,"odds":number|null,"league":string|null,"date":string|null,"team":string|null,"opponent":string|null,"settled":boolean}],"stake":null,"book":string|null,"entry":string|null,"date":string|null,"lines":[string]}
 Read EVERY leg on the slip, top to bottom, even when there are many (up to 20). Each player block on a pick'em slip is one leg. Each line of a parlay or same-game parlay is one leg.

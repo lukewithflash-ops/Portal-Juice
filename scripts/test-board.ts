@@ -2,7 +2,7 @@ import { pickGame, playerNameHit, gradeTennis, parseSlipRows as parseSlip2, slip
 import { _test as myLive } from "../src/lib/myLive";
 import { parseBatch, slimSnap } from "../src/lib/liveSlim";
 import assert from "node:assert/strict";
-import { salvageJson } from "../src/lib/slipImport";
+import { salvageJson, expandNickname, leagueFromTeams } from "../src/lib/slipImport";
 import { tennisSnap } from "../src/lib/tennisSnap";
 import { catalogLeague } from "../src/lib/sports";
 import { _test } from "../src/lib/askData";
@@ -1662,4 +1662,13 @@ console.log(`\n${n} passed`);
   assert(snap.awayScore === "1" && snap.homeScore === "1" && snap.tennis?.games === 22 && snap.tennis.serving === "away", "tennis snap: sets won and games");
   assert(liveStat(snap.boxes[0].players[0].statMap, "Games Won") === 11 && liveStat(snap.boxes[0].players[0].statMap, "Total Games") === 22, "tennis snap: games won / total games meter");
   console.log("ok - all live + tennis live");
+  assert(expandNickname("SGA") === "Shai Gilgeous-Alexander" && expandNickname("K.D.") === "Kevin Durant" && expandNickname("Jalen Brunson") === "Jalen Brunson", "slip: nicknames");
+  const side = (abbr: string, name: string) => ({ id: abbr, abbr, name });
+  const gs = [
+    { league: "nba", id: "1", start: "2026-10-16T23:00Z", state: "pre" as const, away: side("BOS", "Boston Celtics"), home: side("PHI", "Philadelphia 76ers") },
+    { league: "nhl", id: "2", start: "2026-10-18T23:00Z", state: "pre" as const, away: side("PHI", "Philadelphia Flyers"), home: side("BOS", "Boston Bruins") },
+  ];
+  const row0 = { subject: "J. Brown", kind: "prop" as const, market: "points", line: 22.5, selection: "Over" as const, odds: null, team: "PHI", opponent: "BOS" };
+  assert(leagueFromTeams(row0, gs) === null && leagueFromTeams({ ...row0, date: "2026-10-16" }, gs) === "nba" && leagueFromTeams({ ...row0, opponent: "NYK" }, gs) === null, "slip: league from the printed matchup and date");
+  assert(liveStat({ points: "11", rebounds: "0", assists: "1" }, "Pts+Reb+Ast") === 12 && liveStat({ shotsTotal: "0" }, "Shots On Goal") === 0 && liveStat({ hits: "2" }, "hits") === 2, "tracker: short labels, hockey shots, baseball hits");
 }

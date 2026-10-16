@@ -669,3 +669,45 @@ export function salvageJson(content: string): Record<string, unknown> | null {
   const book = /"book"\s*:\s*"([^"]{1,30})"/.exec(raw)?.[1] ?? null;
   return legs.length ? { legs, book, lines: [] } : null;
 }
+
+/** Well-known nicknames and initials on slips → the name ESPN uses. Only names a slip would print. */
+const NICKNAMES: Record<string, string> = {
+  sga: "Shai Gilgeous-Alexander", kd: "Kevin Durant", lbj: "LeBron James", "king james": "LeBron James", ad: "Anthony Davis", "the greek freak": "Giannis Antetokounmpo",
+  "greek freak": "Giannis Antetokounmpo", giannis: "Giannis Antetokounmpo", steph: "Stephen Curry", "steph curry": "Stephen Curry", cp3: "Chris Paul", joker: "Nikola Jokic",
+  jokic: "Nikola Jokic", ant: "Anthony Edwards", "ant-man": "Anthony Edwards", "ant edwards": "Anthony Edwards", jjj: "Jaren Jackson Jr.", pg13: "Paul George", pg: "Paul George",
+  dame: "Damian Lillard", wemby: "Victor Wembanyama", luka: "Luka Doncic", "luka dončić": "Luka Doncic", "the beard": "James Harden", trae: "Trae Young", ja: "Ja Morant",
+  zion: "Zion Williamson", spida: "Donovan Mitchell", book: "Devin Booker", "a'ja": "A'ja Wilson", aja: "A'ja Wilson", cmc: "Christian McCaffrey", "arsb": "Amon-Ra St. Brown",
+  "amon-ra": "Amon-Ra St. Brown", jsn: "Jaxon Smith-Njigba", "jaxon smith njigba": "Jaxon Smith-Njigba", bijan: "Bijan Robinson", saquon: "Saquon Barkley",
+  "king henry": "Derrick Henry", mahomes: "Patrick Mahomes", "j. jefferson": "Justin Jefferson", jj: "Justin Jefferson", ohtani: "Shohei Ohtani",
+  "sho": "Shohei Ohtani", judge: "Aaron Judge", mcdavid: "Connor McDavid", "mcjesus": "Connor McDavid", ovi: "Alex Ovechkin", "auston": "Auston Matthews",
+  "nikola jokić": "Nikola Jokic",
+};
+/** The name to search for: a nickname spelled out, else the slip's own text. */
+export function expandNickname(subject: string): string {
+  const k = subject.toLowerCase().replace(/\s+/g, " ").trim();
+  return NICKNAMES[k] ?? NICKNAMES[k.replace(/\./g, "")] ?? subject;
+}
+
+const abbrEq = (a: string, b: string) => {
+  const x = a.toUpperCase().replace(/[^A-Z&]/g, "");
+  const y = b.toUpperCase().replace(/[^A-Z&]/g, "");
+  return !!x && !!y && (x === y || (x.length >= 2 && y.length >= 2 && (x.startsWith(y) || y.startsWith(x)) && Math.abs(x.length - y.length) <= 1));
+};
+const teamHit = (t: string, side: SlateGame["home"]) => abbrEq(t, side.abbr) || (t.length > 3 && (side.name ?? "").toLowerCase().includes(t.toLowerCase()));
+
+/**
+ * The league a row belongs to from the matchup printed beside it ("PHI vs BOS"): the leagues of window games
+ * with both teams. Null when nothing printed, or the pair fits more than one league. Pure.
+ */
+export function leagueFromTeams(row: SlipRow, games: SlateGame[]): string | null {
+  if (row.league || !row.team || !row.opponent) return null;
+  const t = row.team.replace(/^(vs\.?|@)\s*/i, "").trim();
+  const o = row.opponent.replace(/^(vs\.?|@)\s*/i, "").trim();
+  const both = games.filter((g) => (teamHit(t, g.home) && teamHit(o, g.away)) || (teamHit(t, g.away) && teamHit(o, g.home)));
+  const one = (xs: SlateGame[]) => {
+    const l = new Set(xs.map((g) => g.league));
+    return l.size === 1 ? [...l][0] : null;
+  };
+  // Same matchup in two leagues (PHI vs BOS): the printed date picks one.
+  return one(both) ?? (row.date ? one(both.filter((g) => easternDate(g.start) === row.date)) : null);
+}
