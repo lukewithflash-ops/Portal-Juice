@@ -337,8 +337,15 @@ export async function matchRows(rows: SlipRow[], slipDate: string | null = null)
       // The matchup printed beside a leg names its league ("PHI vs BOS" on a Friday is the NBA game).
       const lg = leagueFromTeams(r0, games);
       const r = lg ? { ...r0, league: lg } : r0;
-      const player = r.kind === "prop" ? await propPlayer({ ...r, subject: expandNickname(r.subject) }, games) : null;
-      const m = matchRow(r, games, player, now);
+      let player = r.kind === "prop" ? await propPlayer({ ...r, subject: expandNickname(r.subject) }, games) : null;
+      let m = matchRow(r, games, player, now);
+      // A league the reader guessed wrong ("WNBA + NBA" header) must not hide the player: try the matchup's league, then any.
+      if (!m.game && r0.league) {
+        const r2 = { ...r0, league: leagueFromTeams({ ...r0, league: null }, games) };
+        player = r2.kind === "prop" ? await propPlayer({ ...r2, subject: expandNickname(r2.subject) }, games) : null;
+        const m2 = matchRow(r2, games, player, now);
+        if (m2.game) m = { ...m2, row: r0 };
+      }
       const result = await gradeLeg(m, games);
       return result ? { ...m, result } : m;
     })
