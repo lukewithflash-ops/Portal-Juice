@@ -1,6 +1,7 @@
 /** More sports from ESPN: soccer, tennis, golf, MMA, more basketball. Pure parsers, no network. */
 import { american, finiteNumber, parsePrice, spreadText, type GameState } from "@/lib/slate";
 import { winPct, type WinPct } from "@/lib/winPct";
+import { ESPN_CATALOG } from "@/lib/espnCatalog";
 
 export type SportKind = "team" | "soccer" | "tennis" | "fight" | "golf";
 export type SportLeague = { id: string; label: string; name: string; group: string; path: string; kind: SportKind };
@@ -21,8 +22,39 @@ export const SPORT_LEAGUES: SportLeague[] = [
   { id: "ufc", label: "UFC", name: "UFC", group: "MMA", path: "mma/ufc", kind: "fight" },
 ];
 
+const CATALOG_GROUP: Record<string, string> = {
+  football: "Football", basketball: "Basketball", baseball: "Baseball", hockey: "Hockey", soccer: "Soccer", tennis: "Tennis", golf: "Golf",
+  mma: "MMA", racing: "Racing", volleyball: "Volleyball", lacrosse: "Lacrosse", "field-hockey": "Field Hockey", rugby: "Rugby",
+  "australian-football": "Aussie Rules", "rugby-league": "Rugby League", "water-polo": "Water Polo", softball: "Softball", boxing: "Boxing", cricket: "Cricket",
+};
+const CATALOG_KIND = (sport: string): SportKind => (sport === "soccer" ? "soccer" : sport === "tennis" ? "tennis" : sport === "golf" || sport === "racing" ? "golf" : sport === "mma" || sport === "boxing" ? "fight" : "team");
+/** Short labels for leagues ESPN names only by slug. */
+const CATALOG_LABEL: Record<string, string> = {
+  "soccer.arg.1": "Argentina", "soccer.bra.1": "Brasileirão", "soccer.mex.1": "Liga MX", "soccer.fra.1": "Ligue 1", "soccer.ned.1": "Eredivisie", "soccer.por.1": "Liga Portugal",
+  "soccer.eng.2": "Championship", "soccer.usa.nwsl": "NWSL", "soccer.uefa.europa": "UEL", "soccer.uefa.europa.conf": "UECL", "soccer.usa.ncaa.m.1": "NCAA M Soccer",
+  "soccer.usa.ncaa.w.1": "NCAA W Soccer", "soccer.uru.1": "Uruguay", "soccer.per.1": "Peru", "soccer.ecu.1": "Ecuador", "soccer.col.1": "Colombia", "soccer.chi.1": "Chile",
+  "soccer.sco.1": "Scotland", "soccer.tur.1": "Süper Lig", "soccer.ksa.1": "Saudi Pro", "soccer.bel.1": "Belgium", "soccer.conmebol.libertadores": "Libertadores",
+  "soccer.conmebol.sudamericana": "Sudamericana", "soccer.usa.usl.1": "USL", "hockey.womens-college-hockey": "NCAA W Hockey", "hockey.mens-college-hockey": "NCAA M Hockey",
+  "volleyball.womens-college-volleyball": "NCAA W Volleyball", "volleyball.mens-college-volleyball": "NCAA M Volleyball", "field-hockey.womens-college-field-hockey": "NCAA Field Hockey",
+  "football.cfl": "CFL", "football.ufl": "UFL", "baseball.college-baseball": "College Baseball", "golf.lpga": "LPGA", "golf.eur": "DP World", "golf.liv": "LIV", "golf.champions-tour": "Champions",
+  "racing.f1": "F1", "racing.irl": "IndyCar", "racing.nascar-premier": "NASCAR", "mma.pfl": "PFL", "australian-football.afl": "AFL", "basketball.nba-development": "G League",
+};
+function prettySlug(slug: string): string {
+  return slug.replace(/[._-]+/g, " ").replace(/\b(ncaa|usa|uefa|fifa|afc|caf|nba|wnba|mls|nwsl|usl)\b/gi, (m) => m.toUpperCase()).replace(/\b([a-z])/g, (m) => m.toUpperCase()).slice(0, 28);
+}
+/** A catalog league id is "sport.slug", e.g. "soccer.arg.1". */
+export function catalogLeague(id: string): SportLeague | null {
+  const i = id.indexOf(".");
+  if (i < 1) return null;
+  const sport = id.slice(0, i);
+  const slug = id.slice(i + 1);
+  if (!ESPN_CATALOG[sport]?.includes(slug)) return null;
+  const label = CATALOG_LABEL[id] ?? prettySlug(slug);
+  return { id, label, name: label, group: CATALOG_GROUP[sport] ?? "Other", path: `${sport}/${slug}`, kind: CATALOG_KIND(sport) };
+}
+
 export function sportLeague(id: string): SportLeague | null {
-  return SPORT_LEAGUES.find((l) => l.id === id) ?? null;
+  return SPORT_LEAGUES.find((l) => l.id === id) ?? catalogLeague(id);
 }
 
 export type Entrant = {
@@ -37,6 +69,8 @@ export type Entrant = {
   record: string | null;
   /** Tennis set scores, e.g. ["6", "7(1)", "6"]. */
   sets: string[];
+  /** Tennis: serving right now, when ESPN says so. */
+  serving?: boolean;
 };
 
 export type MatchPrice = { provider: string; homeMl: string | null; awayMl: string | null; drawMl: string | null; total: number | null; spread: string | null };
@@ -89,9 +123,14 @@ export function parseEntrant(raw: unknown): Entrant | null {
   const team = asDict(c.team);
   const ath = asDict(c.athlete);
   const isTeam = Object.keys(team).length > 0;
-  const name = isTeam ? str(team.displayName) || str(team.name) : str(ath.displayName) || str(ath.fullName);
+  // Doubles: a roster of two athletes.
+  const roster = asDict(c.roster);
+  const pair = asList(roster.athletes).map(asDict);
+  const rosterName = str(roster.displayName) || (pair.length ? pair.map((a) => str(a.displayName) || str(a.fullName)).filter(Boolean).join(" / ") : null);
+  const rosterShort = str(roster.shortDisplayName) || (pair.length ? pair.map((a) => str(a.shortName) || str(a.lastName) || str(a.displayName)).filter(Boolean).join(" / ") : null);
+  const name = isTeam ? str(team.displayName) || str(team.name) : str(ath.displayName) || str(ath.fullName) || rosterName;
   if (!name) return null;
-  const short = isTeam ? str(team.abbreviation) || str(team.shortDisplayName) || name : str(ath.shortName) || name;
+  const short = isTeam ? str(team.abbreviation) || str(team.shortDisplayName) || name : str(ath.shortName) || (str(ath.displayName) ? null : rosterShort) || name;
   const records = asList(c.records).map(asDict);
   const rec = records.find((r) => r.type === "total" || r.name === "overall") ?? records[0];
   const color = str(team.color);
@@ -100,13 +139,14 @@ export function parseEntrant(raw: unknown): Entrant | null {
     id: str(c.id) ?? name,
     name,
     short,
-    logo: isTeam ? https(team.logo) : https(asDict(ath.flag).href),
+    logo: isTeam ? https(team.logo) : https(asDict(ath.flag).href) || https(asDict(asDict(pair[0]).flag).href),
     color: color && /^[0-9a-f]{6}$/i.test(color) ? color : null,
     alt: alt && /^[0-9a-f]{6}$/i.test(alt) ? alt : null,
     score: str(c.score),
     winner: c.winner === true,
     record: str(rec?.summary),
     sets: isTeam ? [] : asList(c.linescores).map((l) => setText(asDict(l))).filter(Boolean),
+    serving: c.possession === true || c.serving === true || c.isServing === true || asDict(c.situation).serving === true ? true : undefined,
   };
 }
 
@@ -193,7 +233,7 @@ function golfBoard(ev: Dict): GolfBoard | null {
 const RANK: Record<GameState, number> = { in: 0, pre: 1, post: 2 };
 
 /** Turns one ESPN scoreboard into matches (or a leaderboard for golf). */
-export function parseSportScoreboard(league: SportLeague, data: unknown, now = Date.now(), opts: { all?: boolean } = {}): { matches: Match[]; golf: GolfBoard[] } {
+export function parseSportScoreboard(league: SportLeague, data: unknown, now = Date.now(), opts: { all?: boolean; doubles?: boolean } = {}): { matches: Match[]; golf: GolfBoard[] } {
   const events = asList(asDict(data).events).map(asDict);
   if (league.kind === "golf") return { matches: [], golf: events.map(golfBoard).filter((b): b is GolfBoard => !!b) };
   const matches: Match[] = [];
@@ -204,7 +244,7 @@ export function parseSportScoreboard(league: SportLeague, data: unknown, now = D
     if (groups.length) {
       for (const g of groups) {
         const slug = str(asDict(g.grouping).slug) ?? "";
-        if (!/singles/.test(slug)) continue;
+        if (!/singles/.test(slug) && !(opts.doubles && /doubles/.test(slug))) continue;
         if (league.id === "atp" && /women/.test(slug)) continue;
         if (league.id === "wta" && !/women/.test(slug)) continue;
         for (const c of asList(g.competitions)) {

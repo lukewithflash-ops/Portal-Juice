@@ -30,7 +30,7 @@ export function gradePick(pick: LoggedPick, snap: LiveSnap | null): PickStatus |
   const scored = snap.awayScore != null && snap.homeScore != null && Number.isFinite(away) && Number.isFinite(home);
   if (market === "total") {
     if (!scored || !(pick.line > 0)) return null;
-    const r = cmp(away + home, pick.line);
+    const r = cmp(snap.tennis ? snap.tennis.games : away + home, pick.line);
     return pick.selection === "Under" ? (r === "win" ? "loss" : r === "loss" ? "win" : "push") : r;
   }
   if (market === "moneyline" || market === "spread") {

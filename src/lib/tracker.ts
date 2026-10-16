@@ -83,6 +83,13 @@ const AST = T(["assists", "AST"]);
 /** The box score terms behind a market. Empty when we cannot compute it live. */
 export function marketTerms(market: string): Term[] {
   const m = market.toLowerCase();
+  // Tennis (games and sets come from the set scores; aces and faults only when ESPN posts them).
+  if (/games? won/.test(m)) return [T(["t:gamesWon"])];
+  if (/total games/.test(m)) return [T(["t:totalGames"])];
+  if (/sets? won/.test(m)) return [T(["t:setsWon"])];
+  if (/total sets/.test(m)) return [T(["t:totalSets"])];
+  if (/\baces?\b/.test(m)) return [T(["aces"])];
+  if (/double faults?/.test(m)) return [T(["doubleFaults"])];
   if (/fantasy/.test(m)) return [{ aliases: ["fantasy"], w: 1 }];
   if (/longest/.test(m)) {
     if (/rush|run/.test(m)) return [T(["longRushing"])];

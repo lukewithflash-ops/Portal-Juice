@@ -145,10 +145,10 @@ export function teamView(pick: Pick, snap: LiveSnap | null, slipKey: string): Le
   const scale = SCALE[pick.league] ?? 2;
   let out: LegView;
   if (m === "total") {
-    const v = a + h;
+    const v = snap.tennis ? snap.tennis.games : a + h;
     const line = pick.line;
     const span = clockSpan(pick.league, snap.period, snap.clock, snap.state);
-    const played = playedShare(pick.league, span, snap.period, snap.state, snap.bug?.half ?? null);
+    const played = snap.tennis ? 0 : playedShare(pick.league, span, snap.period, snap.state, snap.bug?.half ?? null);
     const pace = !final && played >= 0.1 ? round1(v / played) : null;
     let state: LegState = pace === null ? "alive" : (over ? pace > line : pace < line) ? "alive" : "behind";
     if (over && v > line) state = "hit";
@@ -174,7 +174,8 @@ export function teamView(pick: Pick, snap: LiveSnap | null, slipKey: string): Le
     } else {
       const win = snap.homeWin != null && !final ? clamp(side === "home" ? snap.homeWin : 100 - snap.homeWin, 0, 100) : null;
       const state: LegState = margin >= 0 ? "alive" : "behind";
-      const note = `${margin > 0 ? `Up ${margin}` : margin < 0 ? `Down ${-margin}` : "Tied"}${win !== null ? ` · ESPN ${Math.round(win)}% to win` : ""}`;
+      const unit = snap.tennis ? (Math.abs(margin) === 1 ? " set" : " sets") : "";
+      const note = `${margin > 0 ? `Up ${margin}${unit}` : margin < 0 ? `Down ${-margin}${unit}` : snap.tennis ? "Sets level" : "Tied"}${win !== null ? ` · ESPN ${Math.round(win)}% to win` : ""}`;
       const tone: TrackTone = win !== null ? chanceTone(win) === "gold" ? "green" : chanceTone(win) : margin > 0 ? "green" : margin < 0 ? "red" : "flat";
       out = { ...base, label: label2, value: margin, valueText: marginText, fill: win ?? clamp(50 + 50 * (margin / scale), 2, 100), state, note, tone, chance: win };
     }

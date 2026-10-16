@@ -204,6 +204,8 @@ export type LiveSnap = {
   winIds?: string[];
   /** Scheduled start, ISO, from the summary header. */
   start?: string | null;
+  /** Tennis: games per set, who is serving, total games so far, tournament and round. */
+  tennis?: { away: string[]; home: string[]; serving: "away" | "home" | null; games: number; event: string | null };
 };
 
 function colorOf(raw: unknown): string {

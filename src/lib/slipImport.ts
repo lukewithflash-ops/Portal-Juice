@@ -626,3 +626,46 @@ export function gradeTennis(leg: LegInput, g: SlateGame): "win" | "loss" | "push
   if (m === "sets won") return flip(cmp(side === "home" ? setsH : setsA, leg.line));
   return null;
 }
+
+/** Pulls whole leg objects out of JSON that was cut off mid-way (a long slip can hit the token cap). */
+export function salvageJson(content: string): Record<string, unknown> | null {
+  const raw = content.replace(/^```(?:json)?|```$/g, "").trim();
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    /* fall through */
+  }
+  const at = raw.indexOf('"legs"');
+  if (at < 0) return null;
+  const open = raw.indexOf("[", at);
+  if (open < 0) return null;
+  const legs: unknown[] = [];
+  let depth = 0;
+  let from = -1;
+  let inStr = false;
+  for (let i = open + 1; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inStr) {
+      if (ch === "\\") i++;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{") {
+      if (depth === 0) from = i;
+      depth++;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0 && from >= 0) {
+        try {
+          legs.push(JSON.parse(raw.slice(from, i + 1)));
+        } catch {
+          /* skip a broken leg */
+        }
+        from = -1;
+      }
+    } else if (ch === "]" && depth === 0) break;
+  }
+  const book = /"book"\s*:\s*"([^"]{1,30})"/.exec(raw)?.[1] ?? null;
+  return legs.length ? { legs, book, lines: [] } : null;
+}

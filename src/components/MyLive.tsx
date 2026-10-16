@@ -429,6 +429,27 @@ function TeamLine({ abbr, color, ball, football, lead }: { abbr: string; color: 
 }
 
 function Situation({ g, snap, compact }: { g: GameView; snap: LiveSnap; compact: boolean }) {
+  if (snap.tennis) {
+    const tn = snap.tennis;
+    const row = (abbr: string, sets: string[], serving: boolean) => (
+      <div className="flex items-center gap-1.5">
+        <span className="min-w-0 flex-1 truncate">
+          {abbr}
+          {serving ? <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--plus)] align-middle" aria-label="serving" /> : null}
+        </span>
+        {sets.map((x, i) => (
+          <span key={i} className={"w-4 text-center " + (i === sets.length - 1 ? "text-white" : "text-zinc-400")}>{x}</span>
+        ))}
+      </div>
+    );
+    return (
+      <div className="tabular mt-1 rounded-md bg-white/[0.04] px-1.5 py-1 text-[11px] font-black text-zinc-200" data-testid="tennis-sets">
+        {row(snap.awayAbbr, tn.away, tn.serving === "away")}
+        {row(snap.homeAbbr, tn.home, tn.serving === "home")}
+        {!compact && tn.event ? <p className="mt-0.5 truncate text-[10px] font-semibold text-zinc-500">{tn.event}</p> : null}
+      </div>
+    );
+  }
   if (FOOTBALL.has(g.league)) {
     const sit = snap.situation;
     if (!sit) return null;

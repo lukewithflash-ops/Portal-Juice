@@ -2,6 +2,9 @@ import { pickGame, playerNameHit, gradeTennis, parseSlipRows as parseSlip2, slip
 import { _test as myLive } from "../src/lib/myLive";
 import { parseBatch, slimSnap } from "../src/lib/liveSlim";
 import assert from "node:assert/strict";
+import { salvageJson } from "../src/lib/slipImport";
+import { tennisSnap } from "../src/lib/tennisSnap";
+import { catalogLeague } from "../src/lib/sports";
 import { _test } from "../src/lib/askData";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -1637,4 +1640,26 @@ console.log(`\n${n} passed`);
   assert(pe.length === 2 && pe[0].subject === "LeBron James" && pe[0].selection === "Over" && pe[0].team === "LAL" && pe[1].selection === "Under" && pe[1].market === "rebounds", "slip: pick'em blocks with More/Less");
   assert(slipDateOf("Placed 10/14/26 7:02 PM", new Date("2026-10-16")) === "2026-10-14" && slipDateOf("Oct 18 · 4:30 PM", new Date("2026-10-16")) === "2026-10-18" && slipDateOf("no date") === null, "slip: printed dates");
   console.log("ok - slip reader matching");
+}
+
+{
+  // Cut-off vision JSON still yields the whole legs.
+  const cut = salvageJson('{"legs":[{"subject":"A","kind":"prop"},{"subject":"B","kind":"prop"},{"subject":"C","ki');
+  assert(cut && Array.isArray(cut.legs) && cut.legs.length === 2, "vision: salvage cut-off JSON");
+  // Every ESPN league resolves; tennis nests live matches in groupings, singles and doubles.
+  assert(catalogLeague("soccer.arg.1")?.kind === "soccer" && sportLeague("hockey.womens-college-hockey")?.group === "Hockey" && catalogLeague("soccer.nope") === null, "all live: catalog leagues");
+  const ent = (id: string, name: string, sets: number[], extra: Record<string, unknown> = {}) => ({ id, order: Number(id), athlete: { displayName: name }, linescores: sets.map((value) => ({ value })), ...extra });
+  const board = {
+    events: [{ id: "e", name: "Open", date: "2026-10-16T00:00Z", status: { type: { state: "pre" } }, groupings: [
+      { grouping: { slug: "womens-singles" }, competitions: [{ id: "1", date: "2026-10-16T00:00Z", status: { type: { state: "in", shortDetail: "3rd Set" } }, competitors: [ent("1", "Iga Swiatek", [6, 3, 2], { possession: true }), ent("2", "Coco Gauff", [4, 6, 1])] }] },
+      { grouping: { slug: "womens-doubles" }, competitions: [{ id: "2", date: "2026-10-16T00:00Z", status: { type: { state: "in" } }, competitors: [{ id: "3", order: 1, roster: { athletes: [{ displayName: "A One" }, { displayName: "B Two" }] }, linescores: [{ value: 2 }] }, { id: "4", order: 2, roster: { athletes: [{ displayName: "C Three" }, { displayName: "D Four" }] }, linescores: [{ value: 1 }] }] }] },
+    ] }],
+  };
+  const wta = sportLeague("wta")!;
+  const all = parseSportScoreboard(wta, board, Date.now(), { all: true, doubles: true }).matches;
+  assert(all.length === 2 && all.every((m) => m.state === "in") && all[0].away.serving === true && all[1].away.name === "A One / B Two", "all live: tennis groupings by match status, doubles, server");
+  const snap = tennisSnap(all[0]);
+  assert(snap.awayScore === "1" && snap.homeScore === "1" && snap.tennis?.games === 22 && snap.tennis.serving === "away", "tennis snap: sets won and games");
+  assert(liveStat(snap.boxes[0].players[0].statMap, "Games Won") === 11 && liveStat(snap.boxes[0].players[0].statMap, "Total Games") === 22, "tennis snap: games won / total games meter");
+  console.log("ok - all live + tennis live");
 }

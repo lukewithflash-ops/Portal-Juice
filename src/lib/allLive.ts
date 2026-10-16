@@ -5,10 +5,11 @@ import "server-only";
  */
 import { getJson } from "@/lib/espn";
 import { LEAGUES, parseScoreboard, sportsDate } from "@/lib/slate";
-import { parseSportScoreboard, SPORT_LEAGUES } from "@/lib/sports";
+import { catalogLeague, parseSportScoreboard, SPORT_LEAGUES, type SportLeague } from "@/lib/sports";
+import { ESPN_CATALOG } from "@/lib/espnCatalog";
 import { gameRoute } from "@/lib/gameRoute";
 
-export type AllLiveSide = { name: string; short: string; score: string | null; logo: string | null; color: string | null };
+export type AllLiveSide = { name: string; short: string; score: string | null; logo: string | null; color: string | null; serving?: boolean };
 
 export type AllLiveGame = {
   key: string;
@@ -33,15 +34,157 @@ export type AllLive = { fetchedAt: string; games: AllLiveGame[]; leagues: { id: 
 const BASE = "https://site.api.espn.com/apis/site/v2/sports/";
 const GROUP: Record<string, string> = { nfl: "Football", ncaaf: "Football", nba: "Basketball", mlb: "Baseball", nhl: "Hockey" };
 /** Every FBS / D-I game, not only ranked ones. */
-const GROUPS: Record<string, string> = { ncaaf: "&groups=80", ncaam: "?groups=50", ncaaw: "?groups=50" };
+const GROUPS: Record<string, string> = { ncaaf: "&groups=80", ncaam: "&groups=50", ncaaw: "&groups=50" };
 const TTL_MS = 5_000;
+/** How often every other ESPN league is scanned for games that are live or about to start. */
+const SCAN_MS = 120_000;
+/** A league that failed this pull keeps its last good list this long, so one bad feed never empties the page. */
+const KEEP_MS = 90_000;
 let memo: { at: number; value: Promise<AllLive> } | null = null;
+let scan: { at: number; value: Promise<Set<string>> } | null = null;
+const lastGood = new Map<string, { at: number; games: AllLiveGame[] }>();
+
+type Dict = Record<string, unknown>;
+const asDict = (v: unknown): Dict => (v && typeof v === "object" ? (v as Dict) : {});
+const asList = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+
+/** Paths the site already covers by name; the catalog scan skips them. */
+const COVERED = new Set([...LEAGUES.map((l) => `${l.sport}/${l.slug}`), ...SPORT_LEAGUES.map((l) => l.path)]);
+const CATALOG: SportLeague[] = Object.entries(ESPN_CATALOG)
+  .flatMap(([sport, slugs]) => slugs.map((slug) => catalogLeague(`${sport}.${slug}`)))
+  .filter((l): l is SportLeague => !!l && !COVERED.has(l.path));
+
+/** Runs jobs with a cap on how many ESPN calls are open at once. */
+async function pool<T>(jobs: (() => Promise<T>)[], size = 24): Promise<T[]> {
+  const out: T[] = new Array(jobs.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(size, jobs.length) }, async () => {
+      while (next < jobs.length) {
+        const i = next++;
+        out[i] = await jobs[i]();
+      }
+    }),
+  );
+  return out;
+}
+
+/** Every competition on a board with its own status (tennis nests matches in groupings, one status each). */
+export function competitionsOf(data: unknown): Dict[] {
+  const out: Dict[] = [];
+  for (const ev of asList(asDict(data).events).map(asDict)) {
+    out.push(...asList(ev.competitions).map(asDict));
+    for (const g of asList(ev.groupings).map(asDict)) out.push(...asList(g.competitions).map(asDict));
+  }
+  return out;
+}
+const stateOfComp = (c: Dict, ev?: Dict) => String(asDict(asDict(c.status ?? ev?.status).type).state ?? "");
+
+/** Leagues in the catalog with something live, or starting within three hours. */
+async function hotLeagues(): Promise<Set<string>> {
+  const soon = Date.now() + 3 * 3600_000;
+  const hits = await pool(
+    CATALOG.map((l) => async () => {
+      try {
+        const data = await getJson(`${BASE}${l.path}/scoreboard`, 1);
+        const hot = competitionsOf(data).some((c) => {
+          const st = stateOfComp(c);
+          return st === "in" || (st === "pre" && Date.parse(String(c.date ?? "")) <= soon && Date.parse(String(c.date ?? "")) > Date.now() - 6 * 3600_000);
+        });
+        return hot ? l.id : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return new Set(hits.filter((x): x is string => !!x));
+}
+
+function scanHot(): Promise<Set<string>> {
+  const now = Date.now();
+  if (scan && now - scan.at < SCAN_MS) return scan.value;
+  const prev = scan?.value;
+  const value = hotLeagues().catch(() => prev ?? new Set<string>());
+  scan = { at: now, value };
+  return value;
+}
+
+/** A league name from the board itself when the catalog only knows the slug. */
+function boardLabel(l: SportLeague, data: unknown): string {
+  if (!l.id.includes(".") || /[A-Z]/.test(l.label.slice(1))) return l.label;
+  const lg = asDict(asList(asDict(data).leagues)[0]);
+  const abbr = typeof lg.abbreviation === "string" ? lg.abbreviation : "";
+  const name = typeof lg.shortName === "string" ? lg.shortName : typeof lg.name === "string" ? lg.name : "";
+  const pick = abbr && abbr.length <= 14 && !/^\d+$/.test(abbr) ? abbr : name || l.label;
+  return pick.slice(0, 28);
+}
+
+const side = (e: { name: string; short: string; score: string | null; logo: string | null; color: string | null; serving?: boolean }): AllLiveSide => ({
+  name: e.name,
+  short: e.short,
+  score: e.score,
+  logo: e.logo,
+  color: e.color ? `#${e.color}` : null,
+  serving: e.serving || undefined,
+});
+
+/** In-progress entries from one non-core board. Pure. */
+export function liveFromBoard(l: SportLeague, data: unknown): AllLiveGame[] {
+  const label = boardLabel(l, data);
+  const { matches, golf } = parseSportScoreboard(l, data, Date.now(), { all: true, doubles: true });
+  const seen = new Set<string>();
+  const out: AllLiveGame[] = [];
+  for (const m of matches) {
+    if (m.state !== "in" || seen.has(m.id)) continue;
+    seen.add(m.id);
+    out.push({
+      key: `${l.id}/${m.id}`,
+      league: l.id,
+      label,
+      group: l.group,
+      id: m.id,
+      href: gameRoute(l.id, m.id),
+      detail: m.detail,
+      event: l.kind === "team" || l.kind === "soccer" ? null : [m.event, m.round].filter(Boolean).join(" · ") || null,
+      away: side(m.away),
+      home: side(m.home),
+      sets: l.kind === "tennis" ? { away: m.away.sets, home: m.home.sets } : undefined,
+    });
+  }
+  for (const b of golf.filter((g) => g.state === "in")) {
+    out.push({
+      key: `${l.id}/${b.id}`,
+      league: l.id,
+      label,
+      group: l.group,
+      id: b.id,
+      href: "/games",
+      detail: b.detail,
+      event: b.name,
+      away: { name: b.name, short: b.name, score: null, logo: null, color: null },
+      home: { name: "", short: "", score: null, logo: null, color: null },
+      leaders: b.rows.slice(0, 3).map((r) => ({ name: r.name, score: r.score, thru: r.thru })),
+    });
+  }
+  return out;
+}
+
+async function guarded(key: string, run: () => Promise<AllLiveGame[]>): Promise<AllLiveGame[]> {
+  try {
+    const games = await run();
+    lastGood.set(key, { at: Date.now(), games });
+    return games;
+  } catch {
+    const old = lastGood.get(key);
+    return old && Date.now() - old.at < KEEP_MS ? old.games : [];
+  }
+}
 
 async function pull(): Promise<AllLive> {
   const day = sportsDate();
-  const core = LEAGUES.map(async (l): Promise<AllLiveGame[]> => {
-    try {
-      const data = await getJson(`${BASE}${l.sport}/${l.slug}/scoreboard?dates=${day}&limit=300${GROUPS[l.id] ?? ""}`, 1);
+  const core = LEAGUES.map((l) =>
+    guarded(l.id, async () => {
+      const data = await getJson(`${BASE}${l.sport}/${l.slug}/scoreboard?dates=${day}&limit=300${GROUPS[l.id] ?? ""}`, 2);
       return parseScoreboard(l, data)
         .games.filter((g) => g.state === "in")
         .map((g) => ({
@@ -56,50 +199,21 @@ async function pull(): Promise<AllLive> {
           away: { name: g.away.name, short: g.away.abbr, score: g.away.score, logo: g.away.logo, color: g.away.color ? `#${g.away.color}` : null },
           home: { name: g.home.name, short: g.home.abbr, score: g.home.score, logo: g.home.logo, color: g.home.color ? `#${g.home.color}` : null },
         }));
-    } catch {
-      return [];
-    }
-  });
-  const extra = SPORT_LEAGUES.map(async (l): Promise<AllLiveGame[]> => {
-    try {
-      const data = await getJson(`${BASE}${l.path}/scoreboard${GROUPS[l.id] ?? ""}`, 1);
-      const { matches, golf } = parseSportScoreboard(l, data);
-      const out: AllLiveGame[] = matches
-        .filter((m) => m.state === "in")
-        .map((m) => ({
-          key: `${l.id}/${m.id}`,
-          league: l.id,
-          label: l.label,
-          group: l.group,
-          id: m.id,
-          href: gameRoute(l.id, m.id),
-          detail: m.detail,
-          event: l.kind === "team" || l.kind === "soccer" ? null : m.event || null,
-          away: { name: m.away.name, short: m.away.short, score: m.away.score, logo: m.away.logo, color: m.away.color ? `#${m.away.color}` : null },
-          home: { name: m.home.name, short: m.home.short, score: m.home.score, logo: m.home.logo, color: m.home.color ? `#${m.home.color}` : null },
-          sets: l.kind === "tennis" ? { away: m.away.sets, home: m.home.sets } : undefined,
-        }));
-      for (const b of golf.filter((g) => g.state === "in")) {
-        out.push({
-          key: `${l.id}/${b.id}`,
-          league: l.id,
-          label: l.label,
-          group: l.group,
-          id: b.id,
-          href: "/games",
-          detail: b.detail,
-          event: b.name,
-          away: { name: b.name, short: b.name, score: null, logo: null, color: null },
-          home: { name: "", short: "", score: null, logo: null, color: null },
-          leaders: b.rows.slice(0, 3).map((r) => ({ name: r.name, score: r.score, thru: r.thru })),
-        });
-      }
-      return out;
-    } catch {
-      return [];
-    }
-  });
-  const games = (await Promise.all([...core, ...extra])).flat();
+    }),
+  );
+  const hot = await scanHot();
+  const named = [...SPORT_LEAGUES, ...CATALOG.filter((l) => hot.has(l.id))];
+  const extra = pool(
+    named.map((l) => () =>
+      guarded(l.id, async () => {
+        const q = GROUPS[l.id] ? `?limit=300${GROUPS[l.id]}` : "?limit=300";
+        return liveFromBoard(l, await getJson(`${BASE}${l.path}/scoreboard${q}`, 2));
+      }),
+    ),
+  );
+  const all = [...(await Promise.all(core)).flat(), ...(await extra).flat()];
+  const seen = new Set<string>();
+  const games = all.filter((g) => (seen.has(g.key) ? false : (seen.add(g.key), true)));
   const leagues: AllLive["leagues"] = [];
   for (const g of games) {
     const have = leagues.find((x) => x.id === g.league);

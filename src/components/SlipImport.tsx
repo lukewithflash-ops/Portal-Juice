@@ -65,8 +65,13 @@ function guessSide(row: SlipRow, g: GameRef): "home" | "away" {
 
 const optLabel = (g: GameRef) => `${g.league.toUpperCase()} · ${g.away} @ ${g.home} · ${g.state === "post" ? "Final, " : g.state === "in" ? "Live, " : ""}${ptTime(g.start)}`;
 
-async function post(body: unknown): Promise<{ legs?: ImportLeg[]; options?: GameRef[]; stake?: number | null; book?: string | null; error?: string; vision?: boolean; reason?: string }> {
-  const res = await fetch("/api/slip/read", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+type ReadReply = { legs?: ImportLeg[]; options?: GameRef[]; stake?: number | null; book?: string | null; error?: string; vision?: boolean; failed?: boolean; reason?: string };
+
+async function post(body: unknown, timeoutMs = 95_000): Promise<ReadReply> {
+  const res = await fetch("/api/slip/read", { method: "POST", cache: "no-store", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) });
+  // A timeout or a gateway page is not JSON: report it as a hiccup, never as "reader off".
+  const ct = res.headers.get("content-type") ?? "";
+  if (!ct.includes("json")) return { failed: true, vision: true, reason: `http-${res.status}` };
   return res.json();
 }
 
@@ -104,11 +109,16 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
     setError("");
     setBusy("Reading the photo…");
     try {
-      const r = await post({ image: await shrink(file) });
-      if (r.vision === false || (!r.legs && !r.error)) {
-        setBusy("Photo reader is off. Reading on this device…");
+      const image = await shrink(file);
+      let r: ReadReply = await post({ image }).catch(() => ({ failed: true, vision: true, reason: "network" }));
+      if (r.failed && r.vision !== false) {
+        setBusy("Reading the photo again…");
+        r = await post({ image }).catch(() => ({ failed: true, vision: true, reason: "network" }));
+      }
+      if (r.vision === false || r.failed || (!r.legs && !r.error)) {
+        setBusy(r.vision === false ? "Photo reading isn’t set up here. Reading on this device…" : "The photo reader didn’t answer. Reading on this device…");
         const text = await ocr(file);
-        load(await post({ text }), "Read on this device. Check each row.");
+        load(await post({ text }), r.vision === false ? "Read on this device. Check each row." : "The photo reader was busy, so this was read on this device. Check each row.");
       } else load(r, "Read from the photo. Check each row.");
     } catch {
       setError("The photo could not be read. Paste the slip text instead.");

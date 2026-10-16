@@ -3,7 +3,7 @@ import { matchRows, optionsFor, readSlipImage, rowsFromText, visionConfigured } 
 import type { SlipRow } from "@/lib/slipImport";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 90;
 
 /**
  * Reads a slip and ties each row to a real game.
@@ -11,7 +11,7 @@ export const maxDuration = 60;
  * GET tells the client whether photo reading is set up.
  */
 export async function GET(req: Request) {
-  return NextResponse.json({ vision: visionConfigured(req.headers.get("x-vercel-oidc-token")) });
+  return NextResponse.json({ vision: visionConfigured(req.headers.get("x-vercel-oidc-token")) }, { headers: { "cache-control": "no-store" } });
 }
 
 export async function POST(req: Request) {
@@ -37,7 +37,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Use a PNG or JPG under 3 MB." }, { status: 400 });
     }
     const r = await readSlipImage(body.image, req.headers.get("x-vercel-oidc-token"));
-    if (!r.ok) return NextResponse.json({ vision: false, reason: r.reason, status: r.status ?? null, detail: r.detail ?? null }, { status: 200 });
+    // vision:false only when reading is really not set up; a hiccup says so, so the app never calls a working reader "off".
+    if (!r.ok) return NextResponse.json({ vision: r.reason === "not-configured" ? false : true, failed: true, reason: r.reason, status: r.status ?? null, detail: r.detail ?? null }, { status: 200, headers: { "cache-control": "no-store" } });
     rows = r.rows;
     stake = r.stake;
     book = r.book ?? null;

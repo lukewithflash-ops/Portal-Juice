@@ -22,10 +22,13 @@ import {
   type SlateGame,
   type SlipKind,
   type SlipRow,
+  salvageJson,
 } from "@/lib/slipImport";
 
 const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
 const MODEL = process.env.AI_GATEWAY_MODEL || "google/gemini-2.5-flash";
+/** Second try when the first model errors, times out or returns broken JSON. */
+const FALLBACK_MODEL = process.env.AI_GATEWAY_FALLBACK_MODEL || "openai/gpt-4.1-mini";
 /** ESPN search "league" slug → our league id, for every league we cover. */
 const LEAGUE_OF: Record<string, string> = Object.fromEntries([
   ...LEAGUES.map((l) => [l.slug, l.id]),
@@ -372,7 +375,7 @@ Read EVERY leg on the slip, top to bottom, even when there are many (up to 20). 
 - stake: always null. Ignore "$X to win $Y", payouts and entry fees.
 - book: the app name if visible, else null. entry: the entry type if printed ("Power Play", "Flex Play", "Parlay", "SGP", "Champions"), else null.
 - date (top level): a date printed for the whole slip (placed or game date), YYYY-MM-DD, else null.
-- lines: every text line you can read, top to bottom.
+- lines: the text lines you can read, top to bottom (at most 40; skip ads, banners and repeated payout text).
 If the image is not a bet slip, return {"legs":[],"stake":null,"lines":[]}.`;
 }
 
@@ -393,19 +396,29 @@ const txt = (v: unknown, n = 60): string | null => (typeof v === "string" && v.t
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() && Number.isFinite(Number(v.replace(/[+$,]/g, ""))) ? Number(v.replace(/[$,]/g, "")) : null);
 
-/** Reads a slip photo with a vision model via Vercel AI Gateway. Extraction only. */
+/** Reads a slip photo with a vision model via Vercel AI Gateway. Extraction only. One retry on a hiccup, on a second model. */
 export async function readSlipImage(dataUrl: string, oidcHeader: string | null): Promise<VisionResult> {
   const auth = gatewayAuth(oidcHeader);
   if (!auth) return { ok: false, reason: "not-configured" };
+  const started = Date.now();
+  const first = await readOnce(dataUrl, auth, MODEL, 45_000);
+  if (first.ok || first.reason === "not-authorized" || first.reason === "no-credit") return first;
+  const left = 80_000 - (Date.now() - started);
+  if (left < 15_000) return first;
+  const second = await readOnce(dataUrl, auth, FALLBACK_MODEL, Math.min(left, 40_000));
+  return second.ok ? second : first;
+}
+
+async function readOnce(dataUrl: string, auth: string, model: string, timeout: number): Promise<VisionResult> {
   try {
     const res = await fetch(GATEWAY, {
       method: "POST",
-      signal: AbortSignal.timeout(40000),
+      signal: AbortSignal.timeout(timeout),
       headers: { "content-type": "application/json", authorization: `Bearer ${auth}` },
       body: JSON.stringify({
-        model: MODEL,
+        model,
         temperature: 0,
-        max_tokens: 4000,
+        max_tokens: 8000,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: prompt(new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" })) },
@@ -415,7 +428,7 @@ export async function readSlipImage(dataUrl: string, oidcHeader: string | null):
     });
     if (!res.ok) {
       const body = (await res.text()).slice(0, 300);
-      console.log(JSON.stringify({ event: "slip.vision", status: res.status, body }));
+      console.log(JSON.stringify({ event: "slip.vision", model, status: res.status, body }));
       let detail = "";
       try {
         const j = JSON.parse(body) as { error?: { message?: string; type?: string } | string };
@@ -426,9 +439,13 @@ export async function readSlipImage(dataUrl: string, oidcHeader: string | null):
       return { ok: false, status: res.status, detail: detail.replace(/[A-Za-z0-9_-]{32,}/g, "…").slice(0, 240), reason: res.status === 401 || res.status === 403 ? "not-authorized" : res.status === 402 ? "no-credit" : `error-${res.status}` };
     }
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: unknown };
-    console.log(JSON.stringify({ event: "slip.vision", status: 200, model: MODEL, usage: data.usage ?? null }));
+    console.log(JSON.stringify({ event: "slip.vision", status: 200, model, usage: data.usage ?? null }));
     const content = data.choices?.[0]?.message?.content ?? "";
-    const json = JSON.parse(content.replace(/^```(?:json)?|```$/g, "").trim()) as { legs?: unknown[]; stake?: unknown; lines?: unknown[]; book?: unknown; entry?: unknown; date?: unknown };
+    const json = salvageJson(content) as { legs?: unknown[]; stake?: unknown; lines?: unknown[]; book?: unknown; entry?: unknown; date?: unknown } | null;
+    if (!json) {
+      console.log(JSON.stringify({ event: "slip.vision", model, error: "bad-json", tail: content.slice(-120) }));
+      return { ok: false, reason: "bad-json" };
+    }
     const lines = (json.lines ?? []).filter((x): x is string => typeof x === "string").slice(0, 80);
     const text = lines.join("\n");
     const rows: SlipRow[] = [];
@@ -459,8 +476,9 @@ export async function readSlipImage(dataUrl: string, oidcHeader: string | null):
     // No money in records: stake and payout text are dropped.
     return { ok: true, rows: rows.slice(0, 20), stake: null, book, text, date: isoDate(json.date) };
   } catch (err) {
-    console.log(JSON.stringify({ event: "slip.vision", error: String((err as Error).message).slice(0, 200) }));
-    return { ok: false, reason: "error" };
+    const msg = String((err as Error).message).slice(0, 200);
+    console.log(JSON.stringify({ event: "slip.vision", model, error: msg }));
+    return { ok: false, reason: /abort|timeout/i.test(msg) ? "timeout" : "error" };
   }
 }
 

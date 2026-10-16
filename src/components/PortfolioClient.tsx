@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useSyncExternalStore } from "react";
 import AddSlip from "@/components/AddSlip";
+import QuickPick from "@/components/QuickPick";
 import LogRow from "@/components/LogRow";
 import { useLiveHub } from "@/components/LiveHub";
 import { useLogLooks } from "@/components/useLogLeans";
@@ -122,6 +123,7 @@ export default function PortfolioClient() {
       </div>
       <AddSlip />
 
+      {formOpen && <QuickPick />}
       {formOpen && (
         <form onSubmit={onSubmit} className="panel mt-4 grid gap-3 rounded-2xl p-4 sm:grid-cols-2 lg:grid-cols-4" noValidate>
           <Field label="Sport">

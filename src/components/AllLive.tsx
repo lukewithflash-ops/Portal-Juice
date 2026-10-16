@@ -22,12 +22,12 @@ export function useAllLive(active: boolean): AllLiveData | null {
 
 const LEAGUE_HUE: Record<string, string> = {
   nfl: "#3b82f6", ncaaf: "#60a5fa", nba: "#f97316", wnba: "#fb923c", ncaam: "#fdba74", ncaaw: "#fed7aa",
-  mlb: "#ef4444", nhl: "#38bdf8", epl: "#a855f7", ucl: "#6366f1", laliga: "#f43f5e", seriea: "#22d3ee",
+  mlb: "#ef4444", nhl: "#38bdf8", "hockey.womens-college-hockey": "#7dd3fc", "hockey.mens-college-hockey": "#7dd3fc", epl: "#a855f7", ucl: "#6366f1", laliga: "#f43f5e", seriea: "#22d3ee",
   bundesliga: "#e11d48", mls: "#84cc16", atp: "#facc15", wta: "#f472b6", pga: "#22c55e", ufc: "#dc2626",
 };
 
 export function LeagueBadge({ league, label }: { league: string; label: string }) {
-  const c = LEAGUE_HUE[league] ?? "#a1a1aa";
+  const c = LEAGUE_HUE[league] ?? (league.startsWith("soccer.") ? "#c084fc" : league.startsWith("volleyball.") ? "#2dd4bf" : league.startsWith("golf.") ? "#4ade80" : league.startsWith("mma.") ? "#f87171" : "#a1a1aa");
   return (
     <span className="shrink-0 rounded px-1.5 py-px text-[10px] font-black uppercase tracking-wider" style={{ color: c, background: `color-mix(in srgb, ${c} 16%, transparent)`, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${c} 45%, transparent)` }}>
       {label}
@@ -39,13 +39,19 @@ export default function AllLive({ data }: { data: AllLiveData | null }) {
   const [pick, setPick] = useState("all");
   if (!data) return <div className="h-32 animate-pulse rounded-2xl border border-white/10 bg-white/[0.03]" aria-hidden />;
   const { games, leagues } = data;
-  const filter = pick !== "all" && leagues.some((l) => l.id === pick) ? pick : "all";
-  const shown = filter === "all" ? games : games.filter((g) => g.league === filter);
-  const groups = leagues.filter((l) => filter === "all" || l.id === filter);
+  const sports = [...new Set(games.map((g) => g.group))].map((name) => ({ name, count: games.filter((g) => g.group === name).length }));
+  const isGroup = pick.startsWith("g:");
+  const filter = pick === "all" ? "all" : isGroup ? (sports.some((x) => "g:" + x.name === pick) ? pick : "all") : leagues.some((l) => l.id === pick) ? pick : "all";
+  const inFilter = (g: AllLiveGame) => filter === "all" || g.league === filter || "g:" + g.group === filter;
+  const shown = games.filter(inFilter);
+  const groups = leagues.filter((l) => shown.some((g) => g.league === l.id));
   return (
     <div data-testid="all-live">
       <div className="-mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Filter by league">
         <Chip on={filter === "all"} onClick={() => setPick("all")} label="All" count={games.length} />
+        {sports.length > 1 && leagues.length > 5
+          ? sports.map((x) => <Chip key={"g:" + x.name} on={filter === "g:" + x.name} onClick={() => setPick("g:" + x.name)} label={x.name} count={x.count} />)
+          : null}
         {leagues.map((l) => (
           <Chip key={l.id} on={filter === l.id} onClick={() => setPick(l.id)} label={l.label} count={l.count} />
         ))}
@@ -100,8 +106,17 @@ function Side({ s, lead, sets }: { s: AllLiveGame["away"]; lead: boolean; sets?:
       ) : (
         <span className="h-3 w-1 shrink-0 rounded-full" style={{ background: s.color ?? "#71717a" }} aria-hidden />
       )}
-      <span className={"min-w-0 flex-1 truncate text-[13px] font-bold " + (lead ? "text-white" : "text-white/75")}>{s.short || s.name}</span>
-      {sets?.length ? <span className="tabular text-[11px] font-bold text-zinc-400">{sets.join(" ")}</span> : null}
+      <span className={"min-w-0 flex-1 truncate text-[13px] font-bold " + (lead ? "text-white" : "text-white/75")}>
+        {s.short || s.name}
+        {s.serving ? <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-[color:var(--plus)] align-middle" title="Serving" aria-label="serving" data-testid="serving" /> : null}
+      </span>
+      {sets?.length ? (
+        <span className="tabular flex gap-1 text-[12px] font-bold text-zinc-300" data-testid="sets">
+          {sets.map((x, i) => (
+            <span key={i} className={"w-4 text-center " + (i === sets.length - 1 ? "text-white" : "")}>{x}</span>
+          ))}
+        </span>
+      ) : null}
       <span className={"tabular w-7 text-right text-[14px] font-black " + (lead ? "text-white" : "text-white/70")}>{sets?.length ? "" : s.score ?? ""}</span>
     </div>
   );
