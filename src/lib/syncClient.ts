@@ -109,6 +109,9 @@ async function run(opts: { full?: boolean; reset?: ListCol[] }) {
   const base = opts.full ? { cols: {}, singles: {} } : readBase();
   const now = Date.now();
   const push: SyncPush = { cols: {}, singles: {} };
+  const sentRaw: Record<string, string | null> = {};
+  for (const col of LIST_COLS) sentRaw[col] = localStorage.getItem(COL_KEY[col]);
+  for (const k of SINGLES) sentRaw[k] = localStorage.getItem(k);
   for (const col of LIST_COLS) {
     const d = diffList(col, base.cols[col] ?? {}, readList(col), now);
     push.cols[col] = { put: d.put, del: d.del };
@@ -135,6 +138,12 @@ async function run(opts: { full?: boolean; reset?: ListCol[] }) {
   const floors = readFloors();
   const nextBase: Base = { cols: {}, singles: {} };
   for (const col of LIST_COLS) {
+    // Edited on this device while the request was out: keep the edit, send it next round.
+    if (localStorage.getItem(COL_KEY[col]) !== sentRaw[col]) {
+      nextBase.cols[col] = readBase().cols[col] ?? {};
+      again = true;
+      continue;
+    }
     let list = listOf(col, doc) as Record<string, unknown>[];
     const seen: Record<string, string> = {};
     // "Reset this device only": the account keeps older items; this device stops showing them.
@@ -169,6 +178,11 @@ async function run(opts: { full?: boolean; reset?: ListCol[] }) {
   }
   for (const k of SINGLES) {
     const s = doc.singles[k];
+    if (localStorage.getItem(k) !== sentRaw[k]) {
+      nextBase.singles[k] = readBase().singles[k] ?? null;
+      again = true;
+      continue;
+    }
     if (s) {
       const cur = localStorage.getItem(k);
       if (s.v === null && cur !== null) localStorage.removeItem(k);
