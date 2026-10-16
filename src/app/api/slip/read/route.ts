@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { matchRows, readSlipImage, rowsFromText, visionConfigured } from "@/lib/slipRead";
+import { matchRows, optionsFor, readSlipImage, rowsFromText, visionConfigured } from "@/lib/slipRead";
 import type { SlipRow } from "@/lib/slipImport";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  let body: { image?: unknown; text?: unknown; rows?: unknown };
+  let body: { image?: unknown; text?: unknown; rows?: unknown; options?: unknown; date?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -26,6 +26,12 @@ export async function POST(req: Request) {
   let source = "text";
   let book: string | null = null;
   let text = "";
+  let slipDate: string | null = typeof body.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : null;
+  // "Match it": games a row could belong to.
+  if (body.options && typeof body.options === "object") {
+    const options = await optionsFor(body.options as SlipRow);
+    return NextResponse.json({ options });
+  }
   if (typeof body.image === "string") {
     if (!/^data:image\/(png|jpe?g|webp);base64,/.test(body.image) || body.image.length > 4_000_000) {
       return NextResponse.json({ error: "Use a PNG or JPG under 3 MB." }, { status: 400 });
@@ -36,18 +42,20 @@ export async function POST(req: Request) {
     stake = r.stake;
     book = r.book ?? null;
     text = r.text;
+    slipDate = r.date ?? slipDate;
     source = "photo";
     if (!rows.length && text) rows = rowsFromText(text).rows;
   } else if (typeof body.text === "string") {
     const r = rowsFromText(body.text.slice(0, 20000));
     rows = r.rows;
     stake = r.stake;
+    slipDate = r.date ?? slipDate;
   } else if (Array.isArray(body.rows)) {
-    rows = body.rows.slice(0, 15) as SlipRow[];
+    rows = body.rows.slice(0, 20) as SlipRow[];
     source = "rows";
   } else {
     return NextResponse.json({ error: "Nothing to read." }, { status: 400 });
   }
-  const legs = await matchRows(rows);
-  return NextResponse.json({ source, stake, book, legs, vision: source === "photo" ? true : undefined });
+  const legs = await matchRows(rows, slipDate);
+  return NextResponse.json({ source, stake, book, legs, date: slipDate, vision: source === "photo" ? true : undefined });
 }

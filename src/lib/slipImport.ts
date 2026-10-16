@@ -18,6 +18,15 @@ export type SlipRow = {
   selection: "Over" | "Under" | null;
   odds: number | null;
   kind: SlipKind;
+  /** League as printed or implied (our id: nba, wnba, atp…). A hint only. */
+  league?: string | null;
+  /** Game date as printed, YYYY-MM-DD. A hint for which game. */
+  date?: string | null;
+  /** Team or opponent printed next to the leg ("LAL vs DEN"). Hints only. */
+  team?: string | null;
+  opponent?: string | null;
+  /** The slip marks this leg settled (a check, "Won", "Lost"). Only used to look at past games; never a grade. */
+  settled?: boolean;
 };
 
 export type SlateGame = {
@@ -27,13 +36,23 @@ export type SlateGame = {
   state: "pre" | "in" | "post";
   away: { id: string; abbr: string; name: string };
   home: { id: string; abbr: string; name: string };
+  /** Tennis: set scores per side and the winner, from the scoreboard. */
+  sets?: { away: string[]; home: string[] };
+  winner?: "away" | "home" | null;
+  event?: string | null;
 };
+
+export type GameRef = { league: string; id: string; away: string; home: string; start: string; state?: "pre" | "in" | "post"; awayName?: string; homeName?: string };
 
 export type ImportLeg = {
   row: SlipRow;
   /** Null when the row is not tied to a game yet. */
   leg: LegInput | null;
-  game: { league: string; id: string; away: string; home: string; start: string } | null;
+  game: GameRef | null;
+  /** Finished game: graded from the final ESPN score or box. Null = not graded (you grade it). */
+  result?: "win" | "loss" | "push" | null;
+  /** Unmatched rows: games in the window you can tie it to ("Match it"). */
+  options?: GameRef[];
   /** Why it is flagged, in plain words. Null when it is ready. A flag never blocks saving. */
   issue: string | null;
   /** True when the leg can be saved but has no live meter: graded by you. */
@@ -41,6 +60,16 @@ export type ImportLeg = {
 };
 
 const PROP_MARKETS: [RegExp, string][] = [
+  // Tennis first: "games won" and "total games" must not read as goals or points.
+  [/double\s*faults?/i, "double faults"],
+  [/\baces?\b/i, "aces"],
+  [/total\s*games|games\s*played/i, "total games"],
+  [/games?\s*won/i, "games won"],
+  [/sets?\s*won/i, "sets won"],
+  [/total\s*sets|sets\s*played/i, "total sets"],
+  [/break\s*points?\s*(?:won|converted)|\bbreaks?\s*of\s*serve|\bbreaks\b/i, "breaks"],
+  [/free\s*throws?\s*made|\bftm\b/i, "free throws made"],
+  [/blk?s?\s*\+\s*stl?s?|blocks?\s*\+\s*steals?/i, "steals + blocks"],
   [/(?:goalie|goalkeeper|keeper|gk)\s*fantasy\s*(?:score|points|pts)?/i, "goalie fantasy score"],
   [/fantasy\s*(?:score|points|pts)?|\bfpts\b/i, "fantasy score"],
   [/\bpasses(?:\s+attempted)?\b/i, "passes attempted"],
@@ -93,6 +122,7 @@ export const STAT_CHOICES: Record<string, string[]> = {
   basketball: ["points", "rebounds", "assists", "3-pointers", "points + rebounds + assists", "points + rebounds", "points + assists", "rebounds + assists", "steals", "blocks", "steals + blocks", "turnovers", "fantasy score"],
   baseball: ["hits", "total bases", "home runs", "rbis", "strikeouts"],
   hockey: ["goals", "assists", "points", "shots on goal", "saves"],
+  tennis: ["aces", "double faults", "games won", "total games", "sets won", "total sets", "breaks", "fantasy score"],
   soccer: ["fantasy score", "goalie fantasy score", "passes attempted", "shots", "shots on target", "goals", "assists", "goal + assist", "tackles", "clearances", "crosses", "saves", "goals allowed", "shots assisted", "fouls"],
 };
 
@@ -101,6 +131,7 @@ export function sportGroupOf(league: string): string {
   if (["nba", "wnba", "ncaam", "ncaaw"].includes(league)) return "basketball";
   if (league === "mlb") return "baseball";
   if (league === "nhl") return "hockey";
+  if (league === "atp" || league === "wta") return "tennis";
   return "soccer";
 }
 
@@ -170,7 +201,105 @@ export function joinSlipLines(raw: string): string[] {
   return out;
 }
 
+/** Pick'em words to plain sides; demon/goblin tags dropped (the printed number is the line). */
+export function normalizeSlipText(raw: string): string {
+  return raw
+    .replace(/[−–—]/g, "-")
+    .replace(/[↑⬆▲]/g, " over ")
+    .replace(/[↓⬇▼]/g, " under ")
+    .replace(/\b(more|higher)\b/gi, "over")
+    .replace(/\b(less|lower|fewer)\b/gi, "under")
+    .replace(/\b(demon|goblin|taco|discount(?:ed)?|boost(?:ed)?|free\s*pick)\b/gi, " ")
+    .replace(/[ \t]+/g, " ");
+}
+
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+/** First date printed on the slip ("10/14", "10/14/26", "Oct 14", "2026-10-14"), as YYYY-MM-DD. Null when none. */
+export function slipDateOf(text: string, today: Date = new Date()): string | null {
+  const y0 = today.getFullYear();
+  const fmt = (y: number, m: number, d: number) => (m >= 1 && m <= 12 && d >= 1 && d <= 31 ? `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}` : null);
+  const iso = text.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+  if (iso) return fmt(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+  const md = text.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+  if (md) {
+    const y = md[3] ? (md[3].length === 2 ? 2000 + Number(md[3]) : Number(md[3])) : y0;
+    return fmt(y, Number(md[1]), Number(md[2]));
+  }
+  const mon = text.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})\b/i);
+  if (mon) return fmt(y0, MONTHS.indexOf(mon[1].slice(0, 3).toLowerCase()) + 1, Number(mon[2]));
+  return null;
+}
+
+const MATCHUP = /^([A-Za-z][A-Za-z .'&-]{1,30}?)\s+(?:vs\.?|v\.?|@|at)\s+([A-Za-z][A-Za-z .'&-]{1,30}?)(?:\s+[-·•|]?\s*(?:mon|tue|wed|thu|fri|sat|sun|today|tomorrow|\d{1,2}[/:]).*)?$/i;
+const NAME_LINE = /^[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3}$/;
+const STAT_LINE = /^(\d{1,3}(?:\.\d)?)\s+([A-Za-z][A-Za-z0-9 +.'-]{1,40})$/;
+const SIDE_LINE = /^(over|under)$/i;
+const NOT_A_NAME = /\b(play|plays|pick|picks|entry|parlay|flex|power|champions|lineup|slip|payout|insured|standard|boost|promo)\b/i;
+
+/**
+ * Pick'em layouts print one player per block: name, matchup line, "24.5 Points", then More/Less.
+ * Returns those rows and the lines it used, so the plain parser skips them.
+ */
+export function pickemRows(lines: string[]): { rows: SlipRow[]; used: Set<number> } {
+  const rows: SlipRow[] = [];
+  const used = new Set<number>();
+  for (let i = 0; i < lines.length; i++) {
+    if (!NAME_LINE.test(lines[i]) || BET_WORDS.test(lines[i]) || NOT_A_NAME.test(lines[i])) continue;
+    let team: string | null = null;
+    let opponent: string | null = null;
+    let stat: RegExpMatchArray | null = null;
+    let side: string | null = null;
+    const take: number[] = [i];
+    for (let j = i + 1; j < Math.min(lines.length, i + 6); j++) {
+      const l = lines[j];
+      // Another name before this block's stat: this line was a header, not a player.
+      if (NAME_LINE.test(l) && !MATCHUP.test(l) && !SIDE_LINE.test(l)) break;
+      const mu = l.match(MATCHUP);
+      if (mu && !team) {
+        team = mu[1].trim();
+        opponent = mu[2].trim();
+        take.push(j);
+        continue;
+      }
+      const st = l.match(STAT_LINE);
+      if (st && !stat && propMarketOf(st[2])) {
+        stat = st;
+        take.push(j);
+        continue;
+      }
+      if (SIDE_LINE.test(l) && !side) {
+        side = l.toLowerCase();
+        take.push(j);
+        if (stat) break;
+      }
+    }
+    if (!stat) continue;
+    take.forEach((k) => used.add(k));
+    rows.push({
+      subject: lines[i],
+      kind: "prop",
+      market: propMarketOf(stat[2]),
+      line: Number(stat[1]),
+      selection: side === "over" ? "Over" : side === "under" ? "Under" : null,
+      odds: null,
+      team,
+      opponent,
+    });
+    i = Math.max(...take);
+  }
+  return { rows, used };
+}
+
 export function parseSlipRows(raw: string): SlipRow[] {
+  raw = normalizeSlipText(raw);
+  const plain = raw.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  const pe = pickemRows(plain);
+  if (pe.rows.length) raw = plain.filter((_, i) => !pe.used.has(i)).join("\n");
+  return [...pe.rows, ...parseSlipRowsPlain(raw)];
+}
+
+function parseSlipRowsPlain(raw: string): SlipRow[] {
   const rows: SlipRow[] = [];
   const seen = new Set<string>();
   for (const chunk of joinSlipLines(raw)) {
@@ -278,19 +407,124 @@ export function findBothTeams(text: string, games: SlateGame[]): SlateGame | nul
 
 export type FoundPlayer = { id: string; name: string; league: string; teamId: string | null };
 
-const gameRef = (g: SlateGame) => ({ league: g.league, id: g.id, away: g.away.abbr, home: g.home.abbr, start: g.start });
+export const TENNIS = new Set(["atp", "wta"]);
+export const BASKETBALL = new Set(["nba", "wnba", "ncaam", "ncaaw"]);
+const TENNIS_MARKETS = new Set(["aces", "double faults", "games won", "total games", "sets won", "total sets", "breaks"]);
+const HOOP_ONLY = /rebounds|3-pointers|points \+|rebounds \+|steals|blocks|free throws|turnovers/;
 
-/** Ties one row to a game and a leg. `player` is the ESPN search hit for prop rows (or null). */
-export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer | null): ImportLeg {
-  const live = games.filter((g) => g.state !== "post");
-  const pool = live.length ? live : games;
+/** Which sport a row is about, from its league hint and market. Null = can't tell. */
+export function rowSport(row: SlipRow): "tennis" | "basketball" | null {
+  const lg = (row.league ?? "").toLowerCase();
+  if (TENNIS.has(lg) || TENNIS_MARKETS.has(propMarketOf(row.market) || row.market)) return "tennis";
+  if (BASKETBALL.has(lg) || (row.kind === "prop" && HOOP_ONLY.test(propMarketOf(row.market) || row.market))) return "basketball";
+  return null;
+}
+
+/** "Jannik Sinner" vs "J. Sinner" / "Sinner" / "Sinner J.". Tennis slips often print short names. */
+export function playerNameHit(printed: string, full: string): boolean {
+  if (nameClose(printed, full)) return true;
+  const p = normName(printed.replace(/\./g, " "));
+  const f = normName(full);
+  if (!p || !f) return false;
+  const pw = p.split(" ");
+  const fw = f.split(" ");
+  const fl = fw[fw.length - 1];
+  if (pw.length === 1) return pw[0].length >= 4 && (pw[0] === fl || fw.slice(1).join(" ") === pw[0]);
+  // "J Sinner" or "Sinner J"
+  const initial = pw.find((w) => w.length === 1);
+  const rest = pw.filter((w) => w.length > 1).join(" ");
+  return !!initial && !!rest && fw[0][0] === initial && (rest === fl || rest === fw.slice(1).join(" "));
+}
+
+/** Sports date (US Eastern) of a start time, YYYY-MM-DD. */
+export function easternDate(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "";
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(t));
+}
+
+/**
+ * Which of several games a leg means. A printed date wins (same day, then closest). Without one: a game in progress,
+ * then the next one within four days, then the most recent final. A leg the slip marks settled looks back first.
+ */
+export function pickGame<T extends SlateGame>(cands: T[], row: Pick<SlipRow, "date" | "settled">, now = Date.now()): T | null {
+  if (!cands.length) return null;
+  if (row.date && /^\d{4}-\d{2}-\d{2}$/.test(row.date)) {
+    const same = cands.filter((g) => easternDate(g.start) === row.date);
+    if (same.length) return same.find((g) => g.state === "in") ?? same[0];
+    const at = Date.parse(row.date + "T23:00:00Z");
+    return [...cands].sort((a, b) => Math.abs(Date.parse(a.start) - at) - Math.abs(Date.parse(b.start) - at))[0];
+  }
+  const live = cands.find((g) => g.state === "in");
+  if (live) return live;
+  const past = cands.filter((g) => g.state === "post").sort((a, b) => Date.parse(b.start) - Date.parse(a.start));
+  const next = cands.filter((g) => g.state === "pre").sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  if (row.settled && past.length) return past[0];
+  if (next.length && Date.parse(next[0].start) - now < 4 * 864e5) return next[0];
+  // A final from the last day and a half beats a game a week out.
+  if (past.length && now - Date.parse(past[0].start) < 1.5 * 864e5) return past[0];
+  return next[0] ?? past[0] ?? null;
+}
+
+/** Tennis matches where the printed name is one of the two players. */
+export function tennisGames(name: string, games: SlateGame[]): { game: SlateGame; side: "home" | "away" }[] {
+  const out: { game: SlateGame; side: "home" | "away" }[] = [];
+  for (const g of games) {
+    if (!TENNIS.has(g.league)) continue;
+    if (playerNameHit(name, g.home.name)) out.push({ game: g, side: "home" });
+    else if (playerNameHit(name, g.away.name)) out.push({ game: g, side: "away" });
+  }
+  return out;
+}
+
+const gameRef = (g: SlateGame): GameRef => ({ league: g.league, id: g.id, away: g.away.abbr, home: g.home.abbr, start: g.start, state: g.state, awayName: g.away.name, homeName: g.home.name });
+
+/** Games you could tie an unmatched row to: same league or sport, closest to the printed date or now. */
+export function gameOptions(row: SlipRow, games: SlateGame[], now = Date.now(), max = 12): GameRef[] {
+  const sport = rowSport(row);
+  const lg = (row.league ?? "").toLowerCase();
+  let pool = games.filter((g) => (lg ? g.league === lg : sport === "tennis" ? TENNIS.has(g.league) : sport === "basketball" ? BASKETBALL.has(g.league) : true));
+  if (!pool.length) pool = games;
+  const text = [row.team, row.opponent, row.kind === "prop" ? "" : row.subject].filter(Boolean).join(" ");
+  const named = text ? pool.filter((g) => teamScore(text, g.home) > 0 || teamScore(text, g.away) > 0 || playerNameHit(text, g.home.name) || playerNameHit(text, g.away.name)) : [];
+  const at = row.date ? Date.parse(row.date + "T23:00:00Z") : now;
+  return (named.length ? named : pool)
+    .slice()
+    .sort((a, b) => Math.abs(Date.parse(a.start) - at) - Math.abs(Date.parse(b.start) - at))
+    .slice(0, max)
+    .map(gameRef);
+}
+
+/** Narrow to the printed league when it has any game at all. */
+function byLeague(row: SlipRow, games: SlateGame[]): SlateGame[] {
+  const lg = (row.league ?? "").toLowerCase();
+  if (!lg) return games;
+  const only = games.filter((g) => g.league === lg);
+  return only.length ? only : games;
+}
+
+/** Ties one row to a game and a leg. `player` is the ESPN search or roster hit for prop rows (or null). */
+export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer | null, now = Date.now()): ImportLeg {
   const odds = row.odds;
+  const pool = byLeague(row, games);
+  const sport = rowSport(row);
   if (row.kind === "prop") {
     const known = propMarketOf(row.market);
     if (known) row = { ...row, market: known };
-    if (!player) return { row, leg: null, game: null, manual: true, issue: "Player not found in today’s or upcoming games. Saves as a manual leg you grade." };
-    const g = pool.find((x) => x.league === player.league && player.teamId && (x.home.id === player.teamId || x.away.id === player.teamId));
-    if (!g) return { row, leg: null, game: null, manual: true, issue: `${player.name}’s team has no game in the next few days. Saves as a manual leg.` };
+    // Tennis: the players are the two sides of the match.
+    const tennis = sport === "tennis" || (!player && row.league == null) ? tennisGames(row.subject, games) : [];
+    if (tennis.length) {
+      const g = pickGame(tennis.map((t) => t.game), row, now) as SlateGame;
+      const side = tennis.find((t) => t.game === g)?.side ?? "home";
+      const who = side === "home" ? g.home : g.away;
+      const leg: LegInput = { league: g.league, gameId: g.id, kind: "prop", athleteId: who.id, athleteName: who.name, market: row.market, line: row.line, pick: row.selection === "Under" ? "under" : "over", odds };
+      const issue = !row.market ? "Pick the stat." : row.line == null ? "Add the line." : !row.selection ? "Pick over or under." : null;
+      return { row, leg, game: gameRef(g), issue, manual: true };
+    }
+    if (!player) return { row, leg: null, game: null, manual: true, issue: "Player not found in games from the last week or the next two. Match it below, or save it as a manual leg.", options: gameOptions(row, games, now) };
+    const cands = pool.filter((x) => x.league === player.league && player.teamId && (x.home.id === player.teamId || x.away.id === player.teamId));
+    const g = pickGame(cands.length ? cands : games.filter((x) => player.teamId && (x.home.id === player.teamId || x.away.id === player.teamId)), row, now);
+    if (!g) return { row, leg: null, game: null, manual: true, issue: `${player.name}’s team has no game in the window. Match it below, or save it as a manual leg.`, options: gameOptions({ ...row, league: row.league ?? player.league }, games, now) };
     const stat = statFromMarket(g.league, row.market);
     const leg: LegInput = {
       league: g.league,
@@ -317,25 +551,75 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
     return { row, leg: { ...leg, athleteName: player.name }, game: gameRef(g), issue, manual: !tracked };
   }
   if (row.kind === "total") {
-    const both = findBothTeams(row.subject, pool);
-    const twoNamed = /\s(@|vs\.?|v\.?|at)\s/i.test(row.subject);
-    const g = both ?? (twoNamed ? null : (findTeamGames(row.subject, pool)[0]?.game ?? null));
-    if (!g) return { row, leg: null, game: null, issue: twoNamed ? "That matchup is not in today’s or upcoming games." : "Which game? Add the teams." };
+    const text = [row.subject, row.team, row.opponent].filter(Boolean).join(" @ ");
+    const bothAll = pool.filter((g) => (teamScore(text, g.home) > 0 && teamScore(text, g.away) > 0) || (TENNIS.has(g.league) && playerNameHit(row.team ?? row.subject, g.home.name) && playerNameHit(row.opponent ?? "", g.away.name)));
+    const twoNamed = /\s(@|vs\.?|v\.?|at)\s/i.test(row.subject) || !!(row.team && row.opponent);
+    const one = twoNamed ? [] : findTeamGames(text, pool);
+    const g = pickGame(bothAll.length ? bothAll : one.filter((h) => h.score === one[0]?.score).map((h) => h.game), row, now);
+    if (!g) return { row, leg: null, game: null, issue: twoNamed ? "That matchup is not in games from the last week or the next two. Match it below." : "Which game? Match it below.", options: gameOptions(row, games, now) };
     return {
       row,
       leg: { league: g.league, gameId: g.id, kind: "total", pick: row.selection === "Under" ? "under" : "over", line: row.line, odds },
       game: gameRef(g),
-      issue: row.line == null ? "Add the line." : !row.selection ? "Pick over or under." : !both ? "Only one team named. Check the game." : null,
+      issue: row.line == null ? "Add the line." : !row.selection ? "Pick over or under." : !bothAll.length ? "Only one team named. Check the game." : null,
     };
   }
+  // Spread or moneyline. Tennis: a player to win.
+  const tennis = sport === "tennis" || !findTeamGames(row.subject, pool).length ? tennisGames(row.subject, games) : [];
+  if (tennis.length) {
+    const g = pickGame(tennis.map((t) => t.game), row, now) as SlateGame;
+    const side = tennis.find((t) => t.game === g)?.side ?? "home";
+    const who = side === "home" ? g.home : g.away;
+    const leg: LegInput =
+      row.kind === "spread"
+        ? { league: g.league, gameId: g.id, kind: "spread", side, team: who.name, line: row.line, odds }
+        : { league: g.league, gameId: g.id, kind: "moneyline", side, team: who.name, odds };
+    return { row, leg, game: gameRef(g), issue: null, manual: row.kind === "spread" };
+  }
   const hits = findTeamGames(row.subject, pool);
-  if (!hits.length) return { row, leg: null, game: null, issue: "Team not found in today’s or upcoming games." };
-  const best = hits[0];
-  const unsure = hits.length > 1 && hits[1].score === best.score && hits[1].game.id !== best.game.id;
+  if (!hits.length) return { row, leg: null, game: null, issue: "Team not found in games from the last week or the next two. Match it below.", options: gameOptions(row, games, now) };
+  const top = hits.filter((h) => h.score === hits[0].score);
+  // The opponent, when printed, settles which game.
+  const vs = row.opponent ? top.filter((h) => teamScore(row.opponent as string, h.side === "home" ? h.game.away : h.game.home) > 0) : [];
+  const fits = vs.length ? vs : top;
+  const g = pickGame(fits.map((h) => h.game), row, now) as SlateGame;
+  const best = fits.find((h) => h.game === g) ?? fits[0];
+  const sameDay = fits.filter((h) => h.game.id !== g.id && easternDate(h.game.start) === easternDate(g.start));
+  const unsure = sameDay.length > 0;
   const t = best.side === "home" ? best.game.home : best.game.away;
   const leg: LegInput =
     row.kind === "spread"
       ? { league: best.game.league, gameId: best.game.id, kind: "spread", side: best.side, team: t.abbr, line: row.line, odds }
       : { league: best.game.league, gameId: best.game.id, kind: "moneyline", side: best.side, team: t.abbr, odds };
   return { row, leg, game: gameRef(best.game), issue: unsure ? "More than one game fits. Check the team." : null };
+}
+
+/**
+ * Grade a finished tennis leg from the set scores. Winner, total games, games won, sets won, total sets.
+ * Aces, double faults and breaks need match stats ESPN does not post on the scoreboard: null (you grade it).
+ */
+export function gradeTennis(leg: LegInput, g: SlateGame): "win" | "loss" | "push" | null {
+  if (g.state !== "post" || !g.sets) return null;
+  const games = (xs: string[]) => xs.map((x) => parseInt(x, 10)).filter((n) => Number.isFinite(n));
+  const a = games(g.sets.away);
+  const h = games(g.sets.home);
+  if (!a.length || a.length !== h.length) return null;
+  const setsA = a.filter((v, i) => v > h[i]).length;
+  const setsH = h.filter((v, i) => v > a[i]).length;
+  const winner = g.winner ?? (setsA > setsH ? "away" : setsH > setsA ? "home" : null);
+  if (leg.kind === "moneyline") return winner ? (winner === leg.side ? "win" : "loss") : null;
+  const cmp = (v: number, line: number) => (v > line ? "win" : v < line ? "loss" : "push");
+  const flip = (r: "win" | "loss" | "push") => (leg.pick === "under" ? (r === "win" ? "loss" : r === "loss" ? "win" : "push") : r);
+  if (leg.kind === "total" && leg.line != null) return flip(cmp(a.reduce((x, y) => x + y, 0) + h.reduce((x, y) => x + y, 0), leg.line));
+  if (leg.kind !== "prop" || leg.line == null) return null;
+  const side = leg.athleteId === g.home.id ? "home" : leg.athleteId === g.away.id ? "away" : null;
+  const m = propMarketOf(leg.market ?? "") || leg.market;
+  const mine = side === "home" ? h : side === "away" ? a : null;
+  const total = a.reduce((x, y) => x + y, 0) + h.reduce((x, y) => x + y, 0);
+  if (m === "total games") return flip(cmp(total, leg.line));
+  if (m === "total sets") return flip(cmp(a.length, leg.line));
+  if (!mine || !side) return null;
+  if (m === "games won") return flip(cmp(mine.reduce((x, y) => x + y, 0), leg.line));
+  if (m === "sets won") return flip(cmp(side === "home" ? setsH : setsA, leg.line));
+  return null;
 }

@@ -1,3 +1,4 @@
+import { pickGame, playerNameHit, gradeTennis, parseSlipRows as parseSlip2, slipDateOf, propMarketOf as pm2, tennisGames } from "../src/lib/slipImport";
 import { _test as myLive } from "../src/lib/myLive";
 import { parseBatch, slimSnap } from "../src/lib/liveSlim";
 import assert from "node:assert/strict";
@@ -1609,4 +1610,31 @@ console.log(`\n${n} passed`);
   assert(slim.plays.length === 40 && slim.plays[39].id === "99" && slim.win.length === 1 && !slim.shots, "live batch: slim keeps recent plays");
   assert(slimSnap("nfl", big).plays.length === 100, "live batch: football keeps every play");
   console.log("ok - my live");
+}
+
+// Slip reader: date window choice, tennis names and grading, pick'em blocks, printed dates.
+{
+  const g = (id: string, start: string, state: "pre" | "in" | "post", extra: Record<string, unknown> = {}) =>
+    ({ league: "nba", id, start, state, away: { id: "1", abbr: "LAL", name: "Los Angeles Lakers" }, home: { id: "2", abbr: "DEN", name: "Denver Nuggets" }, ...extra }) as import("../src/lib/slipImport").SlateGame;
+  const now = Date.parse("2026-10-16T20:00:00Z");
+  const past = g("p", "2026-10-15T02:00:00Z", "post");
+  const next = g("n", "2026-10-17T02:00:00Z", "pre");
+  const far = g("f", "2026-10-25T02:00:00Z", "pre");
+  assert(pickGame([past, next, far], {}, now)?.id === "n", "slip: no date → next game");
+  assert(pickGame([past, next, far], { date: "2026-10-14" }, now)?.id === "p", "slip: printed date picks that day's game (Eastern)");
+  assert(pickGame([past, next, far], { settled: true }, now)?.id === "p", "slip: settled leg looks back");
+  assert(pickGame([g("p", "2026-10-16T02:00:00Z", "post"), far], {}, now)?.id === "p", "slip: a recent final beats a game a week out");
+  assert(pickGame([far], { date: "2026-10-24" }, now)?.id === "f", "slip: closest to printed date");
+  assert(playerNameHit("J. Sinner", "Jannik Sinner") && playerNameHit("Sinner", "Jannik Sinner") && playerNameHit("Sinner J.", "Jannik Sinner") && !playerNameHit("C. Sinner", "Jannik Sinner"), "slip: tennis short names");
+  const t = { ...g("t", "2026-10-16T11:15Z", "post"), league: "wta", away: { id: "a1", abbr: "A. Li", name: "Ann Li" }, home: { id: "h1", abbr: "I. Swiatek", name: "Iga Swiatek" }, sets: { away: ["4", "1"], home: ["6", "6"] }, winner: "home" as const };
+  assert(tennisGames("I. Swiatek", [t, past])[0]?.side === "home", "slip: tennis match found by player");
+  assert(gradeTennis({ league: "wta", gameId: "t", kind: "prop", athleteId: "h1", market: "games won", line: 11.5, pick: "over" }, t) === "win", "slip: tennis games won graded");
+  assert(gradeTennis({ league: "wta", gameId: "t", kind: "prop", athleteId: "h1", market: "total games", line: 17.5, pick: "under" }, t) === "win", "slip: tennis total games graded");
+  assert(gradeTennis({ league: "wta", gameId: "t", kind: "moneyline", side: "away" }, t) === "loss", "slip: tennis winner graded");
+  assert(gradeTennis({ league: "wta", gameId: "t", kind: "prop", athleteId: "h1", market: "aces", line: 3.5, pick: "over" }, t) === null, "slip: aces left for you to grade");
+  assert(pm2("Total Games") === "total games" && pm2("Games Won") === "games won" && pm2("Aces") === "aces" && pm2("Double Faults") === "double faults" && pm2("Pts+Rebs+Asts") === "points + rebounds + assists", "slip: tennis and combo markets");
+  const pe = parseSlip2("PrizePicks\nPower Play\nLeBron James\nLAL vs DEN Fri 7:30pm\n24.5 Points\nMore\nA'ja Wilson\nLV @ NY\n9.5 Rebounds\nLess");
+  assert(pe.length === 2 && pe[0].subject === "LeBron James" && pe[0].selection === "Over" && pe[0].team === "LAL" && pe[1].selection === "Under" && pe[1].market === "rebounds", "slip: pick'em blocks with More/Less");
+  assert(slipDateOf("Placed 10/14/26 7:02 PM", new Date("2026-10-16")) === "2026-10-14" && slipDateOf("Oct 18 · 4:30 PM", new Date("2026-10-16")) === "2026-10-18" && slipDateOf("no date") === null, "slip: printed dates");
+  console.log("ok - slip reader matching");
 }

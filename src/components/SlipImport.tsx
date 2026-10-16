@@ -6,7 +6,7 @@ import { checkHref, type LegInput } from "@/lib/breakdown";
 import { pickFromLeg, sportOf } from "@/lib/legPick";
 import { addPick } from "@/lib/pickStore";
 import { StatTipLine } from "@/components/StatsExtras";
-import { STAT_CHOICES, sportGroupOf, type ImportLeg, type SlipKind, type SlipRow } from "@/lib/slipImport";
+import { STAT_CHOICES, sportGroupOf, type GameRef, type ImportLeg, type SlipKind, type SlipRow } from "@/lib/slipImport";
 import { marketTerms, FANTASY_NOTE } from "@/lib/tracker";
 import { statFromMarket } from "@/lib/breakdown";
 import { ptTime } from "@/lib/time";
@@ -37,7 +37,35 @@ async function ocr(file: File): Promise<string> {
   }
 }
 
-async function post(body: unknown): Promise<{ legs?: ImportLeg[]; stake?: number | null; book?: string | null; error?: string; vision?: boolean; reason?: string }> {
+/** Local calendar date of a game start (YYYY-MM-DD), so a future game logs on its own day. */
+function localDay(iso: string | undefined): string {
+  const d = iso ? new Date(iso) : new Date();
+  const t = Number.isNaN(d.getTime()) ? new Date() : d;
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+}
+
+const RESULT_LABEL = { win: "W", loss: "L", push: "P" } as const;
+
+/** Tie a row to a game you picked. Props keep the printed name; sides pick the team the row names (or home). */
+function legFor(row: SlipRow, g: GameRef, side: "home" | "away"): LegInput {
+  const pick = row.selection === "Under" ? "under" : "over";
+  if (row.kind === "prop") return { league: g.league, gameId: g.id, kind: "prop", athleteName: row.subject, market: row.market, stat: statFromMarket(g.league, row.market) ?? undefined, line: row.line, pick, odds: row.odds };
+  if (row.kind === "total") return { league: g.league, gameId: g.id, kind: "total", line: row.line, pick, odds: row.odds };
+  const team = side === "home" ? g.homeName ?? g.home : g.awayName ?? g.away;
+  return row.kind === "spread"
+    ? { league: g.league, gameId: g.id, kind: "spread", side, team: side === "home" ? g.home : g.away, line: row.line, odds: row.odds }
+    : { league: g.league, gameId: g.id, kind: "moneyline", side, team: team && team.length <= 4 ? team : side === "home" ? g.home : g.away, odds: row.odds };
+}
+
+function guessSide(row: SlipRow, g: GameRef): "home" | "away" {
+  const t = (row.subject + " " + (row.team ?? "")).toLowerCase();
+  const hit = (abbr: string, name?: string) => t.includes(abbr.toLowerCase()) || (!!name && name.toLowerCase().split(" ").some((w) => w.length > 3 && t.includes(w)));
+  return hit(g.away, g.awayName) && !hit(g.home, g.homeName) ? "away" : "home";
+}
+
+const optLabel = (g: GameRef) => `${g.league.toUpperCase()} · ${g.away} @ ${g.home} · ${g.state === "post" ? "Final, " : g.state === "in" ? "Live, " : ""}${ptTime(g.start)}`;
+
+async function post(body: unknown): Promise<{ legs?: ImportLeg[]; options?: GameRef[]; stake?: number | null; book?: string | null; error?: string; vision?: boolean; reason?: string }> {
   const res = await fetch("/api/slip/read", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   return res.json();
 }
@@ -138,6 +166,32 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
     }
   }
 
+  async function loadOptions(i: number) {
+    if (!items) return;
+    const x = items[i];
+    if (x.options?.length) return;
+    try {
+      const r = await post({ options: x.row });
+      setItems((xs) => (xs ? xs.map((y, j) => (j === i ? { ...y, options: r.options ?? [] } : y)) : xs));
+    } catch {
+      /* keep the row as a manual leg */
+    }
+  }
+
+  function matchTo(i: number, key: string, side?: "home" | "away") {
+    setItems((xs) =>
+      xs
+        ? xs.map((x, j) => {
+            if (j !== i) return x;
+            const g = x.options?.find((o) => `${o.league}/${o.id}` === key) ?? (x.game && `${x.game.league}/${x.game.id}` === key ? x.game : null);
+            if (!g) return { ...x, leg: null, game: null, result: null, issue: "Not tied to a game. Saves as a manual leg you grade.", manual: true };
+            const s2 = side ?? guessSide(x.row, g);
+            return { ...x, game: g, leg: legFor(x.row, g, s2), result: null, dirty: false, manual: x.row.kind === "prop" && marketTerms(x.row.market).length === 0, issue: g.state === "post" ? "Matched by you. A finished game grades in your Log within a couple of minutes." : null };
+          })
+        : xs
+    );
+  }
+
   /** Name or type changes need a new match. Stat, line, side, and price edits apply right here. */
   const edit = (i: number, patch: Partial<SlipRow>) =>
     setItems((xs) =>
@@ -204,8 +258,9 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
     kept.forEach((x, i) => {
       const extra = { slipId, book: book || "Slip", stake: i === 0 && amount > 0 ? amount : 0, odds: x.row.odds };
       if (x.leg && x.game && !x.dirty) {
-        // Tied to a game: the Log can follow it live when the stat is trackable.
-        addPick({ ...pickFromLeg(x.row.kind === "prop" ? { ...x.leg, market: x.row.market } : x.leg, { home: x.game.home, away: x.game.away }, extra), link: link.trim() || undefined });
+        // Tied to a game: the Log can follow it live when the stat is trackable. Finished games land graded.
+        const p = pickFromLeg(x.row.kind === "prop" ? { ...x.leg, market: x.row.market } : x.leg, { home: x.game.home, away: x.game.away }, { ...extra, date: localDay(x.game.start) });
+        addPick({ ...p, status: x.result ?? "open", link: link.trim() || undefined });
         return;
       }
       // Not tied to a game: saved as read, so you can fix it in the Log.
@@ -263,8 +318,15 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                     <input type="checkbox" checked={x.keep} onChange={(e) => setItems(items.map((y, j) => (j === i ? { ...y, keep: e.target.checked } : y)))} />
                     Keep
                   </label>
-                  <span className={x.game ? "font-bold text-[color:var(--plus)]" : "font-bold tone-gold"}>
-                    {x.game ? `${x.game.away} @ ${x.game.home} · ${ptTime(x.game.start)}` : "Manual leg"}
+                  <span className={"flex items-center gap-1.5 " + (x.game ? "font-bold text-[color:var(--plus)]" : "font-bold tone-gold")} data-testid="slip-match">
+                    {x.game ? `${x.game.league.toUpperCase()} · ${x.game.away} @ ${x.game.home} · ${x.game.state === "post" ? "Final" : x.game.state === "in" ? "Live" : ptTime(x.game.start)}` : "Manual leg"}
+                    {x.result ? (
+                      <span className="rounded px-1 text-[10px] font-black text-black" style={{ background: x.result === "win" ? "var(--gold)" : x.result === "loss" ? "var(--minus)" : "#a1a1aa" }} title="Graded from the final ESPN score or box">
+                        {RESULT_LABEL[x.result]}
+                      </span>
+                    ) : x.game?.state === "pre" ? (
+                      <span className="text-[10px] text-zinc-400">open</span>
+                    ) : null}
                   </span>
                 </div>
                 <div className="mt-1.5 grid grid-cols-6 gap-1.5">
@@ -321,6 +383,32 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                     onChange={(e) => edit(i, { odds: e.target.value === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) })}
                   />
                 </div>
+                {!x.game || x.options?.length ? (
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <select
+                      className="field min-w-0 flex-1 text-[12px]"
+                      aria-label="Match it to a game"
+                      value={x.game ? `${x.game.league}/${x.game.id}` : ""}
+                      onFocus={() => loadOptions(i)}
+                      onPointerDown={() => loadOptions(i)}
+                      onChange={(e) => matchTo(i, e.target.value)}
+                      data-testid="match-it"
+                    >
+                      <option value="">{x.game ? "Not tied to a game" : "Match it: pick the game…"}</option>
+                      {(x.options ?? []).map((o) => (
+                        <option key={o.league + o.id} value={`${o.league}/${o.id}`}>
+                          {optLabel(o)}
+                        </option>
+                      ))}
+                    </select>
+                    {x.game && x.leg && (x.row.kind === "spread" || x.row.kind === "moneyline") ? (
+                      <select className="field w-20 text-[12px]" aria-label="Side" value={x.leg.side ?? "home"} onChange={(e) => matchTo(i, `${x.game!.league}/${x.game!.id}`, e.target.value as "home" | "away")}>
+                        <option value="away">{x.game.away}</option>
+                        <option value="home">{x.game.home}</option>
+                      </select>
+                    ) : null}
+                  </div>
+                ) : null}
                 {x.dirty ? (
                   <p className="mt-1 text-[11px] text-zinc-400">Edited. Tap Match again.</p>
                 ) : x.issue ? (

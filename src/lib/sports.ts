@@ -193,7 +193,7 @@ function golfBoard(ev: Dict): GolfBoard | null {
 const RANK: Record<GameState, number> = { in: 0, pre: 1, post: 2 };
 
 /** Turns one ESPN scoreboard into matches (or a leaderboard for golf). */
-export function parseSportScoreboard(league: SportLeague, data: unknown, now = Date.now()): { matches: Match[]; golf: GolfBoard[] } {
+export function parseSportScoreboard(league: SportLeague, data: unknown, now = Date.now(), opts: { all?: boolean } = {}): { matches: Match[]; golf: GolfBoard[] } {
   const events = asList(asDict(data).events).map(asDict);
   if (league.kind === "golf") return { matches: [], golf: events.map(golfBoard).filter((b): b is GolfBoard => !!b) };
   const matches: Match[] = [];
@@ -220,6 +220,7 @@ export function parseSportScoreboard(league: SportLeague, data: unknown, now = D
     }
   }
   const day = 36 * 3600 * 1000;
+  if (opts.all) return { matches, golf: [] };
   const keep = league.kind === "tennis"
     ? matches.filter((m) => m.state === "in" || Math.abs(Date.parse(m.start) - now) < day)
     : matches;
