@@ -79,17 +79,6 @@ export default function SiteHeader() {
             </span>
           </Link>
           <div className="ml-auto flex min-w-0 shrink items-center gap-1 sm:gap-1.5">
-            {liveCount > 0 ? (
-              <Link
-                href="/live"
-                className="live-badge tabular flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-black"
-                aria-label={`My Live: ${liveCount} of your games live`}
-                data-testid="live-badge"
-              >
-                <span className="tv-live-dot" aria-hidden />
-                {liveCount}
-              </Link>
-            ) : null}
             <StreakGlow />
             <Bell />
             <button
@@ -103,18 +92,9 @@ export default function SiteHeader() {
               <span className="sm:hidden" aria-hidden>{odds === "pct" ? "%" : "+110"}</span>
               <span className="sr-only sm:not-sr-only">{odds === "pct" ? "Implied chance" : "American odds"}</span>
             </button>
-            <button
-              type="button"
-              className="shrink-0 rounded-lg border border-white/10 px-1.5 py-1 text-[11px] font-bold text-zinc-200 sm:px-2"
-              aria-expanded={open}
-              onClick={() => setOpen((v) => !v)}
-            >
-              {team ? team.abbr : "Team"}
-            </button>
             <AccountButton />
           </div>
         </div>
-        {open ? <TeamPicker team={team} onPick={setTeam} onClose={() => setOpen(false)} /> : null}
         <nav aria-label="Portal Juice" className="-mx-3 mt-1 flex items-center gap-1 overflow-x-auto px-3 pb-2 sm:-mx-4 sm:px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {NAV.map((n) => {
             const active =
@@ -170,8 +150,21 @@ export default function SiteHeader() {
                 {n.label}
               </Link>
             ))}
+            <button
+              type="button"
+              onClick={() => {
+                setMore(false);
+                setOpen(true);
+              }}
+              aria-expanded={open}
+              className="rounded-lg border border-white/10 px-2 py-2 text-center text-[13px] font-semibold text-zinc-300"
+              data-testid="more-team"
+            >
+              {team ? `Team · ${team.abbr}` : "Team"}
+            </button>
           </div>
         ) : null}
+        {open ? <TeamPicker team={team} onPick={setTeam} onClose={() => setOpen(false)} /> : null}
       </div>
     </header>
   );
