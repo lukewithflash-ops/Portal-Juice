@@ -817,3 +817,24 @@ html[data-streak] .site-chrome .wordmark { filter: drop-shadow(0 0 calc(8px + 3p
   .ml-tile:active { transform: none; }
   .my-live .play-in, .my-live .level-up { animation: none !important; }
 }
+
+/* Reset stats confirm: portal glow */
+.reset-dialog {
+  background: radial-gradient(120% 90% at 50% 0%, rgba(168, 85, 247, 0.28), transparent 60%), #0b0712;
+  border: 1px solid rgba(168, 85, 247, 0.55);
+  box-shadow: 0 0 0 1px rgba(57, 255, 20, 0.15), 0 0 32px rgba(168, 85, 247, 0.45), inset 0 0 24px rgba(57, 255, 20, 0.06);
+}
+.reset-ring {
+  background: conic-gradient(from 0deg, #a855f7, #39ff14, #22d3ee, #a855f7);
+  -webkit-mask: radial-gradient(circle, transparent 52%, #000 54%);
+  mask: radial-gradient(circle, transparent 52%, #000 54%);
+  animation: reset-spin 3s linear infinite;
+  filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.8));
+}
+@keyframes reset-spin { to { transform: rotate(360deg); } }
+.stats-toast { animation: stats-toast 2.6s ease forwards; }
+@keyframes stats-toast { 0% { opacity: 0; transform: translate(-50%, 8px); } 10%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .reset-ring { animation: none; }
+  .stats-toast { animation: none; }
+}

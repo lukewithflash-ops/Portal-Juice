@@ -75,3 +75,8 @@ export function applyGrades(grades: Record<string, PickStatus>) {
   if (!ids.length) return;
   write(getPicks().map((p) => (p.status === "open" && grades[p.id] && STATUSES.includes(grades[p.id]) ? { ...p, status: grades[p.id] } : p)));
 }
+
+/** Reset: empties the log (every derived tally, streak and summary reads from it, so they clear too). */
+export function clearPicks() {
+  write([]);
+}

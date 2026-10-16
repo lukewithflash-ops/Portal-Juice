@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import ResetStats from "@/components/ResetStats";
 import MascotSlot from "@/components/MascotSlot";
 import { StyleSection, TipDeck } from "@/components/StatsExtras";
 import { myStats, type Group, type Tally } from "@/lib/myStats";
@@ -64,12 +65,26 @@ function Heatmap({ days }: { days: Map<string, Tally> }) {
 export default function MyStatsClient() {
   const picks = useSyncExternalStore(subscribe, getPicks, getServerPicks);
   const s = useMemo(() => myStats(picks), [picks]);
+  const [toast, setToast] = useState(0);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(0), 2700);
+    return () => clearTimeout(t);
+  }, [toast]);
+  const toastEl = toast ? (
+    <p role="status" className="stats-toast portal-toast fixed bottom-6 left-1/2 z-[90] -translate-x-1/2 rounded-full px-4 py-2 text-sm font-black text-white" data-testid="stats-toast">
+      Stats reset
+    </p>
+  ) : null;
   if (!picks.length) {
     return (
-      <p className="panel flex items-center gap-3 rounded-xl px-4 py-5 text-sm text-zinc-400">
-        <MascotSlot size={44} pose="empty" />
-        No picks logged yet. <Link href="/lines/portfolio" className="font-bold text-white">Log a pick</Link>
-      </p>
+      <>
+        <p className="panel flex items-center gap-3 rounded-xl px-4 py-5 text-sm text-zinc-400">
+          <MascotSlot size={44} pose="empty" />
+          No picks logged yet. <Link href="/lines/portfolio" className="font-bold text-white">Log a pick</Link>
+        </p>
+        {toastEl}
+      </>
     );
   }
   const { current, longestWin, longestLoss } = s.streak;
@@ -124,6 +139,10 @@ export default function MyStatsClient() {
       <Rows title="By stat" groups={s.byStat} />
       <Rows title="By book" groups={s.byBook} />
       <Heatmap days={s.days} />
+      <div className="flex justify-end sm:col-span-2">
+        <ResetStats onDone={() => setToast(Date.now())} />
+      </div>
+      {toastEl}
     </div>
   );
 }
