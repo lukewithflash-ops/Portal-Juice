@@ -1,4 +1,5 @@
 import { convertToModelMessages, createGateway, gateway as oidcGateway, createUIMessageStreamResponse, isStepCount, streamText, toUIMessageStream, type UIMessage } from "ai";
+import { freeDaily, FREE_ASK_PER_DAY } from "@/lib/vipAccess";
 import { NextResponse } from "next/server";
 import { askTools } from "@/lib/askTools";
 import { chatEnabled, redis } from "@/lib/chat";
@@ -49,12 +50,12 @@ function ipOf(req: Request): string {
 }
 
 /** 20 questions per IP per hour (Upstash). Fails open only if the store is off. */
-async function allowed(ip: string): Promise<{ ok: boolean; left: number }> {
-  if (!chatEnabled()) return { ok: true, left: PER_HOUR };
+async function allowed(ip: string, max = PER_HOUR): Promise<{ ok: boolean; left: number }> {
+  if (!chatEnabled()) return { ok: true, left: max };
   const k = `pj:ask:rl:${ip}:${Math.floor(Date.now() / 3600000)}`;
   const n = Number(await redis(["INCR", k]).catch(() => 0));
   if (n === 1) await redis(["EXPIRE", k, 3700]).catch(() => {});
-  return { ok: n <= PER_HOUR, left: Math.max(0, PER_HOUR - n) };
+  return { ok: n <= max, left: Math.max(0, max - n) };
 }
 
 export async function POST(req: Request) {
@@ -66,8 +67,10 @@ export async function POST(req: Request) {
   }
   const messages = Array.isArray(body.messages) ? body.messages.slice(-12) : [];
   if (!messages.length) return NextResponse.json({ error: "Ask a question." }, { status: 400 });
-  const rl = await allowed(ipOf(req));
-  if (!rl.ok) return NextResponse.json({ error: "You've hit 20 questions this hour. Try again in a bit." }, { status: 429 });
+  const daily = await freeDaily("ask", FREE_ASK_PER_DAY);
+  const rl = await allowed(ipOf(req), daily.vip ? 60 : PER_HOUR);
+  if (!rl.ok) return NextResponse.json({ error: `You've hit ${daily.vip ? 60 : PER_HOUR} questions this hour. Try again in a bit.` }, { status: 429 });
+  if (!daily.ok) return NextResponse.json({ error: `Free accounts get ${FREE_ASK_PER_DAY} questions a day. VIP is unlimited.`, vip: true }, { status: 429 });
   // An API key if one is set; otherwise the project's Vercel OIDC token (the default gateway provider reads it).
   const gateway = process.env.AI_GATEWAY_API_KEY ? createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY }) : oidcGateway;
   const context = typeof body.context === "string" && body.context.trim() ? body.context.slice(0, 8000) : null;

@@ -113,6 +113,8 @@ export type Point = { text: string; weight: number };
 export type Lean = "strong" | "good" | "neutral" | "bad" | "none";
 
 export type LegReport = {
+  /** Free accounts: how many reasons past the first three were held back for VIP. */
+  hidden?: { pros: number; cons: number };
   title: string;
   sub: string;
   league: string;

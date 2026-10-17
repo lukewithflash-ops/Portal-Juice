@@ -127,3 +127,23 @@ export async function dropVip(uid: string): Promise<void> {
   await redis(["SREM", K.members, uid]);
   await redis(["HDEL", K.wait, `uid:${uid}`]);
 }
+
+/**
+ * Free daily allowance for a pro tool (per account, else per IP; resets at midnight PT). VIP has none.
+ * Fails open when the store is off.
+ */
+export async function freeDaily(kind: "ask" | "slip", max: number): Promise<{ ok: boolean; left: number | null; vip: boolean }> {
+  if (!chatEnabled()) return { ok: true, left: null, vip: false };
+  const { currentUser, clientIp } = await import("@/lib/auth");
+  const u = await currentUser().catch(() => null);
+  if ((await vipState(u).catch(() => null))?.vip) return { ok: true, left: null, vip: true };
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(new Date());
+  const who = u ? `u:${u.id}` : `ip:${await clientIp()}`;
+  const k = `pj:free:${kind}:${day}:${who}`;
+  const n = Number(await redis(["INCR", k]).catch(() => 0));
+  if (n === 1) await redis(["EXPIRE", k, 26 * 3600]).catch(() => {});
+  return { ok: n <= max, left: Math.max(0, max - n), vip: false };
+}
+
+export const FREE_ASK_PER_DAY = 10;
+export const FREE_SLIP_PHOTOS_PER_DAY = 3;

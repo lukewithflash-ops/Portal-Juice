@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { freeDaily, FREE_SLIP_PHOTOS_PER_DAY } from "@/lib/vipAccess";
 import { matchRows, optionsFor, readSlipImage, rowsFromText, visionConfigured } from "@/lib/slipRead";
 import type { SlipRow } from "@/lib/slipImport";
 
@@ -36,6 +37,8 @@ export async function POST(req: Request) {
     if (!/^data:image\/(png|jpe?g|webp);base64,/.test(body.image) || body.image.length > 4_000_000) {
       return NextResponse.json({ error: "Use a PNG or JPG under 3 MB." }, { status: 400 });
     }
+    const daily = await freeDaily("slip", FREE_SLIP_PHOTOS_PER_DAY);
+    if (!daily.ok) return NextResponse.json({ error: `Free accounts get ${FREE_SLIP_PHOTOS_PER_DAY} photo slip reads a day. Paste the slip text instead, or go VIP for unlimited.`, vip: true }, { status: 429 });
     const r = await readSlipImage(body.image, req.headers.get("x-vercel-oidc-token"));
     // vision:false only when reading is really not set up; a hiccup says so, so the app never calls a working reader "off".
     if (!r.ok) return NextResponse.json({ vision: r.reason === "not-configured" ? false : true, failed: true, reason: r.reason, status: r.status ?? null, detail: r.detail ?? null }, { status: 200, headers: { "cache-control": "no-store" } });

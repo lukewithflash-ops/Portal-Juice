@@ -10,6 +10,10 @@ import { checkHref, statFromMarket, STAT_OPTIONS } from "@/lib/breakdown";
 import { gameRoute } from "@/lib/gameRoute";
 import { matchupKey } from "@/lib/notesCore";
 import type { PropsGroup } from "@/lib/espn";
+import { useVip } from "@/lib/vipClient";
+
+/** Free sees the heat on this many rows; VIP sees the full map. */
+const FREE_HEAT_ROWS = 6;
 
 const num = (s: string | null) => {
   const m = /-?\d+(?:\.\d+)?/.exec(s ?? "");
@@ -25,6 +29,9 @@ export default function PropsBoard({ groups }: { groups: PropsGroup[] }) {
   const [shift, setShift] = useState(0);
   const [hot, setHot] = useState(false);
   const [rates, setRates] = useState<Record<string, number | null>>({});
+  const vip = useVip();
+  const full = vip.vip;
+  let heatShown = 0;
   const onRate = useCallback((k: string, r: number | null) => setRates((m) => (m[k] === r ? m : { ...m, [k]: r })), []);
   const stats = useMemo(() => {
     const s = new Map<string, string>();
@@ -38,7 +45,7 @@ export default function PropsBoard({ groups }: { groups: PropsGroup[] }) {
     .filter((g) => league === "all" || g.game.league === league)
     .map((g) => ({ g, props: g.props.filter((p) => stat === "all" || statFromMarket(g.game.league, p.market) === stat) }))
     .filter((x) => x.props.length);
-  const flat = hot
+  const flat = hot && full
     ? rows.flatMap(({ g, props }) => props.map((p) => ({ g, p }))).sort((a, b) => (rates[keyOf(b.g, b.p, shift)] ?? -1) - (rates[keyOf(a.g, a.p, shift)] ?? -1))
     : null;
 
@@ -47,7 +54,9 @@ export default function PropsBoard({ groups }: { groups: PropsGroup[] }) {
     const line = num(p.line);
     const chosen = line == null ? null : line + shift;
     const key = keyOf(g, p, shift);
-    const rate = rates[key];
+    const open = full || heatShown < FREE_HEAT_ROWS;
+    if (k && chosen != null && p.athleteId) heatShown++;
+    const rate = open ? rates[key] : null;
     return (
       <li key={`${g.game.id}-${p.athleteId}-${p.market}`} className="foil-tile heat-row flex items-center gap-2 px-3 py-2" style={rate != null ? ({ "--heat": heatColor(rate) } as React.CSSProperties) : undefined} data-testid="heat-row">
         <Mark team={p.team} headshotUrl={p.headshot} label={p.name} size={32} league={g.game.league} />
@@ -60,7 +69,15 @@ export default function PropsBoard({ groups }: { groups: PropsGroup[] }) {
             {flat ? ` · ${g.game.away.abbr} @ ${g.game.home.abbr}` : ""}
           </div>
         </div>
-        {k && chosen != null && p.athleteId ? <HitChip req={{ league: g.game.league, athleteId: p.athleteId, stat: k, line: chosen }} onRate={(r) => onRate(key, r)} /> : null}
+        {k && chosen != null && p.athleteId ? (
+          open ? (
+            <HitChip req={{ league: g.game.league, athleteId: p.athleteId, stat: k, line: chosen }} onRate={(r) => onRate(key, r)} />
+          ) : (
+            <Link href="/vip" className="shrink-0 rounded-md border border-[color:var(--gold)]/40 px-1.5 py-0.5 text-[10px] font-black text-[color:var(--gold)]" aria-label="Heat for VIP" data-testid="heat-locked">
+              🔒 VIP
+            </Link>
+          )
+        ) : null}
         <div className="tabular text-right font-black text-[color:var(--flat)]">
           {shift && chosen != null ? <span>{chosen}</span> : <OddsText value={p.line} />}
           {p.openLine ? <div className="text-[10px] font-medium text-zinc-500">Opened {p.openLine}</div> : null}
@@ -103,11 +120,25 @@ export default function PropsBoard({ groups }: { groups: PropsGroup[] }) {
               </button>
             ))}
           </div>
-          <button type="button" onClick={() => setHot((v) => !v)} className={"chip " + (hot ? "chip-on" : "")} aria-pressed={hot} data-testid="heat-sort">
-            🔥 Hottest first
-          </button>
+          {full ? (
+            <button type="button" onClick={() => setHot((v) => !v)} className={"chip " + (hot ? "chip-on" : "")} aria-pressed={hot} data-testid="heat-sort">
+              🔥 Hottest first
+            </button>
+          ) : (
+            <Link href="/vip" className="chip" data-testid="heat-sort-locked">
+              🔥 Hottest first · 🔒 VIP
+            </Link>
+          )}
         </div>
         <p className="text-[11px] text-zinc-500">Chips: times over the line in each player’s last 10 games, from ESPN game logs. Green cleared often, red rarely. Past games, not a promise.</p>
+        {vip.loaded && !full ? (
+          <p className="text-[11px] text-zinc-400" data-testid="heat-free-note">
+            Free shows the heat on the first {FREE_HEAT_ROWS} players.{" "}
+            <Link href="/vip" className="font-bold text-[color:var(--gold)]">
+              VIP unlocks the full heat map →
+            </Link>
+          </p>
+        ) : null}
       </div>
       {flat ? (
         <ul className="space-y-1.5">{flat.map(({ g, p }) => row(g, p))}</ul>

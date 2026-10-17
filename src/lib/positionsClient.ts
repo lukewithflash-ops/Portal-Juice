@@ -11,6 +11,12 @@ const subs = new Set<() => void>();
 let pending = new Set<string>();
 let timer: ReturnType<typeof setTimeout> | null = null;
 const TTL = 30000;
+const vipSet = new Set<string>();
+
+/** VIP badge: known once the handle's position was asked for (same request). */
+export function isVipHandle(handle: string): boolean {
+  return vipSet.has(handle.replace(/^@/, "").toLowerCase());
+}
 
 function flush() {
   timer = null;
@@ -19,8 +25,10 @@ function flush() {
   if (!hs.length) return;
   fetch(`/api/position?h=${encodeURIComponent(hs.join(","))}`, { cache: "no-store" })
     .then((r) => r.json())
-    .then((j: { positions?: Record<string, LivePosition> }) => {
+    .then((j: { positions?: Record<string, LivePosition>; vip?: string[] }) => {
       const now = Date.now();
+      for (const h of hs) vipSet.delete(h);
+      for (const h of j.vip ?? []) vipSet.add(h.toLowerCase());
       for (const h of hs) cache.set(h, { at: now, pos: j.positions?.[h] ?? null });
       subs.forEach((f) => f());
     })

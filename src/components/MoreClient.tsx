@@ -9,6 +9,13 @@ import { TeamPicker } from "@/components/SiteHeader";
 type Row = { href: string; label: string; sub: string };
 const GROUPS: { title: string; rows: Row[] }[] = [
   {
+    title: "VIP",
+    rows: [
+      { href: "/vip", label: "💎 Portal VIP", sub: "Data-backed daily picks and pro tools" },
+      { href: "/vip/record", label: "VIP record", sub: "Every VIP pick, wins and losses" },
+    ],
+  },
+  {
     title: "You",
     rows: [
       { href: "/account", label: "Account and settings", sub: "Sign in, sync, handle, alerts" },

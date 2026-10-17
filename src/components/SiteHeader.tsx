@@ -4,6 +4,7 @@ import Link from "next/link";
 import Bell from "@/components/Bell";
 import AccountButton from "@/components/AccountButton";
 import StreakGlow from "@/components/StreakGlow";
+import VipBadge from "@/components/VipBadge";
 import { useLiveHub } from "@/components/LiveHub";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -78,6 +79,7 @@ export default function SiteHeader() {
             </span>
           </Link>
           <div className="ml-auto flex min-w-0 shrink items-center gap-1 sm:gap-1.5">
+            <VipBadge />
             <StreakGlow />
             <Bell />
             <button

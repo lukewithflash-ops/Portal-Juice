@@ -10,6 +10,7 @@ export const SECTIONS: Section[] = [
     href: "/lines",
     subs: [
       { href: "/lines", label: "Lines", exact: true },
+      { href: "/vip", label: "💎 VIP" },
       { href: "/games", label: "Games" },
       { href: "/props", label: "Props" },
       { href: "/best", label: "Best" },
@@ -18,7 +19,7 @@ export const SECTIONS: Section[] = [
       { href: "/mvp", label: "MVP" },
       { href: "/lines/board", label: "Board" },
     ],
-    owns: ["/lines", "/games", "/props", "/best", "/trends", "/news", "/mvp", "/lines/board", "/teams", "/sports"],
+    owns: ["/lines", "/vip", "/games", "/props", "/best", "/trends", "/news", "/mvp", "/lines/board", "/teams", "/sports"],
   },
   { id: "live", label: "Live", href: "/live", subs: [], owns: ["/live"] },
   {

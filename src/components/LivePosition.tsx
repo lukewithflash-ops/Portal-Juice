@@ -7,7 +7,7 @@ import { getPicks, getServerPicks, restorePicks, subscribe } from "@/lib/pickSto
 import { groupViews, legViews } from "@/lib/myLive";
 import { slipKeyOf, TONE_COLOR } from "@/lib/motivation";
 import { sideLine } from "@/lib/plusLegs";
-import { usePositions, type LivePosition, type PosLeg } from "@/lib/positionsClient";
+import { isVipHandle, usePositions, type LivePosition, type PosLeg } from "@/lib/positionsClient";
 import type { LiveSnap } from "@/lib/live";
 import type { Pick, Sport } from "@/lib/types";
 
@@ -64,7 +64,18 @@ export function PosChip({ pos }: { pos: LivePosition }) {
 /** Handle-aware wrapper: renders the pill only when that handle has a live position. */
 export function PosFor({ handle, map }: { handle: string; map: Record<string, LivePosition> }) {
   const p = map[handle.replace(/^@/, "").toLowerCase()];
-  return p ? <PosChip pos={p} /> : null;
+  const vip = isVipHandle(handle);
+  if (!p && !vip) return null;
+  return (
+    <>
+      {vip ? (
+        <span className="rounded bg-[color:var(--gold)] px-1 text-[9px] font-black leading-4 text-black" title="VIP member" data-testid="vip-mark">
+          💎 VIP
+        </span>
+      ) : null}
+      {p ? <PosChip pos={p} /> : null}
+    </>
+  );
 }
 
 export function PosChips({ handle }: { handle: string }) {

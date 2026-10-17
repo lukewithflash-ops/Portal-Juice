@@ -534,7 +534,7 @@ export function LeanMeter({ r }: { r: LegReport }) {
         </span>
         {r.lean !== "none" ? (
           <span className="tabular text-[11px] text-zinc-500">
-            {r.pros.length} pro{r.pros.length === 1 ? "" : "s"} · {r.cons.length} con{r.cons.length === 1 ? "" : "s"}
+            {r.pros.length + (r.hidden?.pros ?? 0)} pro{r.pros.length + (r.hidden?.pros ?? 0) === 1 ? "" : "s"} · {r.cons.length + (r.hidden?.cons ?? 0)} con{r.cons.length + (r.hidden?.cons ?? 0) === 1 ? "" : "s"}
           </span>
         ) : null}
       </div>
@@ -591,6 +591,11 @@ function LegPanel({ r, flag }: { r: LegReport; flag: "weakest" | "strongest" | n
           <PointList title="Pros" tone="plus" start={1} items={r.pros.map((p) => p.text)} empty="No pros from the numbers." />
           <PointList title="Cons" tone="minus" start={r.pros.length + 1} items={r.cons.map((p) => p.text)} empty="No cons from the numbers." />
         </div>
+        {r.hidden && r.hidden.pros + r.hidden.cons > 0 ? (
+          <a href="/vip" className="block rounded-xl border border-[color:var(--gold)]/40 px-3 py-2 text-[12px] font-bold text-[color:var(--gold)]" data-testid="breakdown-more">
+            🔒 {r.hidden.pros + r.hidden.cons} more reason{r.hidden.pros + r.hidden.cons === 1 ? "" : "s"} ({r.hidden.pros} for, {r.hidden.cons} against). VIP sees every one →
+          </a>
+        ) : null}
         <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="text-[12px] font-semibold text-purple-200/80">
           {open ? "Hide the numbers" : `The numbers (${r.facts.length})`}
         </button>

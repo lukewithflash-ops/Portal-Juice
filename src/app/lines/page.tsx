@@ -7,6 +7,7 @@ import { biggestMoves, hotTrends, marketFavorites } from "@/lib/best";
 import LineBoard from "@/components/LineBoard";
 import { getSlate, getTrends } from "@/lib/espn";
 import { PortalPickPanel } from "@/components/PortalPickPanel";
+import VipStrip from "@/components/VipStrip";
 import { portalPickToday } from "@/lib/portalPickStore";
 import { sportsDate } from "@/lib/slate";
 import { getSnapshot } from "@/lib/feed";
@@ -30,6 +31,9 @@ export default async function LinesPage() {
 <PageHeader title="Lines" sub="Where the number moved. Tap one for its history." />
       <div className="mb-4">
         <PortalPickPanel pick={portal.pick} record={portal.record} tracked={portal.tracked} compact />
+      </div>
+      <div className="mb-4">
+        <VipStrip />
       </div>
       <section className="mb-6">
         <div className="mb-2 flex items-baseline justify-between">

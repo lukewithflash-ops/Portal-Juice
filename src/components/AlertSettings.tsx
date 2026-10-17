@@ -2,12 +2,14 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { ALERT_KINDS } from "@/lib/alerts";
+import { useVip } from "@/lib/vipClient";
 import { getAlertPrefs, getServerAlertPrefs, setAlertPref, subscribeAlertPrefs } from "@/lib/alertPrefsStore";
 import { alertsOn, disablePush, enablePush, syncPush } from "@/lib/pushClient";
 
 /** Which updates you get, in the app and as push when the app is closed. */
 export default function AlertSettings() {
   const prefs = useSyncExternalStore(subscribeAlertPrefs, getAlertPrefs, getServerAlertPrefs);
+  const vip = useVip();
   const [push, setPush] = useState(false);
   const [note, setNote] = useState("");
 
@@ -53,23 +55,35 @@ export default function AlertSettings() {
       </p>
       {note ? <p className="mt-1 text-[11px] text-zinc-300">{note}</p> : null}
       <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
-        {ALERT_KINDS.map((k) => (
-          <label key={k.kind} className="flex cursor-pointer items-start gap-2 rounded-lg border border-white/10 px-2.5 py-2">
-            <input
-              type="checkbox"
-              className="mt-0.5 accent-[color:var(--gold)]"
-              checked={prefs[k.kind]}
-              onChange={(e) => {
-                setAlertPref(k.kind, e.target.checked);
-                syncPush().catch(() => {});
-              }}
-            />
-            <span>
-              <span className="block text-xs font-bold text-[color:var(--flat)]">{k.label}</span>
-              <span className="block text-[10px] text-zinc-500">{k.hint}</span>
-            </span>
-          </label>
-        ))}
+        {ALERT_KINDS.map((k) => {
+          const locked = !!k.vip && !vip.vip;
+          return (
+            <label key={k.kind} className={"flex items-start gap-2 rounded-lg border px-2.5 py-2 " + (k.vip ? "border-[color:var(--gold)]/30" : "border-white/10") + (locked ? "" : " cursor-pointer")}>
+              <input
+                type="checkbox"
+                className="mt-0.5 accent-[color:var(--gold)]"
+                disabled={locked}
+                checked={!locked && prefs[k.kind]}
+                onChange={(e) => {
+                  setAlertPref(k.kind, e.target.checked);
+                  syncPush().catch(() => {});
+                }}
+              />
+              <span>
+                <span className="block text-xs font-bold text-[color:var(--flat)]">
+                  {k.label}
+                  {k.vip ? <span className="ml-1.5 rounded bg-[color:var(--gold)] px-1 text-[9px] font-black text-black">VIP</span> : null}
+                </span>
+                <span className="block text-[10px] text-zinc-500">{k.hint}</span>
+                {locked ? (
+                  <a href="/vip" className="mt-0.5 block text-[10px] font-bold text-[color:var(--gold)]">
+                    Part of VIP →
+                  </a>
+                ) : null}
+              </span>
+            </label>
+          );
+        })}
       </div>
     </section>
   );

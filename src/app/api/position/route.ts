@@ -1,11 +1,24 @@
 import { NextResponse } from "next/server";
 import { currentUser, rateOk, sameOrigin } from "@/lib/auth";
-import { clearPosition, positionOf, positionsFor, setPosition } from "@/lib/social";
+import { clearPosition, positionOf, positionsFor, setPosition, uidOf } from "@/lib/social";
+import { isVipUid } from "@/lib/vipAccess";
 
 export const dynamic = "force-dynamic";
 const H = { "cache-control": "no-store" };
 
 /** GET ?h=a,b,c → shared live positions by handle. GET ?me=1 → your own. */
+/** Handles whose accounts have VIP: the badge in squads and leaders. */
+async function vipHandles(hs: string[]): Promise<string[]> {
+  const out: string[] = [];
+  await Promise.all(
+    [...new Set(hs.map((h) => h.replace(/^@/, "").toLowerCase()))].map(async (h) => {
+      const id = await uidOf(h);
+      if (id && (await isVipUid(id))) out.push(h);
+    })
+  );
+  return out;
+}
+
 export async function GET(req: Request) {
   const sp = new URL(req.url).searchParams;
   const u = await currentUser().catch(() => null);
@@ -13,7 +26,8 @@ export async function GET(req: Request) {
   const hs = (sp.get("h") ?? "").split(",").filter(Boolean).slice(0, 40);
   if (!hs.length) return NextResponse.json({ positions: {} }, { headers: H });
   try {
-    return NextResponse.json({ positions: await positionsFor(hs, u?.id ?? null) }, { headers: H });
+    const [positions, vip] = await Promise.all([positionsFor(hs, u?.id ?? null), vipHandles(hs).catch(() => [])]);
+    return NextResponse.json({ positions, vip }, { headers: H });
   } catch {
     return NextResponse.json({ positions: {} }, { headers: H });
   }

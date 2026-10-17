@@ -123,7 +123,23 @@ export default function AskChat({ storeKey, context, suggestions, compact = fals
           </div>
         ))}
         {status === "submitted" ? <div className="mr-4 animate-pulse text-xs text-purple-200">Opening the portal…</div> : null}
-        {error ? <p className="text-xs text-[color:var(--minus)]">{/429/.test(error.message) || /20 questions/.test(error.message) ? "You've hit 20 questions this hour. Try again in a bit." : "That didn't go through. Try again."}</p> : null}
+        {error ? (
+          <p className="text-xs text-[color:var(--minus)]">
+            {/VIP is unlimited/.test(error.message) ? (
+              <>
+                Free accounts get 10 questions a day.{" "}
+                <a href="/vip" className="font-bold text-[color:var(--gold)] underline">
+                  VIP is unlimited
+                </a>
+                .
+              </>
+            ) : /429/.test(error.message) || /20 questions/.test(error.message) ? (
+              "You've hit 20 questions this hour. Try again in a bit."
+            ) : (
+              "That didn't go through. Try again."
+            )}
+          </p>
+        ) : null}
         <div ref={end} />
       </div>
       {!messages.length ? (
