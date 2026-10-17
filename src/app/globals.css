@@ -880,3 +880,6 @@ html[data-streak] .site-chrome .wordmark { filter: drop-shadow(0 0 calc(8px + 3p
 .auth-google { background: #fff; color: #1f1f1f; border: 1px solid #dadce0; }
 .auth-panel { background: linear-gradient(160deg, rgba(36, 18, 60, 0.9), rgba(8, 6, 16, 0.95)); border: 1px solid rgba(192, 132, 252, 0.45); box-shadow: 0 0 24px -8px rgba(168, 85, 247, 0.6); border-radius: 18px; }
 @media (prefers-reduced-motion: reduce) { .acct-dot-sync { animation: none; } }
+
+/* Slip check panel */
+.slip-check { background: linear-gradient(135deg, rgba(124,58,237,0.14), rgba(6,4,14,0.9)); border: 1px solid rgba(168,85,247,0.45); box-shadow: 0 0 14px rgba(168,85,247,0.25); }

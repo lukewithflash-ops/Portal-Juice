@@ -1,4 +1,5 @@
 "use client";
+import SlipCheck, { checkLegOf } from "@/components/SlipCheck";
 
 import Link from "next/link";
 import { useState } from "react";
@@ -442,6 +443,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
               Match again
             </button>
           ) : null}
+          <SlipCheck legs={kept.map(checkLegOf)} />
           <div className="grid grid-cols-2 gap-2">
             <button type="button" disabled={!ready.length} onClick={breakDown} className="rounded-xl bg-[color:var(--gold)] py-2.5 text-sm font-black text-black disabled:opacity-40">
               Break it down{ready.length ? ` (${Math.min(6, ready.length)})` : ""}

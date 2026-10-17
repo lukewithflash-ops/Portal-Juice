@@ -3,6 +3,7 @@
 import { NoteTag, PastNotes } from "@/components/Notes";
 import { matchupKey } from "@/lib/notesCore";
 import { useState } from "react";
+import SlipCheck, { checkLegOf } from "@/components/SlipCheck";
 import { STAT_CHOICES, type GameRef, type ImportLeg, type SlipKind, type SlipRow } from "@/lib/slipImport";
 import { pickFromLeg } from "@/lib/legPick";
 import { addPick } from "@/lib/pickStore";
@@ -117,6 +118,11 @@ export default function QuickPick({ onDone }: { onDone?: () => void }) {
           <button type="button" onClick={save} className="ml-auto rounded-lg border border-[color:var(--plus)]/60 bg-[color:var(--plus)]/15 px-3 py-1 text-xs font-black text-white" data-testid="quick-save">
             Log it
           </button>
+        </div>
+      ) : null}
+      {found?.game ? (
+        <div className="sm:col-span-6">
+          <SlipCheck legs={[{ ...checkLegOf(found), line: Number.isFinite(Number(line)) && line.trim() ? Number(line) : found.row.line, selection: found.row.kind === "prop" ? side : found.row.selection }]} />
         </div>
       ) : null}
       <div className="sm:col-span-6">

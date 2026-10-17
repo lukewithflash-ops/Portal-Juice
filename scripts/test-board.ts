@@ -1,5 +1,6 @@
 import { pickGame, playerNameHit, gradeTennis, parseSlipRows as parseSlip2, slipDateOf, propMarketOf as pm2, tennisGames } from "../src/lib/slipImport";
 import { lineIssue, lineOk, plusLine, rereadLine } from "../src/lib/lineSanity";
+import { conflicts as slipConflicts, duplicates as slipDups } from "../src/lib/slipCheck";
 import { diffList, emptyDoc, mergePush, resetCols } from "../src/lib/syncCore";
 import { filterNotes, liveTag, matchupKey, notesForMatchup, notesForPick, notesForPlayer, pickPlayer } from "../src/lib/notesCore";
 import { _test as myLive } from "../src/lib/myLive";
@@ -1658,6 +1659,11 @@ console.log(`\n${n} passed`);
   assert(lineIssue("nhl", "shots on goal", 22)?.startsWith("Check this line") === true && lineIssue("nhl", "shots on goal", 0.5) === null, "slip lines: flag wording");
   assert(rereadLine("Beckett Sennecke\n#22 · ANA @ SJ · 5 picks · 3x\n1+ SOG -120", "Beckett Sennecke", "nhl", "shots on goal")?.line === 0.5, "slip lines: re-read skips jersey, count, multiplier, odds");
   console.log("ok - slip lines");
+  const L = (o: Partial<import("../src/lib/slipCheck").CheckLeg>) => ({ subject: "x", kind: "prop" as const, market: "points", line: 1.5, selection: "Over" as const, league: "nfl", gameId: "1", ...o });
+  assert(slipConflicts([L({ kind: "moneyline", side: "home", subject: "KC" }), L({ kind: "moneyline", side: "away", subject: "BUF" })])[0]?.kind === "conflict", "slip check: both MLs");
+  assert(slipConflicts([L({ subject: "Josh Allen", market: "passing yards", selection: "Under", team: "BUF" }), L({ subject: "Khalil Shakir", market: "receiving yards", selection: "Over", team: "BUF" })]).length === 1, "slip check: QB under + WR over");
+  assert(slipConflicts([L({ subject: "A", market: "points" }), L({ subject: "B", market: "points" })]).length === 0, "slip check: no false conflict");
+  assert(slipDups([L({ subject: "Josh Allen", market: "Passing Yards", line: 245.5 })], [{ id: "1", subject: "Josh Allen", market: "passing yards", line: 245.5, selection: "Over", gameId: "1", status: "open" }]).length === 1, "slip check: duplicate of open pick");
 }
 
 {
