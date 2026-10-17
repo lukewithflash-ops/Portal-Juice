@@ -29,6 +29,10 @@ export type AllLiveGame = {
   sets?: { away: string[]; home: string[] };
   /** Tennis in-game score ESPN sent (tiebreak points), if any. Never invented. */
   point?: TennisPoint | null;
+  /** Tennis: ESPN event (tournament) id, for the core situation lookup. Not rendered. */
+  eventId?: string;
+  /** Tennis: ESPN competitor ids (athlete id, or "a-b" for doubles). Not rendered. */
+  ids?: { away: string; home: string };
 };
 
 export type AllLive = { fetchedAt: string; games: AllLiveGame[]; leagues: { id: string; label: string; count: number }[] };
@@ -134,6 +138,10 @@ const side = (e: { name: string; short: string; score: string | null; logo: stri
 export function liveFromBoard(l: SportLeague, data: unknown): AllLiveGame[] {
   const label = boardLabel(l, data);
   const { matches, golf } = parseSportScoreboard(l, data, Date.now(), { all: true, doubles: true });
+  const evOf = new Map<string, string>();
+  if (l.kind === "tennis")
+    for (const ev of asList(asDict(data).events).map(asDict))
+      for (const c of [...asList(ev.competitions), ...asList(ev.groupings).flatMap((g) => asList(asDict(g).competitions))]) evOf.set(String(asDict(c).id), String(ev.id ?? ""));
   const seen = new Set<string>();
   const out: AllLiveGame[] = [];
   for (const m of matches) {
@@ -152,6 +160,8 @@ export function liveFromBoard(l: SportLeague, data: unknown): AllLiveGame[] {
       home: side(m.home),
       sets: l.kind === "tennis" ? { away: m.away.sets, home: m.home.sets } : undefined,
       point: l.kind === "tennis" ? m.point ?? null : undefined,
+      eventId: l.kind === "tennis" ? evOf.get(m.id) || undefined : undefined,
+      ids: l.kind === "tennis" ? { away: m.away.id, home: m.home.id } : undefined,
     });
   }
   for (const b of golf.filter((g) => g.state === "in")) {
@@ -223,6 +233,7 @@ async function pull(): Promise<AllLive> {
   const all = [...(await Promise.all(core)).flat(), ...(await extra).flat()];
   const seen = new Set<string>();
   const games = all.filter((g) => (seen.has(g.key) ? false : (seen.add(g.key), true)));
+  await serversFor(games).catch(() => {});
   const leagues: AllLive["leagues"] = [];
   for (const g of games) {
     const have = leagues.find((x) => x.id === g.league);
@@ -230,6 +241,23 @@ async function pull(): Promise<AllLive> {
     else leagues.push({ id: g.league, label: g.label, count: 1 });
   }
   return { fetchedAt: new Date().toISOString(), games, leagues };
+}
+
+/** Tennis matches the scoreboard left without a server: ask ESPN's core situation (it names the server athlete). */
+async function serversFor(games: AllLiveGame[]): Promise<void> {
+  const need = games.filter((g) => g.sets && g.eventId && !g.away.serving && !g.home.serving).slice(0, 12);
+  await Promise.all(
+    need.map(async (g) => {
+      const lg = g.league;
+      const sit = asDict(await getJson(`https://sports.core.api.espn.com/v2/sports/tennis/leagues/${lg}/events/${g.eventId}/competitions/${g.id}/situation`, 1).catch(() => null));
+      const id = String(asDict(sit.server).$ref ?? "").match(/athletes\/(\d+)/)?.[1];
+      if (!id) return;
+      for (const [side, ent] of [["away", g.away], ["home", g.home]] as const) {
+        const eid = g.ids?.[side] ?? "";
+        if (eid === id || eid.split("-").includes(id)) ent.serving = true;
+      }
+    }),
+  );
 }
 
 export function getAllLive(): Promise<AllLive> {
