@@ -493,3 +493,35 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
   await beat({ subs: rows.length, games: wanted.size, sent, failed, codes });
   return { enabled: true, subs: rows.length, games: wanted.size, sent, failed };
 }
+
+/**
+ * VIP pushes, opt-in only (prefs.vipdrop / prefs.linemove default off). `isVip` decides per account;
+ * devices that are not signed in never get them. One push per device per event.
+ */
+export async function vipPush(
+  kind: "vipdrop" | "linemove",
+  isVip: (uid: string) => Promise<boolean>,
+  build: (row: { games: PushGame[] }) => { title: string; body: string; url: string; tag: string } | null
+): Promise<number> {
+  if (!chatEnabled() || !vapidReady()) return 0;
+  const flat = (await redis(["HGETALL", SUBS])) as string[] | null;
+  const cache = new Map<string, boolean>();
+  let sent = 0;
+  for (let i = 0; Array.isArray(flat) && i < flat.length; i += 2) {
+    let row: Stored;
+    try {
+      row = JSON.parse(String(flat[i + 1])) as Stored;
+    } catch {
+      continue;
+    }
+    if (!row.uid || !readAlertPrefs(row.prefs)[kind]) continue;
+    if (!cache.has(row.uid)) cache.set(row.uid, await isVip(row.uid).catch(() => false));
+    if (!cache.get(row.uid)) continue;
+    const p = build({ games: row.games ?? [] });
+    if (!p) continue;
+    const r = await sendTo(row.sub, { ...p, silent: true } as Parameters<typeof sendTo>[1]);
+    await toInbox(row.endpoint, { key: p.tag, kind, title: p.title, body: p.body, url: p.url, at: Date.now(), pushed: r.ok, code: r.code }).catch(() => {});
+    if (r.ok) sent++;
+  }
+  return sent;
+}

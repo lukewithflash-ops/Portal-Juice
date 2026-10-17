@@ -72,6 +72,9 @@ import { LEAGUES } from "../src/lib/slate";
 import { SPORT_LEAGUES } from "../src/lib/sports";
 import { fightFx, golfFx, tennisFx } from "../src/lib/matchFx";
 import { liveStat, longestPassFromPlays, marketTerms } from "../src/lib/tracker";
+import { qualifies, selectVip, teaser, toVip, vipRecord, type Candidate, type VipPick } from "../src/lib/vipCore";
+import { verifyStripeSignature } from "../src/lib/stripeSig";
+import { createHmac } from "node:crypto";
 
 let n = 0;
 const t = (name: string, fn: () => void) => {
@@ -1803,5 +1806,33 @@ console.log(`\n${n} passed`);
     const lp = legFromPick({ id: "x", sport: "NHL", subject: "Beckett Sennecke", line: 0.5, plus: true, odds: 0, stake: 0, book: "PrizePicks", date: "2026-10-16", status: "open", createdAt: "", league: "nhl", gameId: "1", market: "Shots on Goal", selection: "Over" } as never, null);
     assert(lp !== null && lp.lineText === "1+" && lp.plus === true && !lp.progress.includes("0.5") && lp.progress.startsWith("1+"), "plus: meter line reads 1+");
     console.log("ok - plus meters");
+  }
+  // VIP: strict bar, one per market, record and streak, locked teasers, signed webhooks.
+  {
+    const now = Date.parse("2026-10-17T12:00:00Z");
+    const mk = (o: Partial<Candidate> & { pros?: number; cons?: number; lean?: "strong" | "good"; odds?: number | null; hits?: number; games?: number; kind?: "prop" | "spread"; gameId?: string; who?: string; score?: number }): Candidate => ({
+      leg: o.kind === "spread" ? { league: "nhl", gameId: o.gameId ?? "1", kind: "spread", side: "away", line: 1.5 } : { league: "nba", gameId: o.gameId ?? "1", kind: "prop", athleteId: o.who ?? "9", athleteName: "Test Guy", stat: "points", line: 20.5, pick: "over" },
+      report: { title: "t", sub: "s", league: "nba", gameId: o.gameId ?? "1", sameGameKey: "", facts: [], pros: Array.from({ length: o.pros ?? 4 }, (_, i) => ({ text: `pro ${i}`, weight: 4 - i })), cons: Array.from({ length: o.cons ?? 0 }, (_, i) => ({ text: `con ${i}`, weight: -1 })), score: o.score ?? 5, lean: o.lean ?? "strong", implied: null, odds: o.odds === undefined ? -120 : o.odds },
+      recent: { hits: o.hits ?? 9, games: o.games ?? 10, what: "Over 20.5 in 9 of Test Guy's last 10 (ESPN game log)" },
+      game: { label: "A @ B", start: "2026-10-17T20:00:00Z", home: "B", away: "A", state: "pre", provider: "DraftKings" },
+    });
+    assert(qualifies(mk({}), now).ok, "vip: strong, priced, 9 of 10 qualifies");
+    assert(!qualifies(mk({ lean: "good" }), now).ok && !qualifies(mk({ odds: null }), now).ok && !qualifies(mk({ hits: 6 }), now).ok && !qualifies(mk({ games: 6, hits: 6 }), now).ok, "vip: weak lean, no price, low hit rate, thin log all fail");
+    assert(!qualifies(mk({ odds: -300 }), now).ok && !qualifies(mk({ pros: 2 }), now).ok && !qualifies(mk({ cons: 3 }), now).ok, "vip: short price, few reasons, many cons fail");
+    assert(!qualifies(mk({}), Date.parse("2026-10-17T19:45:00Z")).ok && !qualifies({ ...mk({}), game: { ...mk({}).game, state: "in" } }, now).ok, "vip: locked within 30 minutes and once started");
+    const sel = selectVip([mk({}), mk({}), mk({ who: "8" }), mk({ who: "7" }), mk({ gameId: "2" })], 5, [], now);
+    assert(sel.length === 3 && sel.filter((x) => x.c.leg.gameId === "1").length === 2, "vip: one per player, two per game");
+    const p = toVip(mk({}), qualifies(mk({}), now) as never, "20261017", new Date(now));
+    assert(p.reasons[0].includes("ESPN game log") || p.reasons.length >= 3, "vip: reasons carry the numbers");
+    const t = teaser(p) as Record<string, unknown>;
+    assert(t.locked === true && !("title" in t) && !("reasons" in t) && !("leg" in t), "vip: teaser hides the pick");
+    const g = (r: VipPick["result"], at: string, league = "nba"): VipPick => ({ ...p, league, result: r, gradedAt: at });
+    const rec = vipRecord([g("win", "1"), g("loss", "2"), g("win", "3"), g("push", "4"), g("win", "5", "nhl"), { ...p, result: null }]);
+    assert(rec.wins === 3 && rec.losses === 1 && rec.pushes === 1 && rec.open === 1 && rec.streak?.kind === "W" && rec.streak.n === 2 && rec.rate === 75 && rec.bySport.length === 2, "vip: record, streak skips pushes, by sport");
+    const body = '{"id":"evt_1"}';
+    const ts = Math.floor(Date.now() / 1000);
+    const sig = createHmac("sha256", "whsec_test").update(`${ts}.${body}`).digest("hex");
+    assert(verifyStripeSignature(body, `t=${ts},v1=${sig}`, "whsec_test") && !verifyStripeSignature(body, `t=${ts},v1=${sig.replace(/.$/, "0")}`, "whsec_test") && !verifyStripeSignature(body, `t=${ts - 999},v1=${sig}`, "whsec_test"), "vip: webhook signature checked");
+    console.log("ok - vip");
   }
 }

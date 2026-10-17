@@ -8,9 +8,9 @@ import type { LivePlay, LiveSnap } from "@/lib/live";
 import { unitsNeeded, type Leg } from "@/lib/motivation";
 import { freshSubs } from "@/lib/lineup";
 
-export type AlertKind = "tile" | "score" | "lead" | "big" | "close" | "almost" | "redzone" | "cleared" | "final" | "player" | "sub" | "sweat";
+export type AlertKind = "tile" | "score" | "lead" | "big" | "close" | "almost" | "redzone" | "cleared" | "final" | "player" | "sub" | "sweat" | "vipdrop" | "linemove";
 
-export const ALERT_KINDS: { kind: AlertKind; label: string; hint: string }[] = [
+export const ALERT_KINDS: { kind: AlertKind; label: string; hint: string; vip?: true }[] = [
   { kind: "tile", label: "Live game on lock screen", hint: "One quiet notification per game you follow that updates in place: score, clock, your props. Buzzes only for big moments." },
   { kind: "cleared", label: "Prop cleared", hint: "A logged leg hits its line." },
   { kind: "sweat", label: "Last leg alive", hint: "Every other leg of a parlay hit and one is still live. Once per parlay; opens Sweat mode." },
@@ -22,11 +22,13 @@ export const ALERT_KINDS: { kind: AlertKind; label: string; hint: string }[] = [
   { kind: "lead", label: "Lead change", hint: "The lead flips." },
   { kind: "redzone", label: "Red zone", hint: "Football: a drive crosses the 20. Only in starred games, your team's game, or games with your picks." },
   { kind: "big", label: "Big plays", hint: "Touchdowns, turnovers, goals, home runs: only in starred games, your team's game, or plays by players on your picks." },
+  { kind: "vipdrop", label: "VIP picks are in", hint: "One push when the day’s VIP picks post. Off by default.", vip: true },
+  { kind: "linemove", label: "Line moved", hint: "A total or spread in a game you follow (★) moves a full point or more. Checked every 15 minutes. Off by default.", vip: true },
   { kind: "score", label: "End of each quarter", hint: "The score at the end of each quarter, period, or half." },
 ];
 
 export type AlertPrefs = Record<AlertKind, boolean>;
-export const DEFAULT_ALERTS: AlertPrefs = { tile: true, cleared: true, player: true, close: true, final: true, lead: true, big: true, score: true, sub: true, almost: true, redzone: true, sweat: true };
+export const DEFAULT_ALERTS: AlertPrefs = { tile: true, cleared: true, player: true, close: true, final: true, lead: true, big: true, score: true, sub: true, almost: true, redzone: true, sweat: true, vipdrop: false, linemove: false };
 
 export type GameAlert = {
   kind: AlertKind;
