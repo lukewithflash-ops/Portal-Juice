@@ -1,6 +1,7 @@
 "use client";
 
 import { NoteTag, PastNotes } from "@/components/Notes";
+import HitChip from "@/components/HitChip";
 import { matchupKey } from "@/lib/notesCore";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -568,7 +569,8 @@ function LegPanel({ r, flag }: { r: LegReport; flag: "weakest" | "strongest" | n
               </span>
             ) : null}
             <h3 className="text-[15px] font-bold text-[color:var(--flat)]">
-              {r.title} {r.player ? <NoteTag player={r.player} /> : null}
+              {r.title} {r.player ? <NoteTag player={r.player} /> : null}{" "}
+              {r.heat ? <HitChip req={{ league: r.league, athleteId: r.heat.athleteId, stat: r.heat.stat, line: r.heat.line }} /> : null}
             </h3>
             <p className="text-[11px] text-zinc-500">
               {r.sub} {pairOf(r)}
