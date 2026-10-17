@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { cleanLeaderHandle } from "@/lib/leaderRank";
-import { leadersEnabled, listLeaders, publish, unpublish } from "@/lib/leaders";
+import { leadersEnabled, listLeaders, markLeaderAccount, publish, unpublish } from "@/lib/leaders";
+import { currentUser } from "@/lib/auth";
+import { getProfile } from "@/lib/social";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +27,15 @@ export async function POST(req: Request) {
   try {
     if (body.remove === true) {
       const ok = await unpublish(handle, token);
+      if (ok) await markLeaderAccount(handle, false).catch(() => {});
       return NextResponse.json(ok ? { ok: true } : { error: "Not yours to remove." }, { status: ok ? 200 : 403 });
     }
     const res = await publish(handle, token, Array.isArray(body.legs) ? body.legs : []);
+    if (res.ok) {
+      const u = await currentUser().catch(() => null);
+      const prof = u ? await getProfile(u.id).catch(() => null) : null;
+      await markLeaderAccount(handle, !!prof && prof.handle.toLowerCase() === handle.toLowerCase()).catch(() => {});
+    }
     if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.error === "That handle is taken." ? 409 : 400 });
     return NextResponse.json(res);
   } catch {

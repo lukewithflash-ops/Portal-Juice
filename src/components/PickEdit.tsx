@@ -1,5 +1,6 @@
 "use client";
 
+import SharePosition from "@/components/SharePosition";
 import { atLeastOf, isPickem } from "@/lib/plusLegs";
 import { Component, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -135,6 +136,7 @@ export function PickActions({ picks, small = false }: { picks: Pick[]; small?: b
       <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDel(true); }} className={cls + (small ? " text-red-300" : " border-red-500/50 text-red-300")} data-testid={`delete-${word}`}>
         Delete{parlay ? " parlay" : ""}
       </button>
+      <SharePosition picks={picks} small={small} />
       {del ? (
         <Confirm
           title={parlay ? "Delete this parlay?" : "Delete this pick?"}

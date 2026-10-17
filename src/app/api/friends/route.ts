@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { currentUser, rateOk, sameOrigin } from "@/lib/auth";
-import { addFriend, answer, block, claimHandle, createSquad, joinInvite, leaveSquad, overview, removeFriend, setShare } from "@/lib/social";
+import { addFriend, answer, block, claimHandle, createSquad, joinInvite, leaveSquad, overview, peekInvite, removeFriend, setShare } from "@/lib/social";
 
 export const dynamic = "force-dynamic";
 const H = { "cache-control": "no-store" };
 
-export async function GET() {
+export async function GET(req: Request) {
+  const peek = new URL(req.url).searchParams.get("peek");
+  if (peek) return NextResponse.json({ invite: await peekInvite(peek).catch(() => null) }, { headers: H });
   const u = await currentUser().catch(() => null);
   if (!u) return NextResponse.json({ signedIn: false }, { headers: H });
   return NextResponse.json({ signedIn: true, ...(await overview(u.id)) }, { headers: H });

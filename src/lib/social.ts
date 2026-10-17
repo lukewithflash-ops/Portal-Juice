@@ -3,6 +3,9 @@ import { redis } from "@/lib/chat";
 import { readDoc } from "@/lib/cloud";
 import { listOf } from "@/lib/syncCore";
 import { EMOTES } from "@/lib/questsCore";
+import { getUser } from "@/lib/auth";
+import { handleSeed, positionDone } from "@/lib/socialCore";
+export { handleSeed, positionDone };
 
 /**
  * Friends and squads for signed-in accounts. Friends see each other only by handle; account ids never
@@ -10,8 +13,9 @@ import { EMOTES } from "@/lib/questsCore";
  * by default and can be turned off; block hides you both ways.
  */
 
-export type Profile = { handle: string; share: boolean; createdAt: string };
-export type SlimPick = { id: string; subject: string; line: number; market: string | null; selection: "Over" | "Under" | null; league: string | null; gameId: string | null; status: string; date: string; slipId: string | null; createdAt: string; sport?: string };
+/** edited: the one free handle change has been used. */
+export type Profile = { handle: string; share: boolean; createdAt: string; edited?: boolean; auto?: boolean };
+export type SlimPick = { id: string; subject: string; line: number; market: string | null; selection: "Over" | "Under" | null; league: string | null; gameId: string | null; status: string; date: string; slipId: string | null; createdAt: string; sport?: string; plus?: boolean };
 export type Squad = { id: string; name: string; owner: string; members: string[]; code: string };
 
 const K = {
@@ -29,6 +33,7 @@ const K = {
   rxlog: (owner: string) => `pj:frxlog:${owner}`,
   tail: (owner: string) => `pj:tail:${owner}`,
   tailed: (u: string, owner: string, pick: string) => `pj:tailed:${u}:${owner}:${pick}`,
+  pos: (u: string) => `pj:pos:${u}`,
 };
 
 const code = (n = 8) => {
@@ -57,6 +62,7 @@ export async function claimHandle(uid: string, handle: string): Promise<{ ok: tr
   const h = cleanHandle(handle);
   if (!h) return { ok: false, error: "Handle is 3–16 letters, numbers or _." };
   const prev = await getProfile(uid);
+  if (prev?.edited && prev.handle.toLowerCase() !== h.toLowerCase()) return { ok: false, error: "You have already changed your handle once." };
   if (prev && prev.handle.toLowerCase() === h.toLowerCase()) {
     const p = { ...prev, handle: h };
     await redis(["SET", K.prof(uid), JSON.stringify(p)]);
@@ -65,9 +71,30 @@ export async function claimHandle(uid: string, handle: string): Promise<{ ok: tr
   const got = await redis(["SET", K.hdl(h), uid, "NX"]);
   if (got !== "OK") return { ok: false, error: "That handle is taken." };
   if (prev) await redis(["DEL", K.hdl(prev.handle)]);
-  const p: Profile = { handle: h, share: prev?.share ?? true, createdAt: prev?.createdAt ?? new Date().toISOString() };
+  const p: Profile = { handle: h, share: prev?.share ?? true, createdAt: prev?.createdAt ?? new Date().toISOString(), edited: prev ? true : undefined };
   await redis(["SET", K.prof(uid), JSON.stringify(p)]);
   return { ok: true, profile: p };
+}
+
+/**
+ * Every signed-in account gets a handle without typing one: seeded from the account, with digits added
+ * when taken. Existing handles are kept as they are (they still have their one free change).
+ */
+export async function ensureProfile(uid: string): Promise<Profile> {
+  const have = await getProfile(uid);
+  if (have) return have;
+  const u = await getUser(uid).catch(() => null);
+  const base = handleSeed(u?.name, u?.email);
+  const tries = [base, ...Array.from({ length: 6 }, () => base.slice(0, 12) + String(10 + Math.floor(Math.random() * 9990))), "pj" + code(8).toLowerCase()];
+  for (const t of tries) {
+    const h = cleanHandle(t);
+    if (!h) continue;
+    if ((await redis(["SET", K.hdl(h), uid, "NX"])) !== "OK") continue;
+    const p: Profile = { handle: h, share: true, createdAt: new Date().toISOString(), auto: true };
+    await redis(["SET", K.prof(uid), JSON.stringify(p)]);
+    return p;
+  }
+  throw new Error("no handle");
 }
 
 export async function setShare(uid: string, on: boolean) {
@@ -150,6 +177,21 @@ export async function joinInvite(uid: string, c: string): Promise<{ ok: true; ha
   return { ok: true, handle: (await getProfile(other))?.handle ?? "" };
 }
 
+/** What a code opens, for the join sheet. No account needed; shows the name and size only. */
+export async function peekInvite(c: string): Promise<{ kind: "squad"; name: string; size: number } | { kind: "friend"; handle: string } | null> {
+  const clean = String(c ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
+  if (!clean) return null;
+  const sid = (await redis(["GET", K.sqinv(clean)])) as string | null;
+  if (sid) {
+    const sq = await getSquad(sid);
+    return sq ? { kind: "squad", name: sq.name, size: sq.members.length } : null;
+  }
+  const other = (await redis(["GET", K.inv(clean)])) as string | null;
+  if (!other) return null;
+  const h = (await getProfile(other))?.handle;
+  return h ? { kind: "friend", handle: h } : null;
+}
+
 async function getSquad(id: string): Promise<Squad | null> {
   const raw = (await redis(["GET", K.sq(id)])) as string | null;
   try {
@@ -181,9 +223,10 @@ export async function leaveSquad(uid: string, id: string) {
   } else await redis(["SET", K.sq(id), JSON.stringify({ ...s, owner: s.owner === uid ? s.members[0] : s.owner })]);
 }
 
-const handleOf = async (u: string) => (await getProfile(u))?.handle ?? null;
+const handleOf = async (u: string) => (await getProfile(u))?.handle ?? (await ensureProfile(u).catch(() => null))?.handle ?? null;
 
 export async function overview(uid: string) {
+  await ensureProfile(uid).catch(() => null);
   const [me, fr, rq, bl, sqIds] = await Promise.all([getProfile(uid), smembers(K.fr(uid)), smembers(K.frq(uid)), smembers(K.blk(uid)), smembers(K.usq(uid))]);
   const friends = (await Promise.all(fr.map(async (u) => ({ handle: await handleOf(u), share: (await getProfile(u))?.share ?? true })))).filter((f) => f.handle) as { handle: string; share: boolean }[];
   const requests = (await Promise.all(rq.map(handleOf))).filter(Boolean) as string[];
@@ -218,6 +261,7 @@ export function slim(p: Record<string, unknown>): SlimPick | null {
     slipId: typeof p.slipId === "string" ? p.slipId : null,
     createdAt: String(p.createdAt ?? ""),
     sport: typeof p.sport === "string" ? p.sport : undefined,
+    plus: p.plus === true ? true : undefined,
   };
 }
 
@@ -288,7 +332,13 @@ export async function react(uid: string, ownerHandle: string, pickId: string, em
 }
 
 export async function tail(uid: string, ownerHandle: string, pickIds: string[]): Promise<SlimPick[] | null> {
-  const owner = await inCircle(uid, ownerHandle);
+  let owner = await inCircle(uid, ownerHandle);
+  if (!owner) {
+    // A shared live position can be tailed by anyone who is not blocked.
+    const o = await uidOf(ownerHandle);
+    const pos = o && o !== uid && !(await blockedEither(uid, o)) ? await rawPos(o) : null;
+    if (pos && pickIds.length && pickIds.every((id) => pos.ids.includes(id))) owner = o;
+  }
   if (!owner) return null;
   const doc = await readDoc(owner);
   const all = (listOf("picks", doc) as Record<string, unknown>[]).map(slim).filter((p): p is SlimPick => !!p);
@@ -303,6 +353,69 @@ export async function tail(uid: string, ownerHandle: string, pickIds: string[]):
   await redis(["LPUSH", K.rxlog(owner), JSON.stringify({ from, emote: "tail", subject: chosen.length > 1 ? `${chosen.length}-leg parlay` : chosen[0].subject, ts: Date.now(), kind: "tail" })]);
   await redis(["LTRIM", K.rxlog(owner), "0", "49"]);
   return chosen;
+}
+
+/* ---- Live position: one open pick or parlay per account, visible next to the handle everywhere. ---- */
+type RawPos = { ids: string[]; setAt: string };
+export type LivePosition = { handle: string; legs: SlimPick[]; setAt: string };
+
+async function rawPos(uid: string): Promise<RawPos | null> {
+  const raw = (await redis(["GET", K.pos(uid)])) as string | null;
+  try {
+    return raw ? (JSON.parse(raw) as RawPos) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setPosition(uid: string, ids: string[]): Promise<{ ok: true; position: LivePosition } | { ok: false; error: string }> {
+  const want = [...new Set(ids.filter((x) => typeof x === "string" && /^[A-Za-z0-9_:-]{1,60}$/.test(x)))].slice(0, 20);
+  if (!want.length) return { ok: false, error: "Pick something to share." };
+  const prof = await ensureProfile(uid);
+  const all = (listOf("picks", await readDoc(uid)) as Record<string, unknown>[]).map(slim).filter((p): p is SlimPick => !!p);
+  const legs = want.map((id) => all.find((p) => p.id === id)).filter((p): p is SlimPick => !!p);
+  if (legs.length !== want.length) return { ok: false, error: "That pick hasn't synced yet. Try again in a moment." };
+  if (legs.length > 1 && new Set(legs.map((l) => l.slipId)).size !== 1) return { ok: false, error: "Share one pick or one parlay." };
+  if (positionDone(legs)) return { ok: false, error: "That one is already graded." };
+  const r: RawPos = { ids: want, setAt: new Date().toISOString() };
+  await redis(["SET", K.pos(uid), JSON.stringify(r), "EX", 7 * 86400]);
+  return { ok: true, position: { handle: prof.handle, legs, setAt: r.setAt } };
+}
+
+export async function clearPosition(uid: string) {
+  await redis(["DEL", K.pos(uid)]);
+}
+
+/** Current statuses from the owner's synced Log; clears itself once graded or deleted. */
+export async function positionOf(uid: string): Promise<LivePosition | null> {
+  const r = await rawPos(uid);
+  if (!r) return null;
+  const prof = await getProfile(uid);
+  if (!prof) return null;
+  const all = (listOf("picks", await readDoc(uid)) as Record<string, unknown>[]).map(slim).filter((p): p is SlimPick => !!p);
+  const legs = r.ids.map((id) => all.find((p) => p.id === id)).filter((p): p is SlimPick => !!p);
+  if (legs.length !== r.ids.length || positionDone(legs)) {
+    await clearPosition(uid);
+    return null;
+  }
+  return { handle: prof.handle, legs, setAt: r.setAt };
+}
+
+/** Positions for a list of handles (threads, squads, leaders). Blocked people are left out for a signed-in viewer. */
+export async function positionsFor(handles: string[], viewer: string | null): Promise<Record<string, LivePosition>> {
+  const out: Record<string, LivePosition> = {};
+  const uniq = [...new Set(handles.map((h) => cleanHandle(h.replace(/^@/, ""))).filter((h): h is string => !!h).map((h) => h.toLowerCase()))].slice(0, 40);
+  await Promise.all(
+    uniq.map(async (h) => {
+      const u = await uidOf(h);
+      if (!u) return;
+      if (viewer && viewer !== u && (await blockedEither(viewer, u))) return;
+      if (!(await redis(["EXISTS", K.pos(u)]))) return;
+      const p = await positionOf(u);
+      if (p) out[h] = p;
+    })
+  );
+  return out;
 }
 
 /** Account delete: drop the profile, handle, friendships and squads. */
@@ -322,5 +435,6 @@ export async function dropSocial(uid: string) {
     redis(["DEL", K.tail(uid)]),
     inv ? redis(["DEL", K.inv(inv)]) : null,
     redis(["DEL", K.myinv(uid)]),
+    redis(["DEL", K.pos(uid)]),
   ]);
 }

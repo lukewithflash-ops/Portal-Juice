@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { PosFor } from "@/components/LivePosition";
+import { usePositions } from "@/lib/positionsClient";
 import { addPick } from "@/lib/pickStore";
 import type { LeaderRow } from "@/lib/leaderRank";
 import { SPORT_ORDER, type Sport } from "@/lib/types";
 
-export default function LeadersList({ rows }: { rows: LeaderRow[] }) {
+export default function LeadersList({ rows, accounts = [] }: { rows: LeaderRow[]; accounts?: string[] }) {
+  const pos = usePositions(rows.map((r) => r.handle).filter((h) => accounts.includes(h.toLowerCase())));
   const [copied, setCopied] = useState<Record<string, number>>({});
 
   function copy(row: LeaderRow) {
@@ -41,7 +44,7 @@ export default function LeadersList({ rows }: { rows: LeaderRow[] }) {
             <div className="flex items-center gap-3">
               <span className={`w-5 text-center tabular text-sm font-black ${i === 0 ? "tone-gold" : "text-zinc-500"}`}>{i + 1}</span>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[15px] font-bold text-[color:var(--flat)]">@{r.handle}</div>
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[15px] font-bold text-[color:var(--flat)]"><span className="truncate">@{r.handle}</span><PosFor handle={r.handle} map={pos} /></div>
                 <div className="text-[12px] text-zinc-400">
                   {r.wins}–{r.losses}
                   {r.pushes ? `–${r.pushes}` : ""} across {r.sample} graded lines

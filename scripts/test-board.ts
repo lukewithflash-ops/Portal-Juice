@@ -1,4 +1,6 @@
 import { pickGame, playerNameHit, gradeTennis, parseSlipRows as parseSlip2, slipDateOf, propMarketOf as pm2, tennisGames } from "../src/lib/slipImport";
+import { sectionOf } from "../src/lib/nav";
+import { handleSeed, positionDone } from "../src/lib/socialCore";
 import { lineIssue, lineOk, plusLine, rereadLine } from "../src/lib/lineSanity";
 import { conflicts as slipConflicts, duplicates as slipDups } from "../src/lib/slipCheck";
 import { profane } from "../src/lib/chat";
@@ -1787,5 +1789,13 @@ console.log(`\n${n} passed`);
     assert(effLine({ line: 1, plus: true }) === 0.5 && effLine({ line: 1 }) === 1, "plus: grading line");
     assert(markPlus({ subject: "Beckett Sennecke", kind: "prop", market: "shots on goal", line: 0.5, selection: "Over", odds: null }, "Beckett Sennecke\n1+ Shots on Goal").plus === true, "plus: text slip keeps 1+");
     console.log("ok - plus legs");
+  }
+  // Five tabs: every route maps to a section; handles come from the account; positions clear when graded.
+  {
+    const want: [string, string][] = [["/lines", "home"], ["/games/nba/1", "home"], ["/teams/nba/lal", "home"], ["/live", "live"], ["/lines/portfolio", "log"], ["/lines/stats", "log"], ["/notes", "log"], ["/check", "log"], ["/friends", "squads"], ["/leaders", "squads"], ["/more", "more"], ["/account", "more"], ["/wrapped", "more"], ["/lines/board", "home"]];
+    for (const [p, id] of want) assert(sectionOf(p).id === id, `nav: ${p} is under ${id}`);
+    assert(handleSeed("Luke Rodden", "x@y.com") === "LukeRodden" && handleSeed(null, "jo.smith@x.com") === "josmith" && handleSeed("", "a@b") === "player", "squads: handle from name, then email");
+    assert(positionDone([{ status: "win" }]) && !positionDone([{ status: "open" }]) && positionDone([{ status: "open" }, { status: "loss" }]) && !positionDone([{ status: "open" }, { status: "win" }]), "position: clears when graded");
+    console.log("ok - tabs and squads");
   }
 }

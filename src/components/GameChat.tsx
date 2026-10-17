@@ -1,5 +1,7 @@
 "use client";
 
+import { PosFor } from "@/components/LivePosition";
+import { usePositions } from "@/lib/positionsClient";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { getQuests, getServerQuests, questDone, subscribeQuests } from "@/lib/questStore";
 import { emoteIcon, fullDays, unlockedEmotes } from "@/lib/questsCore";
@@ -49,6 +51,8 @@ export default function GameChat({
   const emotes = unlockedEmotes(fullDays(quests));
   const box = useRef<HTMLTextAreaElement>(null);
   const base = "/api/chat/" + league + "/" + id;
+  // Live positions only for signed-in authors, so a typed name can't borrow someone's position.
+  const pos = usePositions([...new Set(notes.filter((n) => n.verified && n.kind !== "sys").map((n) => n.handle))]);
 
   useEffect(() => {
     const saved = localStorage.getItem("pj-handle") || "";
@@ -140,6 +144,7 @@ export default function GameChat({
                 );
               }
               const ring = hue(n.handle, awayColor, homeColor);
+              const lp = n.verified ? <PosFor handle={n.handle} map={pos} /> : null;
               return (
                 <li key={n.id} className={"foil-tile px-3 py-2 " + (n.id === fresh ? "play-in" : "")} data-testid="thread-msg">
                   <div className="flex items-center gap-2 text-[11px] text-zinc-500">
@@ -148,6 +153,7 @@ export default function GameChat({
                     </span>
                     <span className="font-bold text-zinc-300">{n.handle}</span>
                     {n.verified ? <span title="Signed-in account" className="text-[10px] text-[color:var(--plus)]">✓</span> : null}
+                    {lp}
                     <span className="ml-auto">{new Date(n.ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
                     <button type="button" aria-label="Message options" className="px-1 text-zinc-500" onClick={() => setMenu(menu === n.id ? null : n.id)}>⋯</button>
                   </div>

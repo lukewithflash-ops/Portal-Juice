@@ -1,5 +1,6 @@
 "use client";
 
+import HandleEditor from "@/components/HandleEditor";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -215,6 +216,8 @@ function SignedIn() {
         </button>
         <p className="mt-1 text-center text-[11px] text-zinc-500">Picks, parlays, notes, streak, starred games, your team and Leaders name. Your picks stay private.</p>
       </div>
+
+      <HandleEditor />
 
       <div className="auth-panel p-4">
         <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-200">Add another device</h2>

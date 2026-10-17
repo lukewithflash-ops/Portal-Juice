@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { chatEnabled, cleanHandle, cleanText, listNotes, postNote } from "@/lib/chat";
-import { getProfile, uidOf } from "@/lib/social";
+import { ensureProfile, uidOf } from "@/lib/social";
 import { syncThreadPlays } from "@/lib/threadPlays";
 import { leagueById } from "@/lib/slate";
 import { sportLeague } from "@/lib/sports";
@@ -65,6 +65,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ league: string
 async function whoAmI(): Promise<{ handle: string } | null> {
   const u = await currentUser().catch(() => null);
   if (!u) return null;
-  const prof = await getProfile(u.id).catch(() => null);
+  const prof = await ensureProfile(u.id).catch(() => null);
   return prof ? { handle: prof.handle } : null;
 }

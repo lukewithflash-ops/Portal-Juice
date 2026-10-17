@@ -6,10 +6,12 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import FriendFeed from "@/components/FriendFeed";
+import { PosFor } from "@/components/LivePosition";
+import { usePositions } from "@/lib/positionsClient";
 
 type Overview = {
   signedIn: boolean;
-  me?: { handle: string; share: boolean } | null;
+  me?: { handle: string; share: boolean; edited?: boolean } | null;
   friends?: { handle: string; share: boolean }[];
   requests?: string[];
   blocked?: string[];
@@ -31,7 +33,6 @@ export default function FriendsClient() {
   const params = useSearchParams();
   const join = params.get("join");
   const [o, setO] = useState<Overview | null>(null);
-  const [handle, setHandle] = useState("");
   const [add, setAdd] = useState("");
   const [squad, setSquad] = useState("");
   const [code, setCode] = useState(join ?? "");
@@ -41,14 +42,6 @@ export default function FriendsClient() {
   const load = useCallback(async () => {
     const j = (await fetch("/api/friends", { cache: "no-store" }).then((r) => r.json()).catch(() => ({ signedIn: false }))) as Overview;
     setO(j);
-    if (j.me?.handle) setHandle(j.me.handle);
-    else {
-      try {
-        setHandle(localStorage.getItem("pj-leader-handle") || localStorage.getItem("pj-handle") || "");
-      } catch {
-        /* private mode */
-      }
-    }
   }, []);
   useEffect(() => {
     const t = setTimeout(load, 0);
@@ -67,21 +60,84 @@ export default function FriendsClient() {
     setMsg(j.joined ?? (j.status === "requested" ? "Request sent." : ok ?? "Done."));
     return true;
   }
+  const auto = params.get("go") === "1";
+  const [peek, setPeek] = useState<{ kind: "squad"; name: string; size: number } | { kind: "friend"; handle: string } | null | undefined>(join ? undefined : null);
+  const [dismissed, setDismissed] = useState(false);
+  const [joining, setJoining] = useState(false);
+  useEffect(() => {
+    if (!join) return;
+    fetch(`/api/friends?peek=${encodeURIComponent(join)}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => setPeek(j.invite ?? null))
+      .catch(() => setPeek(null));
+  }, [join]);
+  const joinNow = useCallback(async () => {
+    if (!join) return;
+    setJoining(true);
+    const ok = await act({ action: "join", code: join });
+    setJoining(false);
+    setDismissed(true);
+    try {
+      navigator.vibrate?.(ok ? 12 : [8, 40, 8]);
+    } catch {}
+    // Drop ?join so a reload doesn't ask again.
+    window.history.replaceState(null, "", "/friends");
+  }, [join]);
+  // Back from sign-in with ?go=1: finish the join without another tap.
   const joined = useRef(false);
   useEffect(() => {
-    if (!join || joined.current || !o?.signedIn || !o.me) return;
+    if (!join || !auto || joined.current || !o?.signedIn) return;
     joined.current = true;
-    const t = setTimeout(() => act({ action: "join", code: join }), 0);
+    const t = setTimeout(joinNow, 0);
     return () => clearTimeout(t);
-  }, [join, o]);
+  }, [join, auto, o, joinNow]);
+  const handles = [...new Set([...(o?.friends ?? []).map((f) => f.handle), ...(o?.squads ?? []).flatMap((x) => x.members), ...(o?.me ? [o.me.handle] : [])])];
+  const pos = usePositions(handles);
+  const sheet =
+    join && !dismissed && !(auto && o?.signedIn) ? (
+      <div data-layer="">
+        <div className="sheet-scrim" onClick={() => setDismissed(true)} aria-hidden />
+        <div role="dialog" aria-modal="true" aria-label="Join" className="sheet mx-auto max-w-lg" data-testid="join-sheet">
+          {peek === undefined ? (
+            <div className="skel h-24" />
+          ) : peek === null ? (
+            <>
+              <h2 className="text-[17px] font-bold text-white">That invite expired</h2>
+              <p className="mt-1 text-[13px] text-zinc-400">Ask for a fresh link or code.</p>
+              <button type="button" onClick={() => setDismissed(true)} className="press mt-4 w-full rounded-2xl border border-white/20 py-3 text-[15px] font-bold text-white">OK</button>
+            </>
+          ) : (
+            <>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-zinc-500">{peek.kind === "squad" ? "Squad invite" : "Friend invite"}</p>
+              <h2 className="mt-1 text-[22px] font-bold leading-tight text-white" data-testid="join-name">{peek.kind === "squad" ? peek.name : `@${peek.handle}`}</h2>
+              <p className="tabular mt-1 text-[13px] text-zinc-400">{peek.kind === "squad" ? `${peek.size} member${peek.size === 1 ? "" : "s"} · W/L/P/open only, never stakes` : "See each other's picks live. W/L/P/open only."}</p>
+              {o?.signedIn ? (
+                <button type="button" disabled={joining} onClick={joinNow} className="press mt-4 w-full rounded-2xl bg-[color:var(--plus)] py-3 text-[15px] font-bold text-black disabled:opacity-60" data-testid="join-go">
+                  {joining ? "Joining…" : peek.kind === "squad" ? "Join squad" : "Add friend"}
+                </button>
+              ) : (
+                <Link href={`/account?next=${encodeURIComponent(`/friends?join=${join}&go=1`)}`} className="press mt-4 block w-full rounded-2xl bg-[color:var(--plus)] py-3 text-center text-[15px] font-bold text-black" data-testid="join-signin">
+                  Join
+                </Link>
+              )}
+              {!o?.signedIn ? <p className="mt-2 text-center text-[12px] text-zinc-500">Sign in once and you&apos;re in. Your handle is set up for you.</p> : null}
+              <button type="button" onClick={() => setDismissed(true)} className="press mt-2 w-full py-2 text-[13px] font-semibold text-zinc-400">Not now</button>
+            </>
+          )}
+        </div>
+      </div>
+    ) : null;
   if (!o) return <SkelRows n={3} label="Loading squads" />;
   if (!o.signedIn) {
     return (
-      <div className="panel rounded-2xl p-4 text-sm text-zinc-300" data-testid="friends-signin">
-        Friends and squads need an account so only people you add can see your picks.{" "}
-        <Link href={`/account${join ? `?next=${encodeURIComponent("/friends?join=" + join)}` : ""}`} className="font-black text-white underline">Sign in</Link>
-        {join ? " and your invite will finish here." : "."}
-      </div>
+      <>
+        <div className="panel rounded-2xl p-4 text-sm text-zinc-300" data-testid="friends-signin">
+          Squads need an account so only people you add see your picks.{" "}
+          <Link href={`/account?next=${encodeURIComponent(join ? `/friends?join=${join}&go=1` : "/friends")}`} className="font-black text-white underline">Sign in</Link>
+          {join ? " and the invite finishes on its own." : "."}
+        </div>
+        {sheet}
+      </>
     );
   }
   async function shareLink(c: string, what: string) {
@@ -98,25 +154,21 @@ export default function FriendsClient() {
   }
   return (
     <div className="space-y-5" data-testid="friends">
-      <section className="quest-panel rounded-2xl p-4">
-        <h2 className="text-xs font-black uppercase tracking-[0.18em] text-purple-200">Your handle</h2>
-        <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); act({ action: "handle", handle }, "Handle saved."); }}>
-          <span className="self-center text-zinc-400">@</span>
-          <input value={handle} onChange={(e) => setHandle(e.target.value)} maxLength={16} className="field min-w-0 flex-1" aria-label="Handle" data-testid="friends-handle" />
-          <button type="submit" className="note-add rounded-xl px-3 text-sm font-black text-white" data-testid="friends-handle-save">{o.me ? "Update" : "Claim"}</button>
-        </form>
+      <section className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3" data-testid="friends-me">
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-1.5 text-[15px] font-bold text-white" data-testid="friends-handle-now">@{o.me?.handle}{o.me ? <PosFor handle={o.me.handle} map={pos} /> : null}</span>
+          <Link href="/account" className="text-[12px] text-zinc-500 underline-offset-2 hover:underline">{o.me?.edited ? "Your handle" : "Change handle (once) in Account"}</Link>
+        </span>
         {o.me ? (
-          <label className="mt-3 flex items-center gap-2 text-[13px] text-zinc-200">
+          <label className="flex shrink-0 items-center gap-2 text-[12px] text-zinc-300">
             <input type="checkbox" checked={o.me.share} onChange={async (e) => {
                 const on = e.target.checked;
                 setO((cur) => (cur?.me ? { ...cur, me: { ...cur.me, share: on } } : cur));
                 if (!(await act({ action: "share", on }, on ? "Friends can see your picks." : "Your picks are hidden from friends."))) setO((cur) => (cur?.me ? { ...cur, me: { ...cur.me, share: !on } } : cur));
               }} data-testid="friends-share" />
-            Share my picks with friends and squads (W/L/P/open only, never stakes)
+            Share picks
           </label>
-        ) : (
-          <p className="mt-2 text-[12px] text-zinc-400">Claim a handle so friends can find you.</p>
-        )}
+        ) : null}
       </section>
       {o.me ? (
         <>
@@ -158,7 +210,7 @@ export default function FriendsClient() {
             <ul className="mt-2 space-y-1.5" data-testid="friends-list">
               {(o.friends ?? []).map((f) => (
                 <li key={f.handle} className="flex items-center gap-2 text-sm">
-                  <b className="flex-1 text-white">@{f.handle}</b>
+                  <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5"><b className="text-white">@{f.handle}</b><PosFor handle={f.handle} map={pos} /></span>
                   {!f.share ? <span className="text-[11px] text-zinc-500">not sharing</span> : null}
                   <button type="button" onClick={() => act({ action: "remove", handle: f.handle }, "Removed.")} className="text-[12px] font-bold text-zinc-400">Remove</button>
                   <button type="button" onClick={() => act({ action: "block", handle: f.handle }, "Blocked.")} className="text-[12px] font-bold text-red-300">Block</button>
@@ -189,7 +241,15 @@ export default function FriendsClient() {
                     <button type="button" onClick={() => setQr(qr === s.id ? null : s.id)} className="text-[12px] font-black text-white">QR</button>
                     <button type="button" onClick={() => act({ action: "squad-leave", id: s.id }, "Left the squad.")} className="text-[12px] font-bold text-zinc-400">Leave</button>
                   </div>
-                  <p className="mt-1 text-[12px] text-zinc-400">{s.members.map((m) => "@" + m).join(" · ")} · code {s.code}</p>
+                  <ul className="mt-2 space-y-1" data-testid="squad-members">
+                    {s.members.map((m) => (
+                      <li key={m} className="flex flex-wrap items-center gap-1.5 text-[13px] text-zinc-300">
+                        <span>@{m}</span>
+                        <PosFor handle={m} map={pos} />
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="tabular mt-1 text-[11px] text-zinc-500">Code {s.code}</p>
                   {qr === s.id ? <div className="mt-2"><Qr text={linkFor(s.code)} label={`${s.name} QR`} /></div> : null}
                 </li>
               ))}
@@ -200,6 +260,7 @@ export default function FriendsClient() {
       {msg ? <p className="text-sm font-bold text-[color:var(--plus)]" role="status" data-testid="friends-msg">{msg}</p> : null}
       {err ? <p className="text-sm font-bold text-[color:var(--minus)]" role="alert" data-testid="friends-err">{err}</p> : null}
       {o.me ? <FriendFeed /> : null}
+      {sheet}
     </div>
   );
 }

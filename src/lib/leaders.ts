@@ -5,6 +5,18 @@ import { cleanLeg, rankLeaders, type LeaderRow, type Published } from "@/lib/lea
 
 const KEY = "pj:leaders";
 const OWNER = "pj:leaders:owner";
+/** Leader names published by the signed-in account that owns the same handle (live position can show). */
+const ACCT = "pj:leaders:acct";
+
+export async function markLeaderAccount(handle: string, on: boolean) {
+  if (!chatEnabled()) return;
+  await redis([on ? "SADD" : "SREM", ACCT, handle.toLowerCase()]);
+}
+
+export async function leaderAccounts(): Promise<string[]> {
+  if (!chatEnabled()) return [];
+  return ((await redis(["SMEMBERS", ACCT])) as string[] | null) ?? [];
+}
 
 function hash(token: string) {
   return createHash("sha256").update(token).digest("hex");
