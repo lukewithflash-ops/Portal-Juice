@@ -1,6 +1,7 @@
 import { pickGame, playerNameHit, gradeTennis, parseSlipRows as parseSlip2, slipDateOf, propMarketOf as pm2, tennisGames } from "../src/lib/slipImport";
 import { lineIssue, lineOk, plusLine, rereadLine } from "../src/lib/lineSanity";
 import { conflicts as slipConflicts, duplicates as slipDups } from "../src/lib/slipCheck";
+import { profane } from "../src/lib/chat";
 import { beatSeconds, needed, sweatOf } from "../src/lib/sweat";
 import { complete as qComplete, doneToday as qDone, EMPTY_QUESTS, mergeQuestJson, questsFor, questStreak } from "../src/lib/questsCore";
 import { diffList, emptyDoc, mergePush, resetCols } from "../src/lib/syncCore";
@@ -1744,5 +1745,11 @@ console.log(`\n${n} passed`);
     assert(Object.keys(d.put).join() === "n" && Object.keys(d.del).join() === "z", "sync: device diff");
     assert(resetCols(doc, ["picks"], 2000).cols.picks.items && Object.keys(resetCols(doc, ["picks"], 2000).cols.picks.items).length === 0, "sync: cloud reset");
     console.log("ok - sync");
+  }
+  // Game threads: the filter catches tricks without flagging real names.
+  {
+    assert(profane("sh1t call") && profane("f u c k") && profane("fuuuuck") && profane("b1tch"), "threads: filter catches leetspeak and spacing");
+    assert(!profane("Dickinson scores") && !profane("spicy game") && !profane("class act") && !profane("cocktail hour"), "threads: filter leaves real words alone");
+    console.log("ok - threads");
   }
 }

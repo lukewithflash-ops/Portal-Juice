@@ -926,3 +926,4 @@ html[data-quest="3"] .streak-chip { box-shadow: 0 0 12px rgba(168,85,247,0.9); }
 .emote-btn:active { transform: scale(1.3); }
 @media (prefers-reduced-motion: reduce) { .emote-btn { transition: none; } }
 .qr-box { box-shadow: 0 0 18px rgba(168,85,247,0.6); border: 2px solid rgba(168,85,247,0.7); }
+.thread-sys { border-left: 3px solid #39ff14; background: linear-gradient(90deg, rgba(57,255,20,0.12), rgba(124,58,237,0.08)); border-radius: 0.6rem; color: #e9ffe0; box-shadow: 0 0 12px rgba(57,255,20,0.18); }
