@@ -12,6 +12,7 @@ import { CrowdToggle, EmoteLayer, SoundToggle } from "@/components/Emotes";
 import DriveFeed from "@/components/DriveFeed";
 import { bigSwing, PitchMap, PlayPop, ShareFinal, ShotMap, Spotlight, SwingBanner, type Swing } from "@/components/GameGraphics";
 import GameChat from "@/components/GameChat";
+import { SweatPill } from "@/components/SweatMode";
 import { LiveNotes } from "@/components/Notes";
 import { LeadShockwave, leadFlip, LineMoveTags, PitcherFatigue, RedZoneAlarm, WinStrip, type Shock } from "@/components/GameUpgrades";
 import Mark from "@/components/Mark";
@@ -284,6 +285,7 @@ export default function GameLive({
           {edge ? <div key={edge.n} className="edge-lights" style={{ ["--edge" as string]: edge.color } as React.CSSProperties} aria-hidden /> : null}
           </div>
           <BetsDock variant="bar" />
+          <SweatPill league={league} id={id} />
           <Spotlight league={league} gameId={id} snap={snap} />
           <LiveNotes league={league} gameId={id} snap={snap} />
           {hoops && snap ? <ShotMap snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} /> : null}

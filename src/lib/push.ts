@@ -17,6 +17,8 @@ export type PushProp = {
   market: string;
   line: number;
   selection: "Over" | "Under" | null;
+  /** Parlay legs: slip id, its leg count, legs already settled hit/push, and whether one lost. */
+  slip?: { id: string; total: number; done: number; lost: boolean };
 };
 
 type PushGame = { league: string; id: string };
@@ -212,7 +214,8 @@ function cleanProp(raw: unknown): PushProp | null {
   if (!/^\d+$/.test(p.gameId) || typeof p.subject !== "string" || typeof p.market !== "string") return null;
   if (!Number.isFinite(p.line) || p.line <= 0) return null;
   const selection = p.selection === "Over" || p.selection === "Under" ? p.selection : null;
-  return { id: p.id.slice(0, 40), league: p.league.slice(0, 12), gameId: p.gameId, subject: p.subject.slice(0, 80), market: p.market.slice(0, 40), line: p.line, selection };
+  const sl = p.slip && typeof p.slip === "object" && typeof p.slip.id === "string" ? { id: p.slip.id.slice(0, 40), total: Math.min(30, Math.max(0, Number(p.slip.total) || 0)), done: Math.min(30, Math.max(0, Number(p.slip.done) || 0)), lost: p.slip.lost === true } : undefined;
+  return { id: p.id.slice(0, 40), league: p.league.slice(0, 12), gameId: p.gameId, subject: p.subject.slice(0, 80), market: p.market.slice(0, 40), line: p.line, selection, ...(sl ? { slip: sl } : {}) };
 }
 
 function cleanGame(raw: unknown): PushGame | null {
@@ -359,6 +362,7 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
     const tileLegs = new Map<string, TileLeg[]>();
     const alerted = new Set<string>();
     const recapReady: PushProp[] = [];
+    const legNow = new Map<string, Leg>();
     const liveCount = (row.props ?? []).filter((p) => snaps.get(`${p.league}/${p.gameId}`)?.state === "in").length;
     for (const g of gamesFor[i]) out.push(...(events.get(`${g.league}/${g.id}`) ?? []));
     for (const p of row.props ?? []) {
@@ -374,12 +378,35 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
       }
       const leg = legFromPick(asPick(p), snap, prevLeg?.value ?? null);
       if (!leg) continue;
+      legNow.set(p.id, leg);
       const gkey = `${p.league}/${p.gameId}`;
       if (snap.state === "post") recapReady.push(p);
       tileLegs.set(gkey, [...(tileLegs.get(gkey) ?? []), { name: leg.name, value: leg.value, line: leg.line, side: leg.side }]);
       const late = lateGame(p.league, snap.period, snap.state);
       out.push(...legEvents(prevLeg, leg, late, prevLeg?.late ?? false));
       await redis(["HSET", LEGS, key, JSON.stringify({ status: leg.status, value: leg.value, line: leg.line, side: leg.side, late })]);
+    }
+    // Last leg alive: every other leg of the parlay hit; one is still live.
+    const bySlip = new Map<string, PushProp[]>();
+    for (const p of row.props ?? []) if (p.slip && p.slip.total > 1 && !p.slip.lost) bySlip.set(p.slip.id, [...(bySlip.get(p.slip.id) ?? []), p]);
+    for (const [sid, ps] of bySlip) {
+      const s0 = ps[0].slip!;
+      if (s0.done + ps.length !== s0.total) continue;
+      const legsNow = ps.map((p) => ({ p, leg: legNow.get(p.id) }));
+      if (legsNow.some((x) => !x.leg || x.leg.status === "missed")) continue;
+      const open = legsNow.filter((x) => x.leg!.status !== "cleared");
+      if (open.length !== 1) continue;
+      const { p, leg } = open[0];
+      const snap = snaps.get(`${p.league}/${p.gameId}`);
+      if (!leg || !snap || snap.state !== "in" || (leg.status !== "on-track" && leg.status !== "behind")) continue;
+      const need = leg.side === "Over" && leg.value != null ? Math.floor(leg.line) + 1 - leg.value : null;
+      out.push({
+        kind: "sweat",
+        key: `sweat:${sid}`,
+        title: `🔥 Last leg alive: ${leg.name}`,
+        body: `${need != null && need > 0 ? `Needs ${need} more ${p.market}` : `${leg.side} ${leg.line} ${p.market}`} · ${s0.total - 1}/${s0.total} hit · ${snap.awayAbbr} ${snap.awayScore ?? 0}-${snap.homeScore ?? 0} ${snap.homeAbbr} ${snap.detail}`,
+        url: `/live?sweat=${encodeURIComponent(p.id)}`,
+      });
     }
     const muted = new Set(((await redis(["SMEMBERS", `pj:push:mute:${await deviceId(row.endpoint)}`]).catch(() => [])) as string[] | null) ?? []);
     const fav = favGame(row.team);

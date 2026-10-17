@@ -1,6 +1,7 @@
 import { pickGame, playerNameHit, gradeTennis, parseSlipRows as parseSlip2, slipDateOf, propMarketOf as pm2, tennisGames } from "../src/lib/slipImport";
 import { lineIssue, lineOk, plusLine, rereadLine } from "../src/lib/lineSanity";
 import { conflicts as slipConflicts, duplicates as slipDups } from "../src/lib/slipCheck";
+import { beatSeconds, needed, sweatOf } from "../src/lib/sweat";
 import { diffList, emptyDoc, mergePush, resetCols } from "../src/lib/syncCore";
 import { filterNotes, liveTag, matchupKey, notesForMatchup, notesForPick, notesForPlayer, pickPlayer } from "../src/lib/notesCore";
 import { _test as myLive } from "../src/lib/myLive";
@@ -1659,6 +1660,14 @@ console.log(`\n${n} passed`);
   assert(lineIssue("nhl", "shots on goal", 22)?.startsWith("Check this line") === true && lineIssue("nhl", "shots on goal", 0.5) === null, "slip lines: flag wording");
   assert(rereadLine("Beckett Sennecke\n#22 · ANA @ SJ · 5 picks · 3x\n1+ SOG -120", "Beckett Sennecke", "nhl", "shots on goal")?.line === 0.5, "slip lines: re-read skips jersey, count, multiplier, odds");
   console.log("ok - slip lines");
+  {
+    const lv = (state: string, i: number) => ({ pickId: "p" + i, state } as unknown as import("../src/lib/myLive").LegView);
+    const sv = (states: string[]) => ({ key: "s", legs: states.map(lv), total: states.length, hit: states.filter((x) => x === "hit").length, missed: states.filter((x) => x === "missed").length, alive: 0, push: 0, state: "alive", rank: 0, chance: null }) as unknown as import("../src/lib/myLive").SlipView;
+    assert(sweatOf(sv(["hit", "hit", "hit", "hit", "alive"]))?.leg.pickId === "p4", "sweat: last leg alive");
+    assert(sweatOf(sv(["hit", "missed", "alive"])) === null && sweatOf(sv(["hit", "alive", "alive"])) === null && sweatOf(sv(["alive"])) === null, "sweat: only one live leg after all others hit");
+    assert(needed(0.5, 0, true) === 1 && needed(2.5, 3, true) === null && beatSeconds(1) < beatSeconds(0), "sweat: needs and heartbeat");
+    console.log("ok - sweat");
+  }
   const L = (o: Partial<import("../src/lib/slipCheck").CheckLeg>) => ({ subject: "x", kind: "prop" as const, market: "points", line: 1.5, selection: "Over" as const, league: "nfl", gameId: "1", ...o });
   assert(slipConflicts([L({ kind: "moneyline", side: "home", subject: "KC" }), L({ kind: "moneyline", side: "away", subject: "BUF" })])[0]?.kind === "conflict", "slip check: both MLs");
   assert(slipConflicts([L({ subject: "Josh Allen", market: "passing yards", selection: "Under", team: "BUF" }), L({ subject: "Khalil Shakir", market: "receiving yards", selection: "Over", team: "BUF" })]).length === 1, "slip check: QB under + WR over");

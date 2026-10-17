@@ -21,9 +21,22 @@ export function alertsOn(): boolean {
 }
 
 function payload() {
-  const props = getPicks()
+  const all = getPicks();
+  const slips = new Map<string, { total: number; done: number; lost: boolean }>();
+  for (const p of all) {
+    if (!p.slipId) continue;
+    const s = slips.get(p.slipId) ?? { total: 0, done: 0, lost: false };
+    s.total += 1;
+    if (p.status === "win" || p.status === "push") s.done += 1;
+    if (p.status === "loss") s.lost = true;
+    slips.set(p.slipId, s);
+  }
+  const props = all
     .filter((p) => p.status === "open" && p.gameId && p.market && p.league)
-    .map((p) => ({ id: p.id, league: p.league, gameId: p.gameId, subject: p.subject, market: p.market, line: p.line, selection: p.selection ?? null }));
+    .map((p) => {
+      const s = p.slipId ? slips.get(p.slipId) : undefined;
+      return { id: p.id, league: p.league, gameId: p.gameId, subject: p.subject, market: p.market, line: p.line, selection: p.selection ?? null, ...(s && s.total > 1 ? { slip: { id: p.slipId!.slice(0, 40), ...s } } : {}) };
+    });
   const games = getFollows().map((f) => ({ league: f.league, id: f.id }));
   let team: { league: string; abbr: string; id: string } | null = null;
   try {

@@ -11,6 +11,8 @@ import ChromeVars from "@/components/ChromeVars";
 import PortalWipe from "@/components/PortalWipe";
 import { AutoGrade } from "@/components/AutoGrade";
 import { UndoToast } from "@/components/PickEdit";
+import SweatWatch from "@/components/SweatMode";
+import { Suspense } from "react";
 import { LiveHubProvider } from "@/components/LiveHub";
 import SiteFooter from "@/components/SiteFooter";
 import { SITE_NAME, SITE_URL, TAGLINE } from "@/lib/site";
@@ -69,6 +71,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <PortalWipe />
               <AutoGrade />
               <UndoToast />
+              <Suspense fallback={null}>
+                <SweatWatch />
+              </Suspense>
               <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-3">
                 <NotifyBanner />
                 {children}

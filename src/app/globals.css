@@ -889,3 +889,13 @@ html[data-streak] .site-chrome .wordmark { filter: drop-shadow(0 0 calc(8px + 3p
 .heat-row { box-shadow: inset 4px 0 0 var(--heat, transparent), 0 0 14px color-mix(in srgb, var(--heat, transparent) 25%, transparent); }
 .chip { border: 1px solid rgba(168,85,247,0.4); background: rgba(10,8,20,0.7); color: #d4d4d8; border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 800; }
 .chip-on { border-color: var(--plus); color: #fff; background: color-mix(in srgb, var(--plus) 18%, #07060d); box-shadow: 0 0 10px color-mix(in srgb, var(--plus) 45%, transparent); }
+
+/* Sweat mode */
+.sweat-stage { background: radial-gradient(ellipse at 50% 35%, rgba(57,255,20,0.16), transparent 55%), radial-gradient(ellipse at 50% 100%, rgba(124,58,237,0.35), transparent 60%), rgba(3,3,6,0.97); backdrop-filter: blur(6px); }
+.sweat-heart { animation: sweat-beat var(--beat, 1s) ease-in-out infinite; }
+.sweat-ring { box-shadow: 0 0 0 0 rgba(57,255,20,0.7); animation: sweat-ring var(--beat, 1s) ease-out infinite; }
+.sweat-fill { background: linear-gradient(90deg, #7c3aed, var(--plus)); box-shadow: 0 0 16px var(--plus); transition: width 0.6s ease; }
+@keyframes sweat-beat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.07); } 30% { transform: scale(0.98); } 45% { transform: scale(1.04); } }
+@keyframes sweat-ring { 0% { box-shadow: 0 0 0 0 rgba(57,255,20,0.65); } 100% { box-shadow: 0 0 0 28px rgba(57,255,20,0); } }
+@media (prefers-reduced-motion: reduce) { .sweat-heart, .sweat-ring { animation: none; } .sweat-ring { box-shadow: 0 0 22px rgba(57,255,20,0.6); } .sweat-fill { transition: none; } }
+.sweat-btn { background: linear-gradient(90deg, rgba(124,58,237,0.5), rgba(57,255,20,0.35)); border: 1px solid var(--plus); box-shadow: 0 0 12px rgba(57,255,20,0.45); }

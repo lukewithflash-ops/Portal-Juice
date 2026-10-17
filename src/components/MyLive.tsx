@@ -11,6 +11,8 @@ import { gameRoute } from "@/lib/gameRoute";
 import { getFollows, getServerFollows, subscribeFollows } from "@/lib/follows";
 import { getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
 import { PickActions } from "@/components/PickEdit";
+import { openSweat } from "@/components/SweatMode";
+import { sweatOf } from "@/lib/sweat";
 import { slipKeyOf, TONE_COLOR } from "@/lib/motivation";
 import { fieldGeom } from "@/lib/fieldGeom";
 import type { LiveSnap } from "@/lib/live";
@@ -668,7 +670,12 @@ function SlipBox({ slip, byKey, now, compact }: { slip: SlipView; byKey: Record<
           </div>
         </div>
       ) : null}
-      <div className="flex justify-end px-3 pb-2" data-testid="ml-slip-actions">
+      <div className="flex items-center justify-end gap-2 px-3 pb-2" data-testid="ml-slip-actions">
+        {sweatOf(slip) ? (
+          <button type="button" onClick={() => openSweat(sweatOf(slip)!.leg.pickId)} className="sweat-btn mr-auto rounded-lg px-2.5 py-1 text-[11px] font-black text-white" data-testid="sweat-open">
+            💓 Sweat it
+          </button>
+        ) : null}
         <SlipActions pickIds={slip.legs.map((l) => l.pickId)} />
       </div>
     </div>

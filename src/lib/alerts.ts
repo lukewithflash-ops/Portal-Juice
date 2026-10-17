@@ -8,11 +8,12 @@ import type { LivePlay, LiveSnap } from "@/lib/live";
 import { unitsNeeded, type Leg } from "@/lib/motivation";
 import { freshSubs } from "@/lib/lineup";
 
-export type AlertKind = "tile" | "score" | "lead" | "big" | "close" | "almost" | "redzone" | "cleared" | "final" | "player" | "sub";
+export type AlertKind = "tile" | "score" | "lead" | "big" | "close" | "almost" | "redzone" | "cleared" | "final" | "player" | "sub" | "sweat";
 
 export const ALERT_KINDS: { kind: AlertKind; label: string; hint: string }[] = [
   { kind: "tile", label: "Live game on lock screen", hint: "One quiet notification per game you follow that updates in place: score, clock, your props. Buzzes only for big moments." },
   { kind: "cleared", label: "Prop cleared", hint: "A logged leg hits its line." },
+  { kind: "sweat", label: "Last leg alive", hint: "Every other leg of a parlay hit and one is still live. Once per parlay; opens Sweat mode." },
   { kind: "player", label: "Your player", hint: "A player on your slips moves toward the line. One per player every 90 seconds." },
   { kind: "sub", label: "Your player subbed out", hint: "A player on your picks goes to the bench or is subbed off." },
   { kind: "almost", label: "Almost there", hint: "Late in the game (4th quarter, final period, 8th inning on), a logged leg is one stat from its line." },
@@ -25,7 +26,7 @@ export const ALERT_KINDS: { kind: AlertKind; label: string; hint: string }[] = [
 ];
 
 export type AlertPrefs = Record<AlertKind, boolean>;
-export const DEFAULT_ALERTS: AlertPrefs = { tile: true, cleared: true, player: true, close: true, final: true, lead: true, big: true, score: true, sub: true, almost: true, redzone: true };
+export const DEFAULT_ALERTS: AlertPrefs = { tile: true, cleared: true, player: true, close: true, final: true, lead: true, big: true, score: true, sub: true, almost: true, redzone: true, sweat: true };
 
 export type GameAlert = {
   kind: AlertKind;
