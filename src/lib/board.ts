@@ -23,6 +23,8 @@ export type StreakRow = {
   team: string;
   market: string;
   streak: number;
+  /** Times it hit across every stored line for this subject + market. */
+  hits: number;
   sample: number;
   lastLine: number;
   lastDate: string;
@@ -80,6 +82,7 @@ function streaks(
       team: last.team,
       market: last.market,
       streak,
+      hits: arr.filter(hit).length,
       sample: arr.length,
       lastLine: last.closingLine,
       lastDate: last.date,

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import Mark from "@/components/Mark";
+import Milestones from "@/components/Milestones";
 import { NoteTag } from "@/components/Notes";
 import { OddsText } from "@/components/Prefs";
 import HitChip, { heatColor } from "@/components/HitChip";
@@ -44,7 +45,7 @@ export default function PropsBoard({ groups }: { groups: PropsGroup[] }) {
   const rows = groups
     .filter((g) => league === "all" || g.game.league === league)
     .map((g) => ({ g, props: g.props.filter((p) => stat === "all" || statFromMarket(g.game.league, p.market) === stat) }))
-    .filter((x) => x.props.length);
+    .filter((x) => x.props.length || (stat === "all" && (x.g.milestones?.length ?? 0) > 0));
   const flat = hot && full
     ? rows.flatMap(({ g, props }) => props.map((p) => ({ g, p }))).sort((a, b) => (rates[keyOf(b.g, b.p, shift)] ?? -1) - (rates[keyOf(a.g, a.p, shift)] ?? -1))
     : null;
@@ -164,6 +165,7 @@ export default function PropsBoard({ groups }: { groups: PropsGroup[] }) {
                 ) : null}
               </div>
               <ul className="space-y-1.5">{props.map((p) => row(g, p))}</ul>
+              <Milestones league={g.game.league} gameId={g.game.id} rows={g.milestones ?? []} />
             </section>
           ))}
         </div>

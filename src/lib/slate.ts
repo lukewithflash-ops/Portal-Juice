@@ -1,3 +1,4 @@
+import { pickDk } from "@/lib/book";
 /** Pure slate types and parsers. No network. */
 
 export const LEAGUE_IDS = ["nfl", "nba", "mlb", "nhl", "ncaaf"] as const;
@@ -425,7 +426,7 @@ export function parseGame(
   const away = sides.find((s) => !s.home) ?? sides[1];
   if (!home || !away) return null;
   const oddsList = asList(comp.odds);
-  const rawOdds = oddsOverride ?? oddsList[0];
+  const rawOdds = oddsOverride ?? pickDk(oddsList);
   const { names, national } = broadcastsOf(comp);
   const id = str(event.id) ?? str(comp.id) ?? `${league.id}-${order}`;
   const start = str(event.date) ?? str(comp.date) ?? "";

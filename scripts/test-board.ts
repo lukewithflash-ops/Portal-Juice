@@ -33,7 +33,11 @@ import { FIXTURE } from "./fixtures/history.fixture";
 import { formatPrice } from "../src/lib/odds";
 import { lastNAverage, parsePrice, rankGames, sportsDate } from "../src/lib/slate";
 import { parseTeamCookie, parseTeamList } from "../src/lib/team";
-import { impliedChance, parseMvpMarket, parsePropItems, parseWeather, rankByImplied } from "../src/lib/detail";
+import { impliedChance, mvpTeam, parseMvpMarket, parsePropItems, parseWeather, propTeam, providerFromOddsList, rankByImplied } from "../src/lib/detail";
+import { gradedLines } from "../src/lib/historyCore";
+import { NEXT_EMPTY, addDay, pricedUpcoming, slateDone } from "../src/lib/nextSlate";
+import { NOTIFY_MIN_VISITS, mayShowNotify, notifyHiddenUntil } from "../src/lib/notifyRules";
+import { isDraftKings, pickDk } from "../src/lib/book";
 import { parseSlipText, safeSlipUrl } from "../src/lib/slip";
 import { choosePortalPick, gradePortalPick, portalRecord } from "../src/lib/portalPick";
 import { rankLeaders, cleanLeg, cleanLeaderHandle } from "../src/lib/leaderRank";
@@ -1836,3 +1840,95 @@ console.log(`\n${n} passed`);
     console.log("ok - vip");
   }
 }
+
+// t170: props on the right game, milestones apart, MVP team as ESPN sends it, graded board rows,
+// next slate over finals, quiet notification prompt, one book only.
+t("t170: milestone ladders never become the line; side markets dropped", () => {
+  const ref = (n: number) => ({ $ref: `http://x/athletes/${n}` });
+  const p = parsePropItems({
+    items: [
+      { type: { name: "Points Milestones" }, athlete: ref(5), current: { target: { displayValue: "18+", value: 18 } }, open: { target: { displayValue: "15+" } } },
+      { type: { name: "Points Milestones" }, athlete: ref(5), current: { target: { displayValue: "25+", value: 25 } } },
+      { type: { name: "Total Points (incl. overtime)" }, athlete: ref(5), current: { target: { displayValue: "22.5" } }, open: { target: { displayValue: "18+" } } },
+      { type: { name: "1st Quarter Points" }, athlete: ref(5), current: { target: { displayValue: "6.5" } } },
+      { type: { name: "Anytime Goal Scorer" }, athlete: ref(6), current: { target: { displayValue: "0.5" } } },
+      { type: { name: "Total Rebounds" }, athlete: ref(6), current: { target: { displayValue: "9+" } } },
+    ],
+  });
+  assert.equal(p.drafts.length, 1);
+  assert.equal(p.drafts[0].line, "22.5");
+  assert.equal(p.drafts[0].market, "Points");
+  assert.equal(p.drafts[0].openLine, null, "a ladder rung is never an open line");
+  assert.ok(p.drafts.every((d) => !d.line.includes("+")));
+  assert.deepEqual(p.milestones.map((m) => m.label), ["18+", "25+"]);
+  assert.ok(p.milestones.every((m) => !/milestone/i.test(m.market)));
+});
+
+t("t170: a player shows only on his own team's game; MVP team is ESPN's or blank", () => {
+  const teams = { "2": "BOS", "20": "PHI" };
+  assert.equal(propTeam("2", teams), "BOS");
+  assert.equal(propTeam("13", teams), null, "LeBron (LAL) never on BOS @ PHI");
+  assert.equal(propTeam(null, teams), null);
+  assert.equal(mvpTeam("14", { "14": "MIA" }), "MIA");
+  assert.equal(mvpTeam("99", { "14": "MIA" }), "");
+  assert.equal(mvpTeam(null, {}), "");
+});
+
+t("t170: graded board lines come from closing main lines and the box score", () => {
+  const box = (abbr: string, players: { id: string; name: string; pts?: string; played?: boolean }[]) => ({ abbr, color: "", columns: [], players: players.map((x) => ({ id: x.id, name: x.name, starter: true, played: x.played ?? true, stats: [], statMap: (x.pts ? { points: x.pts, PTS: x.pts } : {}) as Record<string, string> })) });
+  const rows = gradedLines({
+    league: "nba", gameId: "1", date: "2026-10-10",
+    home: { abbr: "PHI", name: "76ers", score: 110 }, away: { abbr: "BOS", name: "Celtics", score: 104 },
+    spreadHome: -3.5,
+    props: [
+      { athleteId: "1", name: "Joel Embiid", team: "PHI", market: "Points", line: "28.5", headshot: null },
+      { athleteId: "2", name: "LeBron James", team: "LAL", market: "Points", line: "24.5", headshot: null },
+      { athleteId: "3", name: "Jayson Tatum", team: "BOS", market: "Points", line: "25+", headshot: null },
+      { athleteId: "4", name: "Jaylen Brown", team: "BOS", market: "Points", line: "23.5", headshot: null },
+    ],
+    boxes: [box("PHI", [{ id: "1", name: "Joel Embiid", pts: "31" }]), box("BOS", [{ id: "3", name: "Jayson Tatum", pts: "30" }, { id: "4", name: "Jaylen Brown", played: false }])],
+  });
+  const sides = rows.filter((r) => r.kind === "side");
+  const props = rows.filter((r) => r.kind === "prop");
+  assert.equal(sides.length, 2);
+  assert.equal(sides.find((r) => r.team === "PHI")?.result, 6);
+  assert.equal(sides.find((r) => r.team === "BOS")?.closingLine, 3.5);
+  assert.equal(props.length, 1, "wrong-team, milestone and DNP rows dropped");
+  assert.equal(props[0].subject, "Joel Embiid");
+  assert.equal(props[0].closingLine, 28.5);
+  assert.equal(props[0].result, 31);
+});
+
+t("t170: next slate goes above finals; empty text when ESPN has no number", () => {
+  const pr = (total: number | null) => (total == null ? null : ({ total, spreadHome: null, homeMl: null, awayMl: null } as never));
+  assert.ok(slateDone([{ state: "post" }, { state: "post" }]));
+  assert.ok(slateDone([]));
+  assert.ok(!slateDone([{ state: "post" }, { state: "in" }]));
+  const up = pricedUpcoming([{ state: "pre", price: pr(221.5) }, { state: "pre", price: pr(null) }, { state: "post", price: pr(210.5) }]);
+  assert.equal(up.length, 1);
+  assert.equal(NEXT_EMPTY, "Next slate posts when ESPN sends a number.");
+  assert.equal(addDay("20261031", 1), "20261101");
+});
+
+t("t170: notification prompt never on first visit, backs off after each dismiss", () => {
+  const now = Date.parse("2026-10-17T12:00:00Z");
+  assert.ok(!mayShowNotify({ visits: 1, dismissals: 0, lastDismiss: 0, now }));
+  assert.ok(mayShowNotify({ visits: NOTIFY_MIN_VISITS, dismissals: 0, lastDismiss: 0, now }));
+  assert.ok(!mayShowNotify({ visits: 5, dismissals: 1, lastDismiss: now - 3 * 86400000, now }));
+  assert.ok(mayShowNotify({ visits: 5, dismissals: 1, lastDismiss: now - 8 * 86400000, now }));
+  assert.equal(notifyHiddenUntil(3, now), Number.POSITIVE_INFINITY);
+});
+
+t("t170: one book only — DraftKings picked, no second-book price", () => {
+  const list = [{ provider: { id: "58", name: "ESPN BET" }, overUnder: 220 }, { provider: { id: "100", name: "Draft Kings" }, overUnder: 221.5 }];
+  assert.equal(pickDk(list)?.overUnder, 221.5);
+  assert.ok(isDraftKings({ name: "DraftKings" }) && !isDraftKings({ id: "58", name: "ESPN BET" }));
+  assert.deepEqual(providerFromOddsList({ items: list }), { id: "100", name: "DraftKings" });
+  assert.equal(parseMvpMarket({ items: [{ name: "Regular Season MVP", futures: [{ provider: { name: "ESPN BET" }, books: [{ athlete: { $ref: "http://x/athletes/9" }, value: "+280" }] }] }] }), null, "no DraftKings futures, no MVP board");
+  const files: string[] = [];
+  const walk = (d: string) => { for (const f of readdirSync(d)) { const p = join(d, f); if (statSync(p).isDirectory()) walk(p); else if (/\.(tsx?)$/.test(f)) files.push(p); } };
+  walk(join(__dirname, "../src/components"));
+  walk(join(__dirname, "../src/app"));
+  const bad = files.filter((f) => !/PortfolioClient|slip\/read/.test(f)).filter((f) => /fanduel|betmgm|caesars/i.test(readFileSync(f, "utf8")));
+  assert.deepEqual(bad, [], "no second sportsbook rendered");
+});

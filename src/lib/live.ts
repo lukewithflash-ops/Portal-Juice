@@ -1,5 +1,6 @@
 /** Slim live snapshot parsed from an ESPN summary. No network. */
 
+import { pickDk } from "@/lib/book";
 import { parseOddsMove } from "@/lib/detail";
 
 type Dict = Record<string, unknown>;
@@ -261,7 +262,7 @@ export function parseLive(data: unknown): LiveSnap | null {
   const status = asDict(asDict(comp.status).type);
   const stateRaw = str(status.state);
   const state: LiveSnap["state"] = stateRaw === "in" || stateRaw === "post" ? stateRaw : "pre";
-  const move = parseOddsMove(asList(d.pickcenter)[0] ?? asList(d.odds)[0]);
+  const move = parseOddsMove(pickDk(asList(d.pickcenter)) ?? pickDk(asList(d.odds)));
 
   const boxes: LiveBox[] = [];
   for (const raw of asList(asDict(d.boxscore).players)) {

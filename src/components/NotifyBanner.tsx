@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { enablePush, pushState, sendTestPush, type PushState } from "@/lib/pushClient";
+import { mayShowNotify, NOTIFY_DELAY_MS } from "@/lib/notifyRules";
 
 const HIDE = "pj-notify-hide";
-const HIDE_MS = 3 * 24 * 60 * 60 * 1000;
+const COUNT = "pj-notify-dismiss";
+const VISITS = "pj-visits";
 
 function ShareIcon() {
   return (
@@ -15,7 +17,11 @@ function ShareIcon() {
   );
 }
 
-/** Shows until this device can get pushes. Every button runs from a tap, which iPhone requires. */
+/**
+ * A small prompt above the tab bar, never over content and never on first paint: it waits 20 s after load,
+ * skips the first visit, and each "Not now" pushes it out (7 days, then 30, then off). It mounts once in the
+ * layout, so navigating never brings it back. Every button runs from a tap, which iPhone requires.
+ */
 export default function NotifyBanner() {
   const [st, setSt] = useState<PushState | null>(null);
   const [note, setNote] = useState("");
@@ -24,15 +30,31 @@ export default function NotifyBanner() {
 
   useEffect(() => {
     let stop = false;
-    pushState()
-      .then((s) => {
-        if (stop) return;
-        setSt(s);
-        setHidden(Date.now() - (Number(localStorage.getItem(HIDE)) || 0) < HIDE_MS);
-      })
-      .catch(() => {});
+    let visits = 0;
+    try {
+      visits = Number(localStorage.getItem(VISITS)) || 0;
+      if (!sessionStorage.getItem(VISITS)) {
+        sessionStorage.setItem(VISITS, "1");
+        visits += 1;
+        localStorage.setItem(VISITS, String(visits));
+      }
+    } catch {
+      return;
+    }
+    const t = setTimeout(() => {
+      const ok = mayShowNotify({ visits, dismissals: Number(localStorage.getItem(COUNT)) || (localStorage.getItem(HIDE) ? 1 : 0), lastDismiss: Number(localStorage.getItem(HIDE)) || 0, now: Date.now() });
+      if (!ok) return;
+      pushState()
+        .then((s) => {
+          if (stop) return;
+          setSt(s);
+          setHidden(false);
+        })
+        .catch(() => {});
+    }, NOTIFY_DELAY_MS);
     return () => {
       stop = true;
+      clearTimeout(t);
     };
   }, []);
 
@@ -42,7 +64,7 @@ export default function NotifyBanner() {
   const needsHome = st.ios && !st.standalone;
 
   return (
-    <section aria-label="Notifications" className="mb-3 rounded-xl border border-[color:var(--plus)]/40 bg-[color:var(--plus)]/10 p-3 text-sm">
+    <section aria-label="Notifications" data-layer data-testid="notify-banner" className="fixed inset-x-3 bottom-[calc(var(--tabbar)+0.75rem)] z-40 mx-auto max-w-md rounded-xl border border-[color:var(--plus)]/40 bg-[#07130a]/95 p-3 text-sm shadow-2xl backdrop-blur">
       <div className="flex items-start gap-2">
         <span aria-hidden className="text-lg leading-none">🔔</span>
         <div className="min-w-0 flex-1">
@@ -98,6 +120,8 @@ export default function NotifyBanner() {
               className="px-2 py-1.5 text-xs text-zinc-400"
               onClick={() => {
                 localStorage.setItem(HIDE, String(Date.now()));
+                if (!ready) localStorage.setItem(COUNT, String((Number(localStorage.getItem(COUNT)) || 0) + 1));
+                else localStorage.setItem(COUNT, "9");
                 setHidden(true);
               }}
             >

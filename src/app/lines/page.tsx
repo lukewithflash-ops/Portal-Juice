@@ -6,6 +6,8 @@ import Link from "next/link";
 import { biggestMoves, hotTrends, marketFavorites } from "@/lib/best";
 import LineBoard from "@/components/LineBoard";
 import { getSlate, getTrends } from "@/lib/espn";
+import NextSlate from "@/components/NextSlate";
+import { nextSlate } from "@/lib/nextSlateServer";
 import { PortalPickPanel } from "@/components/PortalPickPanel";
 import VipStrip from "@/components/VipStrip";
 import { portalPickToday } from "@/lib/portalPickStore";
@@ -26,6 +28,8 @@ export default async function LinesPage() {
   const now = Date.now();
   const staleIds = snap.rows.filter((r) => isStale(r, now)).map((r) => r.id);
   const portal = await portalPickToday(slate.games, sportsDate());
+  // Slate over: put the next slate that has a real number on top of the finals.
+  const next = await nextSlate(slate).catch(() => null);
   return (
     <>
 <PageHeader title="Lines" sub="Where the number moved. Tap one for its history." />
@@ -47,6 +51,7 @@ export default async function LinesPage() {
           hot={hotTrends(trends.trends)[0] ?? null}
         />
       </section>
+      {next ? <NextSlate label={next.label} games={next.games} /> : null}
       <GamesBoard games={slate.games} fetchedAt={slate.fetchedAt} dayLabel={slate.dayLabel} missing={slate.missing} />
       <div className="mt-10 border-t border-purple-500/15 pt-2">
         <h2 className="text-xs font-bold uppercase tracking-[0.22em] text-purple-200/80">Props and sides</h2>

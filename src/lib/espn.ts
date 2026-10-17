@@ -1,6 +1,9 @@
 import "server-only";
 import { soccerBoxes } from "@/lib/soccerBox";
 import { sportLeague } from "@/lib/sports";
+import { pickDk } from "@/lib/book";
+import { mvpTeam, propTeam } from "@/lib/detail";
+export { mvpTeam, propTeam };
 import { unstable_cache } from "next/cache";
 import { allowedHeadshot } from "@/lib/headshots";
 import { implied } from "@/lib/odds";
@@ -13,6 +16,7 @@ import {
   seasonStatLine,
   type GameDetail,
   type PropDraft,
+  type MilestoneDraft,
 } from "@/lib/detail";
 import {
   LEAGUES,
@@ -262,7 +266,7 @@ export async function getGame(leagueId: string, id: string): Promise<Game | null
           string,
           unknown
         >;
-        const odds = Array.isArray(comp.odds) && comp.odds.length ? comp.odds[0] : d.pickcenter?.[0];
+        const odds = Array.isArray(comp.odds) && comp.odds.length ? pickDk(comp.odds) : pickDk(d.pickcenter ?? []);
         const event = {
           id,
           date: (comp.date as string) || (header.date as string) || "",
@@ -352,10 +356,14 @@ export type HydratedProp = PropDraft & {
   provider: string;
 };
 
+/** A milestone rung ("18+ points"). Shown behind Analyze, labeled Milestone. Never a main line. */
+export type HydratedMilestone = MilestoneDraft & { name: string; team: string; headshot: string | null; provider: string };
+
 export type DetailBundle = {
   game: Game;
   detail: GameDetail;
   props: HydratedProp[];
+  milestones: HydratedMilestone[];
   propTotal: number;
   propProvider: string | null;
 };
@@ -384,6 +392,7 @@ export type PropsGroup = {
   provider: string | null;
   total: number;
   props: HydratedProp[];
+  milestones: HydratedMilestone[];
 };
 
 async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<void>): Promise<void> {
@@ -405,13 +414,13 @@ function teamIdFromRef(ref: unknown): string | null {
   return m?.[1] ?? null;
 }
 
-async function readCoreAthlete(league: League, id: string): Promise<{
+async function readCoreAthlete(league: League, id: string, season?: number): Promise<{
   name: string | null;
   headshot: string | null;
   teamId: string | null;
 }> {
   const data = (await getJson(
-    `https://sports.core.api.espn.com/v2/sports/${league.sport}/leagues/${league.slug}/athletes/${id}`
+    `https://sports.core.api.espn.com/v2/sports/${league.sport}/leagues/${league.slug}/${season ? `seasons/${season}/` : ""}athletes/${id}`
   )) as Record<string, unknown>;
   const head = data.headshot as { href?: string } | undefined;
   const team = data.team as { $ref?: string } | undefined;
@@ -422,23 +431,25 @@ async function readCoreAthlete(league: League, id: string): Promise<{
   };
 }
 
-async function hydrate(
+/**
+ * Names, faces and teams from ESPN. A player only stays if ESPN puts him on one of the two teams in this
+ * game (ESPN's prop feed has listed players from other games); unmatched rows are dropped, never printed.
+ */
+async function hydrate<T extends { athleteId: string }>(
   league: League,
-  drafts: PropDraft[],
+  drafts: T[],
   provider: string,
   teams: Record<string, string>
-): Promise<HydratedProp[]> {
+): Promise<(T & { name: string; team: string; headshot: string | null; provider: string })[]> {
   const ids = [...new Set(drafts.map((d) => d.athleteId))];
   const people = new Map<string, { name: string; team: string; headshot: string | null }>();
   await pool(ids, 10, async (id) => {
     try {
       const a = await readCoreAthlete(league, id);
       if (!a.name) return;
-      people.set(id, {
-        name: a.name,
-        team: (a.teamId && teams[a.teamId]) || "",
-        headshot: a.headshot,
-      });
+      const team = propTeam(a.teamId, teams);
+      if (!team) return;
+      people.set(id, { name: a.name, team, headshot: a.headshot });
     } catch {
       /* skip a player the feed did not resolve */
     }
@@ -450,30 +461,33 @@ async function hydrate(
   });
 }
 
+const asDict = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+const asList = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+
+/** id → abbreviation from ESPN's team list (only the team entries, nothing nested). */
 async function teamDirectory(league: League): Promise<Record<string, string>> {
   try {
-    const data = await getJson(
-      `https://site.api.espn.com/apis/site/v2/sports/${league.sport}/${league.slug}/teams?limit=400`
-    );
+    const data = asDict(await getJson(`https://site.api.espn.com/apis/site/v2/sports/${league.sport}/${league.slug}/teams?limit=400`));
     const out: Record<string, string> = {};
-    const walk = (v: unknown) => {
-      if (Array.isArray(v)) {
-        v.forEach(walk);
-        return;
-      }
-      if (!v || typeof v !== "object") return;
-      const d = v as Record<string, unknown>;
-      if (typeof d.id === "string" && typeof d.abbreviation === "string" && d.abbreviation.length <= 6) {
-        out[d.id] = d.abbreviation;
-      }
-      for (const child of Object.values(d)) {
-        if (child && typeof child === "object") walk(child);
-      }
-    };
-    walk(data);
+    for (const sp of asList(data.sports))
+      for (const lg of asList(asDict(sp).leagues))
+        for (const t of asList(asDict(lg).teams)) {
+          const team = asDict(asDict(t).team);
+          if (typeof team.id === "string" && typeof team.abbreviation === "string") out[team.id] = team.abbreviation;
+        }
     return out;
   } catch {
     return {};
+  }
+}
+
+/** ESPN's current season year for a league (NBA in October 2026 is 2027). Falls back to the calendar year. */
+async function currentSeason(league: League, fallback: number): Promise<number> {
+  try {
+    const y = Number(asDict(asDict(await getJson(`https://sports.core.api.espn.com/v2/sports/${league.sport}/leagues/${league.slug}`)).season).year);
+    return Number.isInteger(y) && y > 2000 ? y : fallback;
+  } catch {
+    return fallback;
   }
 }
 
@@ -481,6 +495,7 @@ async function loadPropDrafts(league: League, eventId: string, limit: number): P
   provider: string | null;
   total: number;
   drafts: PropDraft[];
+  milestones: MilestoneDraft[];
 }> {
   const base = `https://sports.core.api.espn.com/v2/sports/${league.sport}/leagues/${league.slug}/events/${eventId}/competitions/${eventId}/odds`;
   let providerId = "100";
@@ -492,14 +507,15 @@ async function loadPropDrafts(league: League, eventId: string, limit: number): P
       provider = listed.name;
     }
   } catch {
-    return { provider: null, total: 0, drafts: [] };
+    return { provider: null, total: 0, drafts: [], milestones: [] };
   }
   try {
-    const data = await getJson(`${base}/${providerId}/propBets?limit=${limit}`);
+    // Milestone ladders come first in ESPN's list; ask for the whole page so main lines are not cut off.
+    const data = await getJson(`${base}/${providerId}/propBets?limit=1000`);
     const parsed = parsePropItems(data);
-    return { provider, total: parsed.total, drafts: parsed.drafts };
+    return { provider, total: parsed.drafts.length, drafts: parsed.drafts.slice(0, limit), milestones: parsed.milestones.slice(0, 200) };
   } catch {
-    return { provider, total: 0, drafts: [] };
+    return { provider, total: 0, drafts: [], milestones: [] };
   }
 }
 
@@ -520,7 +536,7 @@ async function loadDetail(leagueId: string, id: string): Promise<DetailBundle | 
   const d = summary as { header?: Record<string, unknown>; pickcenter?: unknown[] };
   const header = (d.header ?? {}) as Record<string, unknown>;
   const comp = (Array.isArray(header.competitions) ? header.competitions[0] : {}) as Record<string, unknown>;
-  const odds = Array.isArray(comp.odds) && comp.odds.length ? comp.odds[0] : d.pickcenter?.[0];
+  const odds = Array.isArray(comp.odds) && comp.odds.length ? pickDk(comp.odds) : pickDk(d.pickcenter ?? []);
   const game = parseGame(
     league,
     { id, date: (comp.date as string) || "", competitions: [comp] },
@@ -531,11 +547,15 @@ async function loadDetail(leagueId: string, id: string): Promise<DetailBundle | 
   const detail = parseSummaryDetail(summary, league.label);
   const teams: Record<string, string> = { [game.home.id]: game.home.abbr, [game.away.id]: game.away.abbr };
   const propsRaw = await loadPropDrafts(league, id, 80);
-  const props = await hydrate(league, propsRaw.drafts, propsRaw.provider || "ESPN", teams);
+  const [props, milestones] = await Promise.all([
+    hydrate(league, propsRaw.drafts, propsRaw.provider || "ESPN", teams),
+    hydrate(league, propsRaw.milestones, propsRaw.provider || "ESPN", teams),
+  ]);
   return {
     game,
     detail,
     props,
+    milestones,
     propTotal: propsRaw.total,
     propProvider: propsRaw.provider,
   };
@@ -558,10 +578,13 @@ async function loadPropsBoard(day: string): Promise<{ groups: PropsGroup[]; fetc
     if (!league) continue;
     const raw = await loadPropDrafts(league, game.id, 40);
     const teams: Record<string, string> = { [game.home.id]: game.home.abbr, [game.away.id]: game.away.abbr };
-    const props = await hydrate(league, raw.drafts.slice(0, 6), raw.provider || "ESPN", teams);
-    groups.push({ game, provider: raw.provider, total: raw.total, props });
+    const [props, milestones] = await Promise.all([
+      hydrate(league, raw.drafts.slice(0, 6), raw.provider || "ESPN", teams),
+      hydrate(league, raw.milestones.slice(0, 30), raw.provider || "ESPN", teams),
+    ]);
+    groups.push({ game, provider: raw.provider, total: raw.total, props, milestones });
   }
-  return { groups: groups.filter((g) => g.props.length > 0), fetchedAt: new Date().toISOString() };
+  return { groups: groups.filter((g) => g.props.length > 0 || g.milestones.length > 0), fetchedAt: new Date().toISOString() };
 }
 
 export function getPropsBoard(): Promise<{ groups: PropsGroup[]; fetchedAt: string }> {
@@ -574,9 +597,11 @@ async function loadMvp(year: number): Promise<{ groups: MvpGroup[]; fetchedAt: s
   const groups: MvpGroup[] = [];
   for (const league of wanted) {
     let data: unknown;
+    // The season ESPN is on now, not the calendar year: NBA 2026–27 is season 2027.
+    const season = await currentSeason(league, year);
     try {
       data = await getJson(
-        `https://sports.core.api.espn.com/v2/sports/${league.sport}/leagues/${league.slug}/seasons/${year}/futures?limit=50`
+        `https://sports.core.api.espn.com/v2/sports/${league.sport}/leagues/${league.slug}/seasons/${season}/futures?limit=50`
       );
     } catch {
       continue;
@@ -588,13 +613,14 @@ async function loadMvp(year: number): Promise<{ groups: MvpGroup[]; fetchedAt: s
     const top = new Set(market.books.slice(0, 12).map((b) => b.athleteId));
     await pool(market.books, 10, async (book) => {
       try {
-        const a = await readCoreAthlete(league, book.athleteId);
+        // The team ESPN lists for this player in this season; unmatched → no team shown.
+        const a = await readCoreAthlete(league, book.athleteId, season).catch(() => readCoreAthlete(league, book.athleteId));
         if (!a.name) return;
         let stats = "";
         if (top.has(book.athleteId)) {
           try {
             const statJson = await getJson(
-              `https://sports.core.api.espn.com/v2/sports/${league.sport}/leagues/${league.slug}/seasons/${year}/types/2/athletes/${book.athleteId}/statistics`
+              `https://sports.core.api.espn.com/v2/sports/${league.sport}/leagues/${league.slug}/seasons/${season}/types/2/athletes/${book.athleteId}/statistics`
             );
             stats = seasonStatLine(statJson);
           } catch {
@@ -604,7 +630,7 @@ async function loadMvp(year: number): Promise<{ groups: MvpGroup[]; fetchedAt: s
         rows.push({
           id: `${league.id}-${book.athleteId}`,
           name: a.name,
-          team: (a.teamId && teams[a.teamId]) || "",
+          team: mvpTeam(a.teamId, teams),
           headshot: a.headshot,
           odds: book.odds,
           oddsNum: book.oddsNum,

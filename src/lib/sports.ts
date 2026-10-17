@@ -1,4 +1,5 @@
 /** More sports from ESPN: soccer, tennis, golf, MMA, more basketball. Pure parsers, no network. */
+import { pickDk } from "@/lib/book";
 import { american, finiteNumber, parsePrice, spreadText, type GameState } from "@/lib/slate";
 import { winPct, type WinPct } from "@/lib/winPct";
 import { ESPN_CATALOG } from "@/lib/espnCatalog";
@@ -179,7 +180,7 @@ export function parseMatch(league: SportLeague, eventName: string, compRaw: unkn
     hi = byOrder[1].i;
   }
   const { state, detail, clock } = stateOf(comp.status);
-  const price = parseMatchPrice(asList(comp.odds)[0]);
+  const price = parseMatchPrice(pickDk(asList(comp.odds)));
   const home = ents[hi] as Entrant;
   const away = ents[ai] as Entrant;
   if (price?.spread) price.spread = price.spread.replace(/^Home\b/, home.short).replace(/^Away\b/, away.short);

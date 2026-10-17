@@ -63,7 +63,7 @@ export default function RecordList({
                   className="big-num block text-2xl font-black text-[color:var(--plus)]"
                 />
                 <div className="tabular text-[10px] uppercase tracking-wider text-zinc-500">
-                  {it.statKind === "streak" ? "straight" : it.detail} · n={it.sample}
+                  {it.statKind === "streak" ? `straight · ${it.detail ?? ""}` : it.detail} · n={it.sample}
                 </div>
               </div>
             </li>

@@ -2,6 +2,7 @@ import { gameRoute } from "@/lib/gameRoute";
 import Link from "next/link";
 import { OddsText } from "@/components/Prefs";
 import Mark from "@/components/Mark";
+import Milestones from "@/components/Milestones";
 import type { DetailBundle, HydratedProp } from "@/lib/espn";
 import { ptDayTime } from "@/lib/time";
 
@@ -26,7 +27,7 @@ function Fold({
 
 function PropGroups({ props, provider, total }: { props: HydratedProp[]; provider: string | null; total: number }) {
   if (!props.length) {
-    return <p className="text-sm text-zinc-400">No player props posted for this game.</p>;
+    return <p className="text-sm text-zinc-400">No main player over/under lines posted for this game.</p>;
   }
   const groups = new Map<string, HydratedProp[]>();
   for (const p of props) {
@@ -39,7 +40,7 @@ function PropGroups({ props, provider, total }: { props: HydratedProp[]; provide
       <p className="text-[11px] text-zinc-500">
         {provider ? `${provider}. ` : ""}
         Showing {props.length}
-        {total > props.length ? ` of ${total}` : ""} lines ESPN returned. No price is filled in.
+        {total > props.length ? ` of ${total}` : ""} main lines ESPN returned. No price is filled in.
       </p>
       {[...groups.entries()].map(([market, rows]) => (
         <div key={market}>
@@ -146,6 +147,7 @@ export default function GameDetailView({ bundle }: { bundle: DetailBundle }) {
 
       <Fold title="Show all lines">
         <PropGroups props={props} provider={propProvider} total={propTotal} />
+        <Milestones league={game.league} gameId={game.id} rows={bundle.milestones ?? []} />
       </Fold>
 
       <Fold title="Place and broadcast" open>

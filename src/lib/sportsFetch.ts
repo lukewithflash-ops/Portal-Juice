@@ -1,3 +1,4 @@
+import { pickDk } from "@/lib/book";
 import "server-only";
 import { EspnMissing, getJson } from "@/lib/espn";
 import { parseMatch, parseMatchFeed, parseMatchPrice, parseMatchStats, parseSportScoreboard, sportLeague, summaryProjection, type Match, type MatchEvent, type SportSlate, type StatRow } from "@/lib/sports";
@@ -39,7 +40,7 @@ export async function getMatch(id: string, matchId: string): Promise<MatchPage |
     const comp = ((summary as { header?: { competitions?: unknown[] } }).header?.competitions ?? [])[0];
     if (comp) match = parseMatch(league, "", comp, "");
     if (match && !match.price) {
-      const pc = ((summary as { pickcenter?: unknown[] }).pickcenter ?? [])[0];
+      const pc = pickDk((summary as { pickcenter?: unknown[] }).pickcenter ?? []);
       match.price = parseMatchPrice(pc);
     }
   }

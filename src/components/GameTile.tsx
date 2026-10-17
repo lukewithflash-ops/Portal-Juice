@@ -209,8 +209,8 @@ export default function GameTile({
       {rich &&
         (game.price ? (
           <PriceBlock price={game.price} home={game.home.abbr} away={game.away.abbr} />
-        ) : (
-          <p className="mt-3 text-sm text-zinc-400">No total, spread, or moneyline from ESPN for this game.</p>
+        ) : game.state === "post" ? null : (
+          <p className="mt-3 text-sm text-zinc-400">No total, spread, or moneyline from ESPN yet.</p>
         ))}
 
       {moved && (

@@ -1,3 +1,4 @@
+import { pickDk } from "@/lib/book";
 import "server-only";
 import { unstable_cache } from "next/cache";
 import { getJson, getGameDetail } from "@/lib/espn";
@@ -187,7 +188,7 @@ export async function researchGame(leagueId: string, id: string): Promise<GameRe
   const a = sides.find((s) => s.homeAway === "away");
   if (!h || !a) return null;
   const detail = parseSummaryDetail(summary, league.label);
-  const move = parseOddsMove(asList(summary.pickcenter)[0] ?? asList(summary.odds)[0]);
+  const move = parseOddsMove(pickDk(asList(summary.pickcenter)) ?? pickDk(asList(summary.odds)));
   const [stand, defense] = await Promise.all([standings(league), league.id === "nfl" ? nflDefense() : Promise.resolve([] as DefRow[])]);
   const ppgRank = rankAll(stand.map((s) => ({ id: s.id, value: s.ppg })), true);
   const papgRank = rankAll(stand.map((s) => ({ id: s.id, value: s.papg })), false);

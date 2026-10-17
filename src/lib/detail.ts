@@ -1,6 +1,7 @@
 /** Pure parsers for a game summary, player props, and MVP futures. No network. */
 
 import { implied, validOdds } from "@/lib/odds";
+import { isDraftKings, pickDk } from "@/lib/book";
 import { american, athleteIdFromRef, finiteNumber, parseStories, spreadText, type Story } from "@/lib/slate";
 
 type Dict = Record<string, unknown>;
@@ -298,7 +299,7 @@ export function parseSummaryDetail(data: unknown, leagueLabel: string): GameDeta
   const projection =
     homeProj !== null && awayProj !== null ? { home: homeProj, away: awayProj } : null;
 
-  const pick = asList(d.pickcenter)[0] ?? asList(d.odds)[0];
+  const pick = pickDk(asList(d.pickcenter)) ?? pickDk(asList(d.odds));
 
   return {
     venue: parseVenue(info),
@@ -321,29 +322,70 @@ export function parseSummaryDetail(data: unknown, leagueLabel: string): GameDeta
   };
 }
 
-/** Keep player markets. Drop rows with no athlete. Dedupe athlete + market. */
-export function parsePropItems(data: unknown): { drafts: PropDraft[]; total: number } {
+/** "Points Milestones", "Receptions Milestones": ladder rungs (18+), never a main over/under line. */
+export function isMilestoneMarket(market: string): boolean {
+  return /milestones?\s*$/i.test(market.trim());
+}
+
+/** Period, team, scorer and game-level markets: not a full-game player stat line. */
+export function isSideMarket(market: string): boolean {
+  return /\b(1st|2nd|3rd|4th|first|second)\s+(half|quarter|period|inning|\d+\s+innings)|\bfirst\s+\d+\s+innings|scorer|will there|^team\b|moneyline|spread|to score|kicking|extra points?|field goals? made/i.test(market);
+}
+
+/** "Total Passing Yards (incl. overtime)" → "Passing Yards". */
+export function cleanMarket(market: string): string {
+  return market
+    .replace(/\s*\(incl\.?\s*overtime\)\s*/i, "")
+    .replace(/^total\s+/i, "")
+    .replace(/\s+milestones?\s*$/i, "")
+    .trim();
+}
+
+export type MilestoneDraft = { athleteId: string; market: string; threshold: number; label: string };
+
+/**
+ * Main player lines only (over/under at a posted number, e.g. 24.5). Milestone ladders (18+) come back
+ * separately and are never used as the line. Team, period and scorer markets are dropped.
+ * Dedupe athlete + market.
+ */
+export function parsePropItems(data: unknown): { drafts: PropDraft[]; milestones: MilestoneDraft[]; total: number } {
   const d = asDict(data);
   const total = finiteNumber(d.count) ?? asList(d.items).length;
   const seen = new Set<string>();
   const drafts: PropDraft[] = [];
+  const milestones: MilestoneDraft[] = [];
+  const seenM = new Set<string>();
   for (const raw of asList(d.items)) {
     const it = asDict(raw);
-    const market = str(asDict(it.type).name);
+    const rawMarket = str(asDict(it.type).name);
     const athleteId = athleteIdFromRef(asDict(it.athlete).$ref);
-    if (!market || !athleteId) continue;
-    if (/^team\b/i.test(market)) continue;
+    if (!rawMarket || !athleteId) continue;
+    if (isSideMarket(rawMarket)) continue;
     const cur = asDict(asDict(it.current).target);
-    const line = str(cur.displayValue) ?? (finiteNumber(cur.value) !== null ? String(finiteNumber(cur.value)) : null);
-    if (!line) continue;
-    const openRaw = asDict(asDict(it.open).target);
-    const openLine = str(openRaw.displayValue);
-    const key = `${athleteId}:${market}`;
+    const display = str(cur.displayValue);
+    const value = finiteNumber(cur.value);
+    if (isMilestoneMarket(rawMarket)) {
+      const thr = value ?? (display ? Number(display.replace(/\+$/, "")) : NaN);
+      if (!Number.isFinite(thr) || thr <= 0) continue;
+      const market = cleanMarket(rawMarket);
+      const k = `${athleteId}:${market}:${thr}`;
+      if (seenM.has(k)) continue;
+      seenM.add(k);
+      milestones.push({ athleteId, market, threshold: thr, label: `${thr}+` });
+      continue;
+    }
+    const line = display ?? (value !== null ? String(value) : null);
+    // A main line is a plain number. Anything shaped like a ladder rung ("18+") is not.
+    if (!line || !/^\d+(\.\d+)?$/.test(line.trim())) continue;
+    const market = cleanMarket(rawMarket);
+    const openRaw = str(asDict(asDict(it.open).target).displayValue);
+    const openLine = openRaw && /^\d+(\.\d+)?$/.test(openRaw.trim()) ? openRaw : null;
+    const key = `${athleteId}:${market.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
     drafts.push({ athleteId, market, line, openLine: openLine && openLine !== line ? openLine : null });
   }
-  return { drafts, total };
+  return { drafts, milestones, total };
 }
 
 export type FutureBook = { athleteId: string; odds: string; oddsNum: number };
@@ -352,8 +394,9 @@ export function parseMvpMarket(data: unknown): { market: string; provider: strin
   const items = asList(asDict(data).items).map(asDict);
   const market = items.find((it) => /mvp/i.test(`${str(it.name) || ""} ${str(it.displayName) || ""}`));
   if (!market) return null;
-  const offer = asDict(asList(market.futures)[0]);
-  const provider = str(asDict(offer.provider).name);
+  // DraftKings only: no DraftKings futures → no board (never a second book).
+  const offer = asDict(asList(market.futures).find((f) => isDraftKings(asDict(f).provider)));
+  const provider = str(asDict(offer.provider).name)?.replace(/^Draft\s*Kings$/i, "DraftKings") ?? null;
   if (!provider) return null;
   const books: FutureBook[] = [];
   const seen = new Set<string>();
@@ -430,10 +473,20 @@ export function seasonStatLine(data: unknown): string {
 }
 
 export function providerFromOddsList(data: unknown): { id: string; name: string } | null {
-  const item = asDict(asList(asDict(data).items)[0]);
+  const item = asDict(pickDk(asList(asDict(data).items)));
   const prov = asDict(item.provider);
   const id = str(prov.id);
   const name = str(prov.name) || str(prov.displayName);
   if (!id || !name) return null;
-  return { id, name };
+  return { id, name: name.replace(/^Draft\s*Kings$/i, "DraftKings") };
+}
+
+/** MVP row team: the abbreviation ESPN lists for that team id, or blank (name only) when unmatched. Pure. */
+export function mvpTeam(teamId: string | null, teams: Record<string, string>): string {
+  return (teamId && teams[teamId]) || "";
+}
+
+/** The player's ESPN team, only if it is one of the two teams in this game. Pure. */
+export function propTeam(teamId: string | null, teams: Record<string, string>): string | null {
+  return teamId && teams[teamId] ? teams[teamId] : null;
 }

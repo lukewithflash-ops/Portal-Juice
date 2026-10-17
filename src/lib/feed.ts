@@ -33,6 +33,8 @@ export function sanitizeRow(raw: unknown): LineRow | null {
   if (r.kind !== "prop" && r.kind !== "side") return null;
   if (!isStr(r.id) || !isStr(r.subject) || !isStr(r.team) || !isStr(r.opponent)) return null;
   if (!isStr(r.market) || !isNum(r.line) || !isNum(r.juice) || !isStr(r.book)) return null;
+  // One book: only DraftKings rows survive. No second-book price, ever.
+  if (!/^(dk|draft\s*kings)$/i.test(r.book.trim())) return null;
   if (!isStr(r.startsAt) || !isStr(r.updatedAt)) return null;
   const selection = r.selection === "Over" || r.selection === "Under" ? r.selection : null;
   return {
