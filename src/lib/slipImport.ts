@@ -548,7 +548,11 @@ function byLeague(row: SlipRow, games: SlateGame[]): SlateGame[] {
 }
 
 /** Ties one row to a game and a leg. `player` is the ESPN search or roster hit for prop rows (or null). */
+/** "Winner", "To Win", "Match Winner", "Moneyline", "ML": a pick to win, not a stat. */
+export const isWinnerMarket = (m: string) => /^\s*(match\s+|fight\s+)?(winner|to\s+win|moneyline|money\s*line|ml)\s*$/i.test(m);
+
 export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer | null, now = Date.now()): ImportLeg {
+  if (row.kind === "prop" && isWinnerMarket(row.market)) row = { ...row, kind: "moneyline", market: "moneyline", line: null, selection: null };
   const odds = row.odds;
   const pool = byLeague(row, games);
   const sport = rowSport(row);

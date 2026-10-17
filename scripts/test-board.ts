@@ -1993,6 +1993,8 @@ t("t175: settled tennis slip matches by both names, never another sport or a fut
   const bare = SLIPS.tennisSettled.map((r) => matchSlipRow({ ...r, opponent: null, team: null, sport: null }, SLIP_GAMES, null, SLIP_NOW));
   assert.ok(bare.every((m) => m.game?.league !== "ufc" && m.game?.state !== "pre"));
   assert.ok(rowNameHit("Giusti...", "Lorenzo Giustino") && rowNameHit("Medved…", "Daniil Medvedev") && !rowNameHit("Mrva", "Hugo Gaston"));
+  const asProp = matchSlipRow({ ...SLIPS.tennisSettled[0], kind: "prop", market: "Winner" }, SLIP_GAMES, null, SLIP_NOW);
+  assert.ok(asProp.row.kind === "moneyline" && asProp.game?.id === "184980" && asProp.issue === null, "a 'Winner' read as a prop is still a moneyline");
   assert.ok(personName("Z. Piros") && personName("M. Kasnikowski") && !personName("Celtics"));
 });
 

@@ -29,6 +29,7 @@ import {
   expandNickname,
   leagueFromTeams,
   markNote,
+  isWinnerMarket,
 } from "@/lib/slipImport";
 
 const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
@@ -332,7 +333,10 @@ async function gradeLeg(leg: ImportLeg, games: SlateGame[]): Promise<"win" | "lo
 }
 
 export async function matchRows(rows: SlipRow[], slipDate: string | null = null): Promise<ImportLeg[]> {
-  const list = rows.slice(0, 20).map((r) => (slipDate && !r.date ? { ...r, date: slipDate } : r));
+  const list = rows
+    .slice(0, 20)
+    .map((r) => (r.kind === "prop" && isWinnerMarket(r.market) ? { ...r, kind: "moneyline" as const, market: "moneyline", line: null, selection: null } : r))
+    .map((r) => (slipDate && !r.date ? { ...r, date: slipDate } : r));
   const printed = list.map((r) => r.date).filter((d): d is string => !!d);
   const games = await windowGames(printed);
   const now = Date.now();
@@ -498,7 +502,9 @@ async function readOnce(dataUrl: string, auth: string, model: string, timeout: n
       if (!raw || typeof raw !== "object") continue;
       const l = raw as Record<string, unknown>;
       const subject = typeof l.subject === "string" ? l.subject.trim().slice(0, 60) : "";
-      const kind = (["prop", "spread", "total", "moneyline"] as const).includes(l.kind as SlipKind) ? (l.kind as SlipKind) : null;
+      const kind0 = (["prop", "spread", "total", "moneyline"] as const).includes(l.kind as SlipKind) ? (l.kind as SlipKind) : null;
+      // "Winner" / "To Win" under a name is a moneyline, whatever kind the reader picked.
+      const kind = kind0 && isWinnerMarket(String(l.market ?? "")) ? "moneyline" : kind0;
       if (!subject || !kind) continue;
       const market = kind === "prop" ? propMarketOf(String(l.market ?? "")) || String(l.market ?? "").toLowerCase().slice(0, 40) : kind;
       const side = String(l.side ?? "").toLowerCase();
