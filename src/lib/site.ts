@@ -23,6 +23,7 @@ export const MORE_NAV = [
   { href: "/lines/stats", label: "My stats" },
   { href: "/notes", label: "Notes" },
   { href: "/quests", label: "Quests" },
+  { href: "/wrapped", label: "Wrapped" },
   { href: "/account", label: "Account" },
   { href: "/mvp", label: "MVP" },
   { href: "/trends", label: "Trends" },

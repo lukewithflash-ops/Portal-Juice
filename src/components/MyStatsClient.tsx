@@ -1,4 +1,5 @@
 "use client";
+import { QuestStrip } from "@/components/Quests";
 
 import SaveDataButton from "@/components/SaveDataButton";
 import Link from "next/link";
@@ -91,6 +92,12 @@ export default function MyStatsClient() {
   const { current, longestWin, longestLoss } = s.streak;
   return (
     <div className="grid gap-3 sm:grid-cols-2">
+      <div className="sm:col-span-2">
+        <QuestStrip />
+        <Link href="/wrapped" className="sweat-btn flex items-center justify-between rounded-xl px-3 py-2 text-sm font-black text-white" data-testid="wrapped-link">
+          🎞 Portal Wrapped · your week <span aria-hidden>→</span>
+        </Link>
+      </div>
       <TipDeck picks={picks} />
       <section className="foil-tile p-4 sm:col-span-2">
         <div className="flex items-center gap-4">
