@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Component, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { pickFromLeg } from "@/lib/legPick";
 import { addNote, getNotes, updateNote } from "@/lib/noteStore";
@@ -38,6 +38,28 @@ export function deleteWithUndo(picks: Pick[], label: string) {
   }, 5000);
 }
 
+/** A plain message toast for when something breaks. Never fail silently. */
+export function errorToast(msg: string) {
+  setUndo({ picks: [], label: msg, n: Date.now() });
+  const n = undo?.n;
+  setTimeout(() => undo?.n === n && setUndo(null), 5000);
+}
+
+class Guard extends Component<{ children: ReactNode; onFail: () => void }, { bad: boolean }> {
+  state = { bad: false };
+  static getDerivedStateFromError() {
+    return { bad: true };
+  }
+  componentDidCatch(err: unknown) {
+    console.error("pick edit", err);
+    errorToast("Couldn't open the editor. Reload and try again.");
+    this.props.onFail();
+  }
+  render() {
+    return this.state.bad ? null : this.props.children;
+  }
+}
+
 /** Bottom toast with Undo. Mounted once in the layout. */
 export function UndoToast() {
   const u = useSyncExternalStore(
@@ -50,9 +72,9 @@ export function UndoToast() {
   );
   if (!u) return null;
   return (
-    <div className="portal-toast stats-toast fixed bottom-24 left-1/2 z-[95] flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2 text-sm font-black text-white" role="status" data-testid="undo-toast">
-      <span>{u.label} deleted</span>
-      <button
+    <div data-layer="" style={{ position: "fixed", zIndex: 1001 }} className="portal-toast stats-toast fixed bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2 text-sm font-black text-white" role="status" data-testid="undo-toast">
+      <span>{u.picks.length ? `${u.label} deleted` : u.label}</span>
+      {u.picks.length ? <button
         type="button"
         className="rounded-lg border border-[color:var(--plus)] px-2 py-0.5 text-[color:var(--plus)]"
         onClick={() => {
@@ -63,7 +85,7 @@ export function UndoToast() {
         data-testid="undo-button"
       >
         Undo
-      </button>
+      </button> : null}
     </div>
   );
 }
@@ -77,7 +99,7 @@ function Confirm({ title, body, cta, onCancel, onOk }: { title: string; body: st
     return () => window.removeEventListener("keydown", k);
   }, [onCancel]);
   return createPortal(
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onCancel}>
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" data-layer="" style={{ position: "fixed", inset: 0, zIndex: 1000 }} onClick={onCancel}>
       <div role="alertdialog" aria-modal="true" aria-label={title} className="reset-dialog w-full max-w-sm rounded-2xl p-5" onClick={(e) => e.stopPropagation()} data-testid="delete-pick-dialog">
         <div className="reset-ring mx-auto mb-3 h-12 w-12 rounded-full" aria-hidden />
         <h2 className="text-center text-lg font-black text-white">{title}</h2>
@@ -105,7 +127,7 @@ export function PickActions({ picks, small = false }: { picks: Pick[]; small?: b
   const word = parlay ? "parlay" : "pick";
   const cls = small ? "text-[11px] font-bold" : "rounded-lg border px-2.5 py-1 text-[11px] font-black";
   return (
-    <span className="inline-flex items-center gap-2" data-testid={parlay ? "parlay-actions" : "pick-actions"}>
+    <span className="inline-flex items-center gap-2" data-testid={parlay ? "parlay-actions" : "pick-actions"} onClick={(e) => e.stopPropagation()}>
       <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEdit(true); }} className={cls + (small ? " text-purple-200" : " border-purple-400/50 text-purple-100")} data-testid={`edit-${word}`}>
         Edit{parlay ? " parlay" : ""}
       </button>
@@ -124,7 +146,11 @@ export function PickActions({ picks, small = false }: { picks: Pick[]; small?: b
           }}
         />
       ) : null}
-      {edit ? <EditDialog picks={picks} onClose={() => setEdit(false)} /> : null}
+      {edit ? (
+        <Guard onFail={() => setEdit(false)}>
+          <EditDialog picks={picks} onClose={() => setEdit(false)} />
+        </Guard>
+      ) : null}
     </span>
   );
 }
@@ -149,17 +175,27 @@ type Row = {
 const TEAM = /money|^ml$|spread|run line|puck line/i;
 
 function rowOf(p: Pick): Row {
-  return { key: p.id, id: p.id, subject: p.subject, market: p.market ?? "", line: String(p.line), selection: p.selection ?? "", league: p.league, gameId: p.gameId };
+  const sel = String(p.selection ?? "").toLowerCase();
+  return {
+    key: String(p.id ?? Math.random()),
+    id: p.id,
+    subject: String(p.subject ?? ""),
+    market: String(p.market ?? ""),
+    line: p.line == null || !Number.isFinite(Number(p.line)) ? "" : String(p.line),
+    selection: sel.startsWith("o") ? "Over" : sel.startsWith("u") ? "Under" : "",
+    league: p.league,
+    gameId: p.gameId,
+  };
 }
 
 function EditDialog({ picks, onClose }: { picks: Pick[]; onClose: () => void }) {
   const all = useSyncExternalStore(subscribe, getPicks, getServerPicks);
   const orig = picks.map((p) => all.find((x) => x.id === p.id) ?? p);
   const slipId = orig[0].slipId;
-  const parlayNote = slipId ? getNotes().find((n) => n.kind === "parlay" && n.slipId === slipId) : undefined;
+  const parlayNote = slipId ? (getNotes() ?? []).find((n) => n.kind === "parlay" && n.slipId === slipId) : undefined;
   const [rows, setRows] = useState<Row[]>(() => orig.map(rowOf));
-  const [date, setDate] = useState(orig[0].date);
-  const [book, setBook] = useState(orig[0].book);
+  const [date, setDate] = useState(String(orig[0].date ?? "").slice(0, 10));
+  const [book, setBook] = useState(String(orig[0].book ?? ""));
   const [note, setNote] = useState(parlayNote?.text ?? "");
   const [err, setErr] = useState<string | null>(null);
   const upd = (k: string, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === k ? { ...r, ...patch } : r)));
@@ -181,6 +217,14 @@ function EditDialog({ picks, onClose }: { picks: Pick[]; onClose: () => void }) 
   }
 
   function save() {
+    try {
+      saveInner();
+    } catch (e) {
+      console.error("pick save", e);
+      setErr("Couldn't save that. Check the legs and try again.");
+    }
+  }
+  function saveInner() {
     const live = rows.filter((r) => r.subject.trim());
     if (!live.length) return setErr("Keep at least one leg, or delete it instead.");
     for (const r of live) if (!TEAM.test(r.market) && r.line.trim() && !Number.isFinite(Number(r.line))) return setErr(`Line for ${r.subject} must be a number.`);
@@ -226,8 +270,8 @@ function EditDialog({ picks, onClose }: { picks: Pick[]; onClose: () => void }) 
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Edit" className="reset-dialog max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl p-4 sm:rounded-2xl" onClick={(e) => e.stopPropagation()} data-testid="edit-dialog">
+    <div className="fixed inset-0 z-[1000] flex items-stretch justify-center bg-black/80 backdrop-blur-sm sm:items-center sm:p-4" data-layer="" style={{ position: "fixed", inset: 0, zIndex: 1000 }} onClick={onClose} data-testid="edit-sheet">
+      <div role="dialog" aria-modal="true" aria-label="Edit" className="reset-dialog h-full w-full max-w-lg overflow-y-auto overscroll-contain p-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] sm:h-auto sm:max-h-[92vh] sm:rounded-2xl" onClick={(e) => e.stopPropagation()} data-testid="edit-dialog">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-lg font-black text-white">{rows.length > 1 ? `Edit parlay · ${rows.length} legs` : "Edit pick"}</h2>
           <button type="button" onClick={onClose} aria-label="Close" className="text-zinc-400">✕</button>

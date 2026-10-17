@@ -4,6 +4,7 @@ import { LEAGUES, parseScoreboard, sportsDate } from "@/lib/slate";
 import { SPORT_LEAGUES, parseSportScoreboard } from "@/lib/sports";
 import { gradePick } from "@/lib/grade";
 import { pickFromLeg } from "@/lib/legPick";
+import { lineIssue, lineOk, plusLine, rereadLine } from "@/lib/lineSanity";
 import {
   BASKETBALL,
   TENNIS,
@@ -12,6 +13,7 @@ import {
   gradeTennis,
   matchRow,
   nameClose,
+  normalizeSlipText,
   parseSlipRows,
   propMarketOf,
   slipDateOf,
@@ -346,6 +348,11 @@ export async function matchRows(rows: SlipRow[], slipDate: string | null = null)
         const m2 = matchRow(r2, games, player, now);
         if (m2.game) m = { ...m2, row: r0 };
       }
+      // A line outside the stat's range is flagged, never saved quietly.
+      if (m.row.kind === "prop" && m.row.line != null) {
+        const bad = lineIssue(m.game?.league ?? m.leg?.league ?? m.row.league, m.row.market, m.row.line);
+        if (bad) m = { ...m, issue: m.issue ? `${bad} ${m.issue}` : bad };
+      }
       const result = await gradeLeg(m, games);
       return result ? { ...m, result } : m;
     })
@@ -386,12 +393,15 @@ function prompt(today: string): string {
 Today is ${today}. Use it only to turn printed words like "Today", "Tomorrow", "Fri", "10/14" or "Oct 14" into a YYYY-MM-DD date.
 Weekday calendar (a bare weekday means the date in this list; past weekdays for finished legs, coming ones for open legs): ${calendar(today)}.
 Return JSON:
-{"legs":[{"subject":string,"kind":"prop"|"spread"|"total"|"moneyline","market":string,"line":number|null,"side":"over"|"under"|null,"odds":number|null,"league":string|null,"date":string|null,"team":string|null,"opponent":string|null,"settled":boolean}],"stake":null,"book":string|null,"entry":string|null,"date":string|null,"lines":[string]}
+{"legs":[{"subject":string,"kind":"prop"|"spread"|"total"|"moneyline","market":string,"line":number|null,"line_text":string|null,"side":"over"|"under"|null,"odds":number|null,"league":string|null,"date":string|null,"team":string|null,"opponent":string|null,"settled":boolean}],"stake":null,"book":string|null,"entry":string|null,"date":string|null,"lines":[string]}
 Read EVERY leg on the slip, top to bottom, even when there are many (up to 20). Each player block on a pick'em slip is one leg. Each line of a parlay or same-game parlay is one leg.
 - subject: the player for props (full name as printed), the team for spread/moneyline, the matchup ("AWAY @ HOME") for game totals. Tennis: the player.
 - Keep each leg's own details together: the matchup, date and teams for a leg come from that leg's own row or the game header it sits under, never from a neighboring leg.
 - market: the stat as printed for props (e.g. "Points", "Pts+Rebs+Asts", "3-PT Made", "Passing Yards", "Aces", "Total Games", "Games Won", "Double Faults", "Fantasy Score", "Break Points Won"); "spread", "moneyline" or "total" otherwise.
 - line: the number for that leg (spread keeps its sign). null if not printed. Demon/goblin/discounted lines: use the number shown.
+- "X+" means at least X: "1+ Shots on Goal" is line 0.5 side over, "2+ Hits" is line 1.5 side over, "25+ Points" is 24.5 over.
+- The line is the stat number printed with the stat or the More/Less (Over/Under) choice. NEVER use a jersey number ("#22", "No. 22"), odds ("+150", "-110"), a payout multiplier ("3x", "10x"), a pick or player count ("5 picks", "5-pick"), a game clock or time, a score, a live stat progress number ("0/1", "3 of 5"), or a projection/average label.
+- line_text: the line exactly as printed, e.g. "1+", "0.5", "24.5", "O 1.5". null if not printed.
 - side: "More", "Higher", "Over", an up arrow, or "O 24.5" means over; "Less", "Lower", "Under", a down arrow, or "U 24.5" means under. Moneyline and spread: null.
 - odds: American odds for that leg if printed, else null. Never use the combined parlay odds for a leg.
 - league: the league if printed or plain from the slip (logos, team names, "NBA", "WNBA", "NCAAB", "NCAAW", "NFL", "CFB", "MLB", "NHL", "ATP", "WTA", "EPL", "MLS", "UFC"), else null.
@@ -484,12 +494,26 @@ async function readOnce(dataUrl: string, auth: string, model: string, timeout: n
       const market = kind === "prop" ? propMarketOf(String(l.market ?? "")) || String(l.market ?? "").toLowerCase().slice(0, 40) : kind;
       const side = String(l.side ?? "").toLowerCase();
       const odds = num(l.odds);
+      // "1+" printed: over 0.5, whatever number the model put in line.
+      const plus = kind === "prop" || kind === "total" ? plusLine(typeof l.line_text === "string" ? l.line_text : null) : null;
+      let line = kind === "moneyline" ? null : plus ?? num(l.line);
+      let sideFix: "Over" | null = plus != null ? "Over" : null;
+      const lg0 = leagueId(l.league);
+      // Out of range for the stat (a jersey number, odds, a count): re-read it from the slip text, else matchRows flags it.
+      if (kind === "prop" && line != null && !lineOk(lg0, market, line)) {
+        const again = rereadLine(text, subject, lg0, market) ?? (typeof l.line_text === "string" ? rereadLine(subject + "\n" + l.line_text, subject, lg0, market) : null);
+        console.log(JSON.stringify({ event: "slip.line-reread", subject, market, read: line, text: l.line_text ?? null, fixed: again?.line ?? null }));
+        if (again) {
+          line = again.line;
+          if (again.over) sideFix = "Over";
+        }
+      }
       rows.push({
         subject,
         kind,
         market,
-        line: kind === "moneyline" ? null : num(l.line),
-        selection: kind === "prop" || kind === "total" ? (/^(over|more|higher|o)$/.test(side) ? "Over" : /^(under|less|lower|u)$/.test(side) ? "Under" : null) : null,
+        line,
+        selection: kind === "prop" || kind === "total" ? (sideFix ?? (/^(over|more|higher|o)$/.test(side) ? "Over" : /^(under|less|lower|u)$/.test(side) ? "Under" : null)) : null,
         odds: odds != null && Math.abs(odds) >= 100 && Math.abs(odds) < 100000 ? Math.round(odds) : null,
         league: leagueId(l.league),
         date: isoDate(l.date),
@@ -513,5 +537,11 @@ export function rowsFromText(text: string): { rows: SlipRow[]; stake: number | n
   // One league named on the whole slip: a hint for every row.
   const named = [...new Set((text.match(/\b(NBA|WNBA|NCAAB|NCAAW|NFL|NCAAF|CFB|MLB|NHL|ATP|WTA|EPL|MLS|UFC)\b/g) ?? []).map((t) => leagueId(t)).filter(Boolean))];
   const league = named.length === 1 ? named[0] : null;
-  return { rows: league ? rows.map((r) => ({ ...r, league: r.league ?? league })) : rows, stake: null, date: slipDateOf(text) };
+  const fixed = rows.map((r0) => {
+    const r = league ? { ...r0, league: r0.league ?? league } : r0;
+    if (r.kind !== "prop" || r.line == null || lineOk(r.league, r.market, r.line)) return r;
+    const again = rereadLine(normalizeSlipText(text), r.subject, r.league, r.market);
+    return again ? { ...r, line: again.line, selection: again.over ? ("Over" as const) : r.selection } : r;
+  });
+  return { rows: fixed, stake: null, date: slipDateOf(text) };
 }

@@ -208,7 +208,7 @@ export default function PortfolioClient() {
         </div>
         {slipChecks.length ? (
           <div className="mt-3 space-y-2">
-            {slipChecks.slice(0, 8).map(([id, ls], i) => (
+            {slipChecks.slice(0, 20).map(([id, ls], i) => (
               <div key={id}>
                 <SlipSummary legs={ls} href={checkHref(ls)} auto={i < 4} />
                 {ls.length > 1 ? <ParlayNotes slipId={id} legs={picks.filter((p) => p.slipId === id)} /> : null}

@@ -665,12 +665,12 @@ function SlipBox({ slip, byKey, now, compact }: { slip: SlipView; byKey: Record<
           ))}
           <div className="px-3 pb-2">
             <SlipNotes slipKey={slip.key} pickIds={slip.legs.map((l) => l.pickId)} />
-            <div className="mt-1.5 flex justify-end">
-              <SlipActions pickIds={slip.legs.map((l) => l.pickId)} />
-            </div>
           </div>
         </div>
       ) : null}
+      <div className="flex justify-end px-3 pb-2" data-testid="ml-slip-actions">
+        <SlipActions pickIds={slip.legs.map((l) => l.pickId)} />
+      </div>
     </div>
   );
 }

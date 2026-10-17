@@ -70,7 +70,8 @@ body {
   filter: blur(2px) saturate(0.9);
   mix-blend-mode: screen;
 }
-.portal-bg > * { position: relative; z-index: 1; }
+/* Page wrappers sit above the swirl. Fixed layers (dialogs, sheets, popovers portaled to <body>) keep their own position. */
+.portal-bg > :not(.fixed):not([data-layer]) { position: relative; z-index: 1; }
 
 .top-stack {
   position: -webkit-sticky;

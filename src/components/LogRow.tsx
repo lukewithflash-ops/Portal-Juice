@@ -3,7 +3,7 @@
 import { gameRoute } from "@/lib/gameRoute";
 import PortalRecap from "@/components/PortalRecap";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Mark from "@/components/Mark";
 import { NoteSnippet, NoteTag, PickNotes } from "@/components/Notes";
 import { pickPlayer } from "@/lib/notesCore";
@@ -12,7 +12,7 @@ import type { PickLook } from "@/components/useLogLeans";
 import { checkHref, legFromLogged } from "@/lib/breakdown";
 import { TONE_COLOR, type Leg } from "@/lib/motivation";
 import { fmtLine } from "@/lib/odds";
-import { setStatus } from "@/lib/pickStore";
+import { getPicks, getServerPicks, setStatus, subscribe } from "@/lib/pickStore";
 import { PickActions } from "@/components/PickEdit";
 import { shortDate } from "@/lib/time";
 import type { Pick, PickStatus } from "@/lib/types";
@@ -116,6 +116,7 @@ export default function LogRow({
                 </Link>
               ) : null}
               <PickActions picks={[pick]} small />
+              {pick.slipId ? <SlipActionsFor slipId={pick.slipId} /> : null}
             </div>
           </div>
           <PickNotes pick={pick} athleteId={leg?.athleteId} />
@@ -123,4 +124,11 @@ export default function LogRow({
       ) : null}
     </li>
   );
+}
+
+/** A leg of a parlay: Edit/Delete the whole parlay from the row too. */
+function SlipActionsFor({ slipId }: { slipId: string }) {
+  const all = useSyncExternalStore(subscribe, getPicks, getServerPicks);
+  const legs = useMemo(() => all.filter((p) => p.slipId === slipId), [all, slipId]);
+  return legs.length > 1 ? <PickActions picks={legs} small /> : null;
 }

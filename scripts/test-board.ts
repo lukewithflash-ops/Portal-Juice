@@ -1,4 +1,5 @@
 import { pickGame, playerNameHit, gradeTennis, parseSlipRows as parseSlip2, slipDateOf, propMarketOf as pm2, tennisGames } from "../src/lib/slipImport";
+import { lineIssue, lineOk, plusLine, rereadLine } from "../src/lib/lineSanity";
 import { diffList, emptyDoc, mergePush, resetCols } from "../src/lib/syncCore";
 import { filterNotes, liveTag, matchupKey, notesForMatchup, notesForPick, notesForPlayer, pickPlayer } from "../src/lib/notesCore";
 import { _test as myLive } from "../src/lib/myLive";
@@ -1642,6 +1643,21 @@ console.log(`\n${n} passed`);
   assert(pe.length === 2 && pe[0].subject === "LeBron James" && pe[0].selection === "Over" && pe[0].team === "LAL" && pe[1].selection === "Under" && pe[1].market === "rebounds", "slip: pick'em blocks with More/Less");
   assert(slipDateOf("Placed 10/14/26 7:02 PM", new Date("2026-10-16")) === "2026-10-14" && slipDateOf("Oct 18 · 4:30 PM", new Date("2026-10-16")) === "2026-10-18" && slipDateOf("no date") === null, "slip: printed dates");
   console.log("ok - slip reader matching");
+}
+
+// Slip lines: "X+" is over X-0.5, out-of-range lines are re-read or flagged, jersey numbers are never the line.
+{
+  const xs = parseSlip2("Beckett Sennecke\n#22 ANA vs SJ\n1+ Shots on Goal\nLeo Carlsson\n2+ Shots on Goal\nKevin Durant\n25+ Points\nJose Ramirez\n1+ Hits\nLukas Dostal\n#1 ANA\nOver 27.5 Saves");
+  const by = (n: string) => xs.find((r) => r.subject === n);
+  assert(by("Beckett Sennecke")?.line === 0.5 && by("Beckett Sennecke")?.selection === "Over" && by("Beckett Sennecke")?.market === "shots on goal", "slip lines: Sennecke 1+ SOG is over 0.5, not #22");
+  assert(by("Leo Carlsson")?.line === 1.5 && by("Kevin Durant")?.line === 24.5 && by("Jose Ramirez")?.line === 0.5, "slip lines: X+ legs");
+  assert(by("Lukas Dostal")?.line === 27.5 && by("Lukas Dostal")?.market === "saves", "slip lines: goalie saves keep their line past a jersey line");
+  assert(plusLine("1+") === 0.5 && plusLine("+150") === null && plusLine("Pts+Rebs") === null, "slip lines: plus format only");
+  assert(!lineOk("nhl", "shots on goal", 22) && lineOk("nhl", "shots on goal", 2.5) && !lineOk("nhl", "goals", 3.5) && !lineOk("nhl", "saves", 8.5) && lineOk("nhl", "saves", 27.5), "slip lines: NHL ranges");
+  assert(!lineOk("nba", "points", 120) && lineOk("nba", "points", 24.5) && !lineOk("nfl", "passing yards", 22) && !lineOk("mlb", "hits", 22), "slip lines: NBA/NFL/MLB ranges");
+  assert(lineIssue("nhl", "shots on goal", 22)?.startsWith("Check this line") === true && lineIssue("nhl", "shots on goal", 0.5) === null, "slip lines: flag wording");
+  assert(rereadLine("Beckett Sennecke\n#22 · ANA @ SJ · 5 picks · 3x\n1+ SOG -120", "Beckett Sennecke", "nhl", "shots on goal")?.line === 0.5, "slip lines: re-read skips jersey, count, multiplier, odds");
+  console.log("ok - slip lines");
 }
 
 {

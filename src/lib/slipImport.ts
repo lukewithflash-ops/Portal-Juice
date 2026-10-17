@@ -185,6 +185,13 @@ export function joinSlipLines(raw: string): string[] {
     const next = lines[i + 1];
     const head = cur.replace(/(?:^|\s)([+-]\d{3,4}|even)\s*$/i, "").trim();
     const headIsName = /^[A-Za-z][A-Za-z .'&-]{2,40}$/.test(head) && !BET_WORDS.test(head) && head.split(" ").length <= 5;
+    // Name, then a jersey/matchup line ("#22 ANA vs SJ"), then the bet: skip the info line, never read its number as the line.
+    const info = (l?: string) => !!l && !BET_WORDS.test(l.replace(/#\s?\d+/g, "")) && /#\s?\d|\b(vs\.?|@|at)\b|·/i.test(l);
+    if (headIsName && info(next) && lines[i + 2] && BET_WORDS.test(lines[i + 2]) && !/^[A-Za-z][A-Za-z .'-]+\s+(over|under)\b/i.test(lines[i + 2])) {
+      out.push(`${head} ${lines[i + 2]}`);
+      i += 2;
+      continue;
+    }
     if (headIsName && next && BET_WORDS.test(next) && !/^[A-Za-z][A-Za-z .'-]+\s+(over|under)\b/i.test(next)) {
       const price = cur.slice(head.length).trim();
       let joined = `${head} ${next}${price ? " " + price : ""}`;
@@ -210,6 +217,8 @@ export function normalizeSlipText(raw: string): string {
     .replace(/\b(more|higher)\b/gi, "over")
     .replace(/\b(less|lower|fewer)\b/gi, "under")
     .replace(/\b(demon|goblin|taco|discount(?:ed)?|boost(?:ed)?|free\s*pick)\b/gi, " ")
+    // "1+ Shots on Goal", "2+ Hits": at least X means over X-0.5.
+    .replace(/(^|[\s(])(\d{1,3})\s?\+(?=\s*[A-Za-z]|\s*$)/gm, (_m, pre: string, n: string) => `${pre}over ${Number(n) - 0.5} `)
     .replace(/[ \t]+/g, " ");
 }
 

@@ -377,7 +377,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                   ) : null}
                   {x.row.kind !== "moneyline" ? (
                     <input
-                      className={"field min-w-0 " + (x.row.kind === "prop" || x.row.kind === "total" ? "col-span-2" : "col-span-3")}
+                      className={"field min-w-0 " + (x.row.kind === "prop" || x.row.kind === "total" ? "col-span-2" : "col-span-3") + (!x.dirty && x.issue?.startsWith("Check this line") ? " ring-2 ring-[color:var(--minus)]" : "")}
                       value={x.row.line ?? ""}
                       placeholder="Line"
                       inputMode="decimal"
