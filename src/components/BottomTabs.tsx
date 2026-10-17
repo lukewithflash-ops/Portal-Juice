@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { useLiveHub } from "@/components/LiveHub";
 import { SECTIONS, sectionOf, type SectionId } from "@/lib/nav";
 
@@ -32,7 +33,9 @@ const ICON: Record<SectionId, React.ReactNode> = {
 /** iPhone-style tab bar: five sections, safe-area aware, mobile only. */
 export default function BottomTabs() {
   const path = usePathname();
-  const cur = sectionOf(path).id;
+  // Light the tapped tab at once; the route catches up (skeleton shows meanwhile).
+  const [tap, setTap] = useState<{ id: SectionId; from: string } | null>(null);
+  const cur = tap && tap.from === path ? tap.id : sectionOf(path).id;
   const live = useLiveHub().live.length;
   return (
     <nav className="tabbar lg:hidden" aria-label="Sections" data-layer="" data-testid="tabbar">
@@ -42,11 +45,12 @@ export default function BottomTabs() {
           <Link
             key={s.id}
             href={s.href}
-            prefetch
+
             aria-current={on ? "page" : undefined}
             className={"tab-item " + (on ? "tab-on" : "")}
             data-testid={"tab-" + s.id}
             onClick={() => {
+              if (s.id !== cur) setTap({ id: s.id, from: path });
               try {
                 navigator.vibrate?.(8);
               } catch {}

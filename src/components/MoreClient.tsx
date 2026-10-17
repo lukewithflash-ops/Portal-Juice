@@ -102,7 +102,7 @@ export default function MoreClient() {
           <ul className="divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
             {g.rows.map((r) => (
               <li key={r.href}>
-                <Link href={r.href} prefetch className="press flex items-center gap-3 px-4 py-3 active:bg-white/5">
+                <Link href={r.href} className="press flex items-center gap-3 px-4 py-3 active:bg-white/5">
                   <span className="min-w-0 flex-1">
                     <span className="block text-[15px] text-white">{r.label}</span>
                     <span className="block truncate text-[13px] text-zinc-500">{r.sub}</span>
