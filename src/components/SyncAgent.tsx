@@ -32,14 +32,17 @@ export default function SyncAgent() {
     };
     const onOnline = () => void syncNow();
     document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("pagehide", onVis);
+    const onHide = () => {
+      if (getAccount().user && localStamp() !== last) void syncNow().then(() => (last = localStamp()));
+    };
+    window.addEventListener("pagehide", onHide);
     window.addEventListener("online", onOnline);
     return () => {
       clearInterval(tick);
       clearInterval(pull);
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("pagehide", onVis);
+      window.removeEventListener("pagehide", onHide);
       window.removeEventListener("online", onOnline);
     };
   }, []);
