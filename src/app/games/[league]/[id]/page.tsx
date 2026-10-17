@@ -103,7 +103,7 @@ export default async function GamePage({ params }: { params: Promise<Params> }) 
       </div>
       <Link
         href={`/ask?game=${league}/${id}&label=${encodeURIComponent(`${game.away.abbr} @ ${game.home.abbr}`)}`}
-        className="ask-panel fixed bottom-20 right-3 z-40 flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-black text-white"
+        className="ask-panel fixed bottom-[calc(var(--tabbar)+1rem)] right-3 z-40 flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-black text-white"
         aria-label="Ask Portal AI about this game"
       >
         <span className="portal-ring" aria-hidden style={{ ["--glow" as string]: "#a855f7", width: "1rem", height: "1rem" }} />

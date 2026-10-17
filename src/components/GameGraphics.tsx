@@ -377,7 +377,7 @@ export function Spotlight({ league, gameId, snap }: { league: string; gameId: st
   return (
     <section className="spotlight mt-3" aria-label="Your player spotlight">
       <div className="mb-1.5 flex items-center justify-between">
-        <h2 className="text-[10px] font-black uppercase tracking-[0.22em] tone-gold">⭐ Your player spotlight</h2>
+        <h2 className="text-[10px] font-black uppercase tracking-[0.22em] tone-gold">Your player spotlight</h2>
         <span className="text-[10px] text-zinc-500">Live box vs your line</span>
       </div>
       <ul className="flex gap-2 overflow-x-auto pb-1">

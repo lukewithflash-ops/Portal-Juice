@@ -10,14 +10,15 @@ import { useEffect, useRef, useState } from "react";
 import { usePrefs, type FavTeam } from "@/components/Prefs";
 import { IMPLIED_TIP } from "@/lib/odds";
 import { LEAGUES, type LeagueId } from "@/lib/slate";
-import { MORE_NAV, NAV, SITE_NAME, TAGLINE } from "@/lib/site";
+import { SITE_NAME, TAGLINE } from "@/lib/site";
+import { SECTIONS, sectionOf } from "@/lib/nav";
 import type { TeamOption } from "@/lib/team";
 
 export default function SiteHeader() {
   const path = usePathname();
   const firstPath = useRef(path);
   const [showTagline, setShowTagline] = useState(true);
-  const { odds, setOdds, team, setTeam } = usePrefs();
+  const { odds, setOdds, team } = usePrefs();
   const liveCount = useLiveHub().live.length;
   // Portal ring spins open on launch (once a session) and on big moments.
   const [spinN, setSpinN] = useState(0);
@@ -36,8 +37,6 @@ export default function SiteHeader() {
     };
   }, []);
   const spin = spinN ? (spinN % 2 ? "portal-spin" : "portal-spin2") : "";
-  const [open, setOpen] = useState(false);
-  const [more, setMore] = useState(false);
 
   useEffect(() => {
     if (path !== firstPath.current) {
@@ -95,25 +94,22 @@ export default function SiteHeader() {
             <AccountButton />
           </div>
         </div>
-        <nav aria-label="Portal Juice" className="-mx-3 mt-1 flex items-center gap-1 overflow-x-auto px-3 pb-2 sm:-mx-4 sm:px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {NAV.map((n) => {
-            const active =
-              n.href === "/lines" ? path === "/lines" : path === n.href || path.startsWith(n.href + "/");
+        <nav aria-label="Sections" className="hidden items-center gap-1 pb-2 pt-1 lg:flex">
+          {SECTIONS.map((n) => {
+            const active = sectionOf(path).id === n.id;
             return (
               <Link
-                key={n.href}
+                key={n.id}
                 href={n.href}
-                onClick={() => setMore(false)}
+                prefetch
                 aria-current={active ? "page" : undefined}
                 className={
-                  "shrink-0 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold transition-colors " +
-                  (active
-                    ? "bg-purple-500/20 text-white shadow-[inset_0_-2px_0_var(--plus)]"
-                    : "text-zinc-400 hover:bg-purple-500/10 hover:text-zinc-100")
+                  "press shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-semibold transition-colors " +
+                  (active ? "bg-purple-500/20 text-white shadow-[inset_0_-2px_0_var(--plus)]" : "text-zinc-400 hover:bg-purple-500/10 hover:text-zinc-100")
                 }
               >
                 {n.label}
-                {n.href === "/live" && liveCount > 0 ? (
+                {n.id === "live" && liveCount > 0 ? (
                   <span className="tabular ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 align-[1px] text-[10px] font-black text-black" style={{ background: "var(--plus)" }} aria-label={`${liveCount} live`}>
                     {liveCount}
                   </span>
@@ -121,56 +117,14 @@ export default function SiteHeader() {
               </Link>
             );
           })}
-          <button
-            type="button"
-            aria-expanded={more}
-            onClick={() => setMore((v) => !v)}
-            className={
-              "shrink-0 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold transition-colors " +
-              (more || MORE_NAV.some((n) => path === n.href || path.startsWith(n.href + "/"))
-                ? "bg-purple-500/20 text-white"
-                : "text-zinc-400 hover:bg-purple-500/10 hover:text-zinc-100")
-            }
-          >
-            More {more ? "▴" : "▾"}
-          </button>
         </nav>
-        {more ? (
-          <div className="-mx-1 mb-2 grid grid-cols-3 gap-1.5 sm:grid-cols-5">
-            {MORE_NAV.map((n) => (
-              <Link
-                key={n.href}
-                href={n.href}
-                onClick={() => setMore(false)}
-                className={
-                  "rounded-lg border border-white/10 px-2 py-2 text-center text-[13px] font-semibold " +
-                  (path === n.href ? "bg-purple-500/20 text-white" : "text-zinc-300")
-                }
-              >
-                {n.label}
-              </Link>
-            ))}
-            <button
-              type="button"
-              onClick={() => {
-                setMore(false);
-                setOpen(true);
-              }}
-              aria-expanded={open}
-              className="rounded-lg border border-white/10 px-2 py-2 text-center text-[13px] font-semibold text-zinc-300"
-              data-testid="more-team"
-            >
-              {team ? `Team · ${team.abbr}` : "Team"}
-            </button>
-          </div>
-        ) : null}
-        {open ? <TeamPicker team={team} onPick={setTeam} onClose={() => setOpen(false)} /> : null}
+        <div className="h-2 lg:hidden" />
       </div>
     </header>
   );
 }
 
-function TeamPicker({
+export function TeamPicker({
   team,
   onPick,
   onClose,

@@ -16,6 +16,9 @@ import { QuestAgent } from "@/components/Quests";
 import { Suspense } from "react";
 import { LiveHubProvider } from "@/components/LiveHub";
 import SiteFooter from "@/components/SiteFooter";
+import SectionTabs from "@/components/SectionTabs";
+import BottomTabs from "@/components/BottomTabs";
+import PageEnter from "@/components/PageEnter";
 import { SITE_NAME, SITE_URL, TAGLINE } from "@/lib/site";
 import "./globals.css";
 
@@ -65,6 +68,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               {/* One sticky stack: nav, live banner, then page bars (league chips). Solid, no gaps. */}
               <div className="top-stack">
                 <SiteHeader />
+                <SectionTabs />
                 <LiveBanner />
                 <div id="top-stack-slot" />
               </div>
@@ -78,10 +82,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               </Suspense>
               <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-3">
                 <NotifyBanner />
-                {children}
+                <PageEnter>{children}</PageEnter>
               </main>
               <SiteFooter />
             </div>
+            <BottomTabs />
           </LiveHubProvider>
         </PrefsProvider>
       </body>

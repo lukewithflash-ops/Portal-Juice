@@ -358,7 +358,7 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
       {children}
       {party ? <ClearedParty key={party.id} leg={party.leg} /> : null}
       {toasts.length ? (
-        <div className="pointer-events-none fixed inset-x-3 bottom-4 z-[55] mx-auto max-w-md space-y-2" aria-live="polite">
+        <div className="pointer-events-none fixed inset-x-3 bottom-[calc(var(--tabbar)+1rem)] z-[55] mx-auto max-w-md space-y-2" aria-live="polite">
           {toasts.map((t) =>
             t.kind === "player" && t.player ? (
               <PlayerToast key={t.key} t={t} />

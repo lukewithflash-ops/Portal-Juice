@@ -206,7 +206,7 @@ export function LiveNotes({ league, gameId, snap, compact = false }: { league: s
   return (
     <section className={compact ? "note-zone" : "note-zone foil-tile mt-3 p-3"} aria-label="Live notes" data-testid="live-notes">
       <div className="flex items-center justify-between">
-        <h2 className="text-[10px] font-black uppercase tracking-[0.22em] text-purple-200/80">📝 Live notes</h2>
+        <h2 className="text-[10px] font-black uppercase tracking-[0.22em] text-purple-200/80">Live notes</h2>
         <span className="flex items-center gap-1.5 text-[10px] text-zinc-500">
           {!compact && snap ? <NoteTag matchup={matchupKey(league, snap.awayAbbr, snap.homeAbbr)} label={`${snap.awayAbbr} vs ${snap.homeAbbr}`} /> : null}
           On this device

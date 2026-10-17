@@ -1,5 +1,6 @@
 "use client";
 
+import { SkelRows } from "@/components/Skeleton";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -73,7 +74,7 @@ export default function FriendsClient() {
     const t = setTimeout(() => act({ action: "join", code: join }), 0);
     return () => clearTimeout(t);
   }, [join, o]);
-  if (!o) return <p className="text-sm text-zinc-400">Loading…</p>;
+  if (!o) return <SkelRows n={3} label="Loading squads" />;
   if (!o.signedIn) {
     return (
       <div className="panel rounded-2xl p-4 text-sm text-zinc-300" data-testid="friends-signin">

@@ -20,7 +20,26 @@ const nextConfig: NextConfig = {
     "/api/nightly": ["./src/app/api/push/img/*.ttf"],
   },
   async redirects() {
-    return [{ source: "/", destination: "/lines", permanent: false }];
+    // Section aliases for the five tabs. Every older URL still has its own page.
+    const alias: [string, string][] = [
+      ["/home", "/lines"],
+      ["/log", "/lines/portfolio"],
+      ["/picks", "/lines/portfolio"],
+      ["/parlays", "/lines/portfolio"],
+      ["/portfolio", "/lines/portfolio"],
+      ["/stats", "/lines/stats"],
+      ["/board", "/lines/board"],
+      ["/squads", "/friends"],
+      ["/threads", "/friends"],
+      ["/profile", "/more"],
+      ["/settings", "/account"],
+      ["/help", "/ask"],
+      ["/team", "/more"],
+    ];
+    return [
+      { source: "/", destination: "/lines", permanent: false },
+      ...alias.map(([source, destination]) => ({ source, destination, permanent: false })),
+    ];
   },
 };
 

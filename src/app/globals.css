@@ -928,3 +928,68 @@ html[data-quest="3"] .streak-chip { box-shadow: 0 0 12px rgba(168,85,247,0.9); }
 .qr-box { box-shadow: 0 0 18px rgba(168,85,247,0.6); border: 2px solid rgba(168,85,247,0.7); }
 .thread-sys { border-left: 3px solid #39ff14; background: linear-gradient(90deg, rgba(57,255,20,0.12), rgba(124,58,237,0.08)); border-radius: 0.6rem; color: #e9ffe0; box-shadow: 0 0 12px rgba(57,255,20,0.18); }
 .widget-tile { border-radius: 1.4rem; background: radial-gradient(120% 120% at 0% 0%, rgba(124,58,237,0.35), rgba(3,3,6,0.95) 60%); border: 1px solid rgba(168,85,247,0.5); box-shadow: 0 0 24px rgba(124,58,237,0.35), inset 0 0 18px rgba(57,255,20,0.06); }
+
+/* ---- Native shell: tab bar, segmented sub-tabs, press states, sheets, skeletons. ---- */
+:root { --tabbar: calc(58px + env(safe-area-inset-bottom)); }
+@media (min-width: 1024px) { :root { --tabbar: 0px; } }
+body { padding-bottom: var(--tabbar); -webkit-tap-highlight-color: transparent; }
+.tabular, .tabular-nums { font-variant-numeric: tabular-nums; }
+.tabbar {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 60;
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  height: var(--tabbar); padding-bottom: env(safe-area-inset-bottom);
+  background: rgba(3, 3, 6, 0.86);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+  border-top: 1px solid rgba(192, 38, 255, 0.22);
+}
+.tab-item {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  color: #8b8b99; min-height: 44px; transition: color 120ms ease, transform 120ms ease;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+}
+.tab-item:active { transform: scale(0.9); }
+.tab-on { color: #fff; }
+.tab-on svg { color: var(--plus, #39ff14); filter: drop-shadow(0 0 6px rgba(57, 255, 20, 0.55)); }
+.tab-badge {
+  position: absolute; top: -4px; right: -10px; min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 999px; background: var(--plus, #39ff14); color: #000; font-size: 10px; font-weight: 900;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.seg-wrap { border-bottom: 1px solid rgba(192, 38, 255, 0.14); background: #030306; }
+.seg-row {
+  display: flex; gap: 4px; overflow-x: auto; padding: 6px 12px; scrollbar-width: none;
+  scroll-snap-type: x proximity; overscroll-behavior-x: contain;
+}
+.seg-row::-webkit-scrollbar { display: none; }
+.seg {
+  flex: none; scroll-snap-align: start; padding: 6px 12px; border-radius: 999px;
+  font-size: 13px; font-weight: 600; line-height: 20px; color: #a1a1aa;
+  transition: background-color 120ms ease, color 120ms ease, transform 120ms ease; touch-action: manipulation;
+}
+.seg:active { transform: scale(0.95); }
+.seg-on { background: rgba(168, 85, 247, 0.22); color: #fff; box-shadow: inset 0 0 0 1px rgba(168, 85, 247, 0.45); }
+@media (min-width: 1024px) { .seg-wrap { border-bottom: 0; } .seg-row { padding-top: 0; } }
+.press { transition: transform 120ms ease, background-color 120ms ease; }
+.press:active { transform: scale(0.96); }
+.page-enter { animation: pj-page-in 180ms cubic-bezier(.2,.8,.2,1) both; }
+@keyframes pj-page-in { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
+.skel {
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(168,85,247,0.10) 50%, rgba(255,255,255,0.04) 100%);
+  background-size: 200% 100%; animation: pj-skel 1.2s ease-in-out infinite;
+}
+@keyframes pj-skel { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.sheet {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 1000; max-height: 88vh; overflow-y: auto;
+  border-radius: 20px 20px 0 0; background: #0b0b12; border-top: 1px solid rgba(168, 85, 247, 0.35);
+  padding: 8px 16px calc(16px + env(safe-area-inset-bottom));
+  animation: pj-sheet-up 260ms cubic-bezier(.2,.9,.25,1) both; overscroll-behavior: contain;
+}
+.sheet::before { content: ""; display: block; width: 36px; height: 5px; border-radius: 999px; background: rgba(255,255,255,0.25); margin: 0 auto 12px; }
+.sheet-scrim { position: fixed; inset: 0; z-index: 999; background: rgba(0,0,0,0.55); animation: pj-fade 200ms ease both; }
+@keyframes pj-sheet-up { from { transform: translate3d(0, 100%, 0); } to { transform: none; } }
+@keyframes pj-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .page-enter, .sheet, .sheet-scrim, .skel { animation: none; }
+  .tab-item:active, .seg:active, .press:active { transform: none; }
+}

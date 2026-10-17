@@ -1,5 +1,6 @@
 "use client";
 
+import { SkelRows } from "@/components/Skeleton";
 import TopSlot from "@/components/TopSlot";
 
 import MascotSlot from "@/components/MascotSlot";
@@ -162,8 +163,8 @@ export default function GamesBoard({
       </div>
 
       <TopSlot>
-      <div className="border-b border-purple-500/20 bg-[#030306] py-2" data-testid="league-bar">
-        <div className="mx-auto max-w-6xl px-4">
+      <div className="border-b border-purple-500/20 bg-[#030306] py-1" data-testid="league-bar">
+        <div className="mx-auto max-w-6xl px-3">
         <div ref={bar} className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Chip active={league === "ALL"} onClick={() => setLeague("ALL")}>
             All
@@ -244,7 +245,7 @@ function sportCount(sl: SportSlate | undefined): number {
 }
 
 function SportList({ slate, name }: { slate: SportSlate | null; name: string }) {
-  if (!slate) return <p className="panel rounded-xl px-4 py-5 text-sm text-zinc-400">Loading {name} from ESPN…</p>;
+  if (!slate) return <SkelRows n={4} label={"Loading " + name} />;
   if (!sportCount(slate)) return <p className="panel rounded-xl px-4 py-5 text-sm text-zinc-400">Nothing on ESPN&apos;s {name} board right now.</p>;
   return (
     <section aria-label={name}>
@@ -323,7 +324,7 @@ function Chip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+      className={`press shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
         active ? "bg-purple-500/25 text-white" : dim ? "text-zinc-600" : "text-zinc-400"
       }`}
     >

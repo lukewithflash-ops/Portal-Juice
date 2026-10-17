@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SkelRows } from "@/components/Skeleton";
 import { Suspense } from "react";
 import CheckClient from "@/components/CheckClient";
 
@@ -14,7 +15,7 @@ export default function CheckPage() {
       <p className="mt-1 mb-5 text-sm text-zinc-400">
         Check a leg or a parlay. Every pro and con comes from ESPN numbers shown below it.
       </p>
-      <Suspense fallback={<p className="text-sm text-zinc-500">Loading the slate…</p>}>
+      <Suspense fallback={<SkelRows n={3} label="Loading the slate" />}>
         <CheckClient />
       </Suspense>
     </>

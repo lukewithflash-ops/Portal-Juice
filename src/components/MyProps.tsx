@@ -112,7 +112,7 @@ export default function MyProps({ gameId, snap }: { league: string; gameId: stri
           <p className="text-[10px] text-zinc-500">{PACE_NOTE}</p>
         </div>
       )}
-      <div className="pointer-events-none fixed inset-x-3 bottom-4 z-50 space-y-2">
+      <div className="pointer-events-none fixed inset-x-3 bottom-[calc(var(--tabbar)+1rem)] z-50 space-y-2">
         {toasts.map((t) => (
           <div
             key={t.id}

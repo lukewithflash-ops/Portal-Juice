@@ -73,7 +73,7 @@ export function UndoToast() {
   );
   if (!u) return null;
   return (
-    <div data-layer="" style={{ position: "fixed", zIndex: 1001 }} className="portal-toast stats-toast fixed bottom-24 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2 text-sm font-black text-white" role="status" data-testid="undo-toast">
+    <div data-layer="" style={{ position: "fixed", zIndex: 1001 }} className="portal-toast stats-toast fixed bottom-[calc(var(--tabbar)+1.5rem)] left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2 text-sm font-black text-white" role="status" data-testid="undo-toast">
       <span>{u.picks.length ? `${u.label} deleted` : u.label}</span>
       {u.picks.length ? <button
         type="button"

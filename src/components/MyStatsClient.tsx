@@ -74,7 +74,7 @@ export default function MyStatsClient() {
     return () => clearTimeout(t);
   }, [toast]);
   const toastEl = toast ? (
-    <p role="status" className="stats-toast portal-toast fixed bottom-6 left-1/2 z-[90] -translate-x-1/2 rounded-full px-4 py-2 text-sm font-black text-white" data-testid="stats-toast">
+    <p role="status" className="stats-toast portal-toast fixed bottom-[calc(var(--tabbar)+1.5rem)] left-1/2 z-[90] -translate-x-1/2 rounded-full px-4 py-2 text-sm font-black text-white" data-testid="stats-toast">
       Stats reset
     </p>
   ) : null;

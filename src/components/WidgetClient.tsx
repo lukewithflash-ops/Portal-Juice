@@ -1,5 +1,6 @@
 "use client";
 
+import { SkelRows } from "@/components/Skeleton";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -11,7 +12,7 @@ const TONE: Record<string, string> = { hit: "#facc15", missed: "#f43f5e", behind
 
 /** The widget, as the web shows it. Native widgets draw the same /api/widget JSON. */
 export function WidgetPreview({ data }: { data: Data | null }) {
-  if (!data) return <div className="widget-tile p-4 text-sm text-zinc-400">Loading…</div>;
+  if (!data) return <SkelRows n={2} h={56} label="Loading widget" />;
   if (!data.slips.length) return <div className="widget-tile p-4 text-sm text-zinc-400">No live picks right now. Open picks show up here when their games start.</div>;
   const s = data.slips[0];
   return (

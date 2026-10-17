@@ -7,30 +7,4 @@ export const PAST_HITS = "Past hits are not a pick.";
 /** Canonical URL. portaljuice.app is the live site; env can override it. */
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://portaljuice.app";
 
-export const NAV = [
-  { href: "/lines", label: "Lines" },
-  { href: "/live", label: "My Live" },
-  { href: "/games", label: "Games" },
-  { href: "/best", label: "Best" },
-  { href: "/props", label: "Props" },
-  { href: "/lines/portfolio", label: "Log" },
-] as const;
-
-/** Behind the More menu. Routes stay live. */
-export const MORE_NAV = [
-  { href: "/check", label: "Breakdown" },
-  { href: "/ask", label: "Ask Portal AI" },
-  { href: "/lines/stats", label: "My stats" },
-  { href: "/notes", label: "Notes" },
-  { href: "/friends", label: "Friends" },
-  { href: "/quests", label: "Quests" },
-  { href: "/wrapped", label: "Wrapped" },
-  { href: "/widget", label: "Widget" },
-  { href: "/account", label: "Account" },
-  { href: "/mvp", label: "MVP" },
-  { href: "/trends", label: "Trends" },
-  { href: "/news", label: "News" },
-  { href: "/lines/board", label: "Board" },
-  { href: "/leaders", label: "Leaders" },
-  { href: "/app", label: "App" },
-] as const;
+/** Navigation lives in src/lib/nav.ts (five sections with sub-tabs). */

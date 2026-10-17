@@ -244,7 +244,7 @@ function SignedIn() {
       </div>
       <p className="text-center text-[11px] text-zinc-500">Signing out keeps everything on this device. <Link href="/lines/stats" className="underline">My stats</Link></p>
       {del ? <DeleteDialog onClose={() => setDel(false)} /> : null}
-      {toast ? <div className="portal-toast stats-toast fixed bottom-24 left-1/2 z-[90] -translate-x-1/2 rounded-xl px-4 py-2 text-sm font-black text-white" role="status" data-testid="account-toast">{toast}</div> : null}
+      {toast ? <div className="portal-toast stats-toast fixed bottom-[calc(var(--tabbar)+1.5rem)] left-1/2 z-[90] -translate-x-1/2 rounded-xl px-4 py-2 text-sm font-black text-white" role="status" data-testid="account-toast">{toast}</div> : null}
     </div>
   );
 }
