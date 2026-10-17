@@ -1,5 +1,6 @@
 "use client";
 
+import { mergeQuestJson } from "./questsCore";
 import { diffList, LIST_COLS, listOf, SINGLES, type CloudDoc, type ListCol, type SyncPush } from "./syncCore";
 
 /** Local-first sync: the app keeps working from localStorage; when signed in, changes flow to the account and back. */
@@ -183,6 +184,17 @@ async function run(opts: { full?: boolean; reset?: ListCol[] }) {
     if (localStorage.getItem(k) !== sentRaw[k]) {
       nextBase.singles[k] = readBase().singles[k] ?? null;
       again = true;
+      continue;
+    }
+    if (s && k === "pj-quests-v1" && s.v !== null && localStorage.getItem(k)) {
+      // Quests join across devices instead of one overwriting the other.
+      const merged = mergeQuestJson(localStorage.getItem(k), s.v);
+      if (merged && merged !== localStorage.getItem(k)) {
+        localStorage.setItem(k, merged);
+        announce(k);
+      }
+      nextBase.singles[k] = s.v;
+      if (merged !== s.v) again = true;
       continue;
     }
     if (s) {

@@ -12,6 +12,7 @@ import { getFollows, getServerFollows, subscribeFollows } from "@/lib/follows";
 import { getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
 import { PickActions } from "@/components/PickEdit";
 import { openSweat } from "@/components/SweatMode";
+import { QuestStrip } from "@/components/Quests";
 import { sweatOf } from "@/lib/sweat";
 import { slipKeyOf, TONE_COLOR } from "@/lib/motivation";
 import { fieldGeom } from "@/lib/fieldGeom";
@@ -204,6 +205,7 @@ export default function MyLive() {
 
   return (
     <div className="my-live" data-testid="my-live">
+      <QuestStrip />
       {tabs}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Stat n={games.live.length} label="live" color="var(--plus)" dot />

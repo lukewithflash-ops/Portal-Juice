@@ -12,6 +12,7 @@ import PortalWipe from "@/components/PortalWipe";
 import { AutoGrade } from "@/components/AutoGrade";
 import { UndoToast } from "@/components/PickEdit";
 import SweatWatch from "@/components/SweatMode";
+import { QuestAgent } from "@/components/Quests";
 import { Suspense } from "react";
 import { LiveHubProvider } from "@/components/LiveHub";
 import SiteFooter from "@/components/SiteFooter";
@@ -73,6 +74,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <UndoToast />
               <Suspense fallback={null}>
                 <SweatWatch />
+                <QuestAgent />
               </Suspense>
               <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-3">
                 <NotifyBanner />

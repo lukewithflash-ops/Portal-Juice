@@ -2,6 +2,7 @@ import { pickGame, playerNameHit, gradeTennis, parseSlipRows as parseSlip2, slip
 import { lineIssue, lineOk, plusLine, rereadLine } from "../src/lib/lineSanity";
 import { conflicts as slipConflicts, duplicates as slipDups } from "../src/lib/slipCheck";
 import { beatSeconds, needed, sweatOf } from "../src/lib/sweat";
+import { complete as qComplete, doneToday as qDone, EMPTY_QUESTS, mergeQuestJson, questsFor, questStreak } from "../src/lib/questsCore";
 import { diffList, emptyDoc, mergePush, resetCols } from "../src/lib/syncCore";
 import { filterNotes, liveTag, matchupKey, notesForMatchup, notesForPick, notesForPlayer, pickPlayer } from "../src/lib/notesCore";
 import { _test as myLive } from "../src/lib/myLive";
@@ -1667,6 +1668,15 @@ console.log(`\n${n} passed`);
     assert(sweatOf(sv(["hit", "missed", "alive"])) === null && sweatOf(sv(["hit", "alive", "alive"])) === null && sweatOf(sv(["alive"])) === null, "sweat: only one live leg after all others hit");
     assert(needed(0.5, 0, true) === 1 && needed(2.5, 3, true) === null && beatSeconds(1) < beatSeconds(0), "sweat: needs and heartbeat");
     console.log("ok - sweat");
+    const qd = "2026-10-16";
+    const qs = questsFor(qd);
+    assert(qs.length === 3 && new Set(qs).size === 3 && qs.some((q) => q === "log" || q === "live"), "quests: three distinct with an easy one");
+    let st = EMPTY_QUESTS;
+    for (const q of qs) st = qComplete(st, qd, q);
+    assert(qDone(st, qd).length === 3 && questStreak(st, qd) === 1 && questStreak(st, "2026-10-17") === 1 && questStreak(st, "2026-10-18") === 0, "quests: streak");
+    const m = JSON.parse(mergeQuestJson(JSON.stringify({ v: 1, days: { [qd]: [qs[0]] } }), JSON.stringify({ v: 1, days: { [qd]: [qs[1]] } }))!);
+    assert(m.days[qd].length === 2, "quests: devices merge");
+    console.log("ok - quests");
   }
   const L = (o: Partial<import("../src/lib/slipCheck").CheckLeg>) => ({ subject: "x", kind: "prop" as const, market: "points", line: 1.5, selection: "Over" as const, league: "nfl", gameId: "1", ...o });
   assert(slipConflicts([L({ kind: "moneyline", side: "home", subject: "KC" }), L({ kind: "moneyline", side: "away", subject: "BUF" })])[0]?.kind === "conflict", "slip check: both MLs");

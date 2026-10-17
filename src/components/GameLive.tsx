@@ -13,6 +13,7 @@ import DriveFeed from "@/components/DriveFeed";
 import { bigSwing, PitchMap, PlayPop, ShareFinal, ShotMap, Spotlight, SwingBanner, type Swing } from "@/components/GameGraphics";
 import GameChat from "@/components/GameChat";
 import { SweatPill } from "@/components/SweatMode";
+import { questDone } from "@/lib/questStore";
 import { LiveNotes } from "@/components/Notes";
 import { LeadShockwave, leadFlip, LineMoveTags, PitcherFatigue, RedZoneAlarm, WinStrip, type Shock } from "@/components/GameUpgrades";
 import Mark from "@/components/Mark";
@@ -221,6 +222,23 @@ export default function GameLive({
 
   const view = replay !== null && live ? replaySnap(live, replay, league) : live;
   const snap = view;
+  // Daily quest: five minutes on a live game page while it is on screen.
+  const isLive = live?.state === "in";
+  useEffect(() => {
+    if (!isLive) return;
+    const KEY = "pj-watch-s:" + new Date().toLocaleDateString("en-CA");
+    const t = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const n = Number(sessionStorage.getItem(KEY) || 0) + 5;
+        sessionStorage.setItem(KEY, String(n));
+        if (n >= 300) questDone("watch");
+      } catch {
+        /* private mode */
+      }
+    }, 5000);
+    return () => clearInterval(t);
+  }, [isLive]);
 
   const rows = useMemo(() => trackProps(props, snap, league), [props, snap, league]);
   const top = rows.slice(0, 8);
