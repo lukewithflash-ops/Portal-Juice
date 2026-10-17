@@ -1798,4 +1798,10 @@ console.log(`\n${n} passed`);
     assert(positionDone([{ status: "win" }]) && !positionDone([{ status: "open" }]) && positionDone([{ status: "open" }, { status: "loss" }]) && !positionDone([{ status: "open" }, { status: "win" }]), "position: clears when graded");
     console.log("ok - tabs and squads");
   }
+  // X+ legs read "1+" on meters, never "/0.5".
+  {
+    const lp = legFromPick({ id: "x", sport: "NHL", subject: "Beckett Sennecke", line: 0.5, plus: true, odds: 0, stake: 0, book: "PrizePicks", date: "2026-10-16", status: "open", createdAt: "", league: "nhl", gameId: "1", market: "Shots on Goal", selection: "Over" } as never, null);
+    assert(lp !== null && lp.lineText === "1+" && lp.plus === true && !lp.progress.includes("0.5") && lp.progress.startsWith("1+"), "plus: meter line reads 1+");
+    console.log("ok - plus meters");
+  }
 }

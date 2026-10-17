@@ -213,7 +213,7 @@ export default function FriendFeed({ compact = false }: { compact?: boolean }) {
         </div>
       )}
       {msg ? <p className="mt-2 text-[12px] font-bold text-[color:var(--plus)]" role="status" data-testid="friend-msg">{msg}</p> : null}
-      <p className="mt-2 text-[11px] text-zinc-500">Friends see W/L/P/open only. No stakes, no prices. Turn sharing off any time on Friends.</p>
+      <p className="mt-2 text-[11px] text-zinc-500">Friends see all your open picks, W/L/P/open only, never stakes. Turn it off in Account.</p>
     </section>
   );
 }
