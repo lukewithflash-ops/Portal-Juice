@@ -921,3 +921,8 @@ html[data-quest="3"] .streak-chip { box-shadow: 0 0 12px rgba(168,85,247,0.9); }
 @keyframes wrapped-in { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
 @keyframes wrapped-bar { to { width: 100%; } }
 @media (prefers-reduced-motion: reduce) { .wrapped-screen, .wrapped-bar { animation: none; } .wrapped-bar { width: 100%; } }
+.friend-slip { box-shadow: 0 0 12px rgba(168,85,247,0.15); }
+.emote-btn { transition: transform 0.15s; }
+.emote-btn:active { transform: scale(1.3); }
+@media (prefers-reduced-motion: reduce) { .emote-btn { transition: none; } }
+.qr-box { box-shadow: 0 0 18px rgba(168,85,247,0.6); border: 2px solid rgba(168,85,247,0.7); }

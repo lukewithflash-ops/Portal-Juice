@@ -124,4 +124,6 @@ export type Pick = {
   link?: string;
   /** Shared by legs saved together from one slip. */
   slipId?: string;
+  /** Copied from a friend's pick: their handle. */
+  tailFrom?: string;
 };

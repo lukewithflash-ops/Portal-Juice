@@ -22,6 +22,7 @@ export const MORE_NAV = [
   { href: "/ask", label: "Ask Portal AI" },
   { href: "/lines/stats", label: "My stats" },
   { href: "/notes", label: "Notes" },
+  { href: "/friends", label: "Friends" },
   { href: "/quests", label: "Quests" },
   { href: "/wrapped", label: "Wrapped" },
   { href: "/account", label: "Account" },

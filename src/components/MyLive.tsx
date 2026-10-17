@@ -13,6 +13,7 @@ import { getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
 import { PickActions } from "@/components/PickEdit";
 import { openSweat } from "@/components/SweatMode";
 import { QuestStrip } from "@/components/Quests";
+import FriendFeed from "@/components/FriendFeed";
 import { sweatOf } from "@/lib/sweat";
 import { slipKeyOf, TONE_COLOR } from "@/lib/motivation";
 import { fieldGeom } from "@/lib/fieldGeom";
@@ -273,6 +274,7 @@ export default function MyLive() {
                 </p>
               )}
             </Section>
+            <FriendFeed compact />
           </div>
 
           <div className="lg:col-start-1 lg:row-start-2">
