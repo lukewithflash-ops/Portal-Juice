@@ -53,6 +53,9 @@ body {
   opacity: 0.045;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size: 180px 180px;
+  /* Own layer, rasterized once: scrolling never repaints the grain. */
+  transform: translateZ(0);
+  will-change: transform;
 }
 /* Low-contrast Portal swirl behind the tiles. Static. */
 .portal-bg::after {
@@ -68,7 +71,8 @@ body {
   background: url("/brand/swirl-mark.png") center / contain no-repeat;
   opacity: 0.09;
   filter: blur(2px) saturate(0.9);
-  mix-blend-mode: screen;
+  /* No blend mode (it re-blends every scrolled frame); its own layer keeps the swirl out of scroll paints. */
+  will-change: transform;
 }
 /* Page wrappers sit above the swirl. Fixed layers (dialogs, sheets, popovers portaled to <body>) keep their own position. */
 .portal-bg > :not(.fixed):not([data-layer]) { position: relative; z-index: 1; }
