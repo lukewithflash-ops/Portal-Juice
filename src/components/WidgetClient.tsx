@@ -68,7 +68,7 @@ export default function WidgetClient() {
   }, []);
 
   return (
-    <main className="mx-auto max-w-lg px-4 py-6">
+    <div className="mx-auto max-w-lg py-3">
       <h1 className="text-2xl font-black text-white">Home-screen widget</h1>
       <p className="mt-1 text-sm text-zinc-400">Live parlay progress at a glance. Open picks only: hit, missed, push or open. No money.</p>
 
@@ -135,6 +135,6 @@ export default function WidgetClient() {
           {err ? <p className="mt-2 text-[11px] text-[color:var(--minus)]">{err}</p> : null}
         </section>
       ) : null}
-    </main>
+    </div>
   );
 }

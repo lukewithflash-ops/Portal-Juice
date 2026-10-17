@@ -340,7 +340,7 @@ export default function GameLive({
           [
             ["play", "Play"],
             ["lines", "Live vs line"],
-            ["chat", "Chat"],
+            ["chat", "Thread"],
           ] as const
         ).map(([key, label]) => (
           <button
