@@ -3,6 +3,7 @@
 import { SkelRows } from "@/components/Skeleton";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import FriendFeed from "@/components/FriendFeed";
@@ -77,6 +78,7 @@ export default function FriendsClient() {
     const ok = await act({ action: "join", code: join });
     setJoining(false);
     setDismissed(true);
+    if (ok) setCode("");
     try {
       navigator.vibrate?.(ok ? 12 : [8, 40, 8]);
     } catch {}
@@ -93,7 +95,7 @@ export default function FriendsClient() {
   }, [join, auto, o, joinNow]);
   const handles = [...new Set([...(o?.friends ?? []).map((f) => f.handle), ...(o?.squads ?? []).flatMap((x) => x.members), ...(o?.me ? [o.me.handle] : [])])];
   const pos = usePositions(handles);
-  const sheet =
+  const sheetBody =
     join && !dismissed && !(auto && o?.signedIn) ? (
       <div data-layer="">
         <div className="sheet-scrim" onClick={() => setDismissed(true)} aria-hidden />
@@ -127,6 +129,8 @@ export default function FriendsClient() {
         </div>
       </div>
     ) : null;
+  // Portaled to <body> so the sheet sits above the tab bar, not inside the page's stacking layer.
+  const sheet = sheetBody && typeof document !== "undefined" ? createPortal(sheetBody, document.body) : null;
   if (!o) return <SkelRows n={3} label="Loading squads" />;
   if (!o.signedIn) {
     return (
