@@ -88,7 +88,7 @@ export default function LiveBanner() {
   }, [games.length]);
 
   // My Live already shows every one of these games in full.
-  if (!games.length || pathname === MY_LIVE_PATH) return null;
+  if (!games.length || pathname === MY_LIVE_PATH || pathname === "/wrapped") return null;
 
   const hide = (k: string) => {
     const v = [...hidden, k];
