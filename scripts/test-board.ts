@@ -17,6 +17,8 @@ import { salvageJson, expandNickname, leagueFromTeams } from "../src/lib/slipImp
 import { tennisSnap } from "../src/lib/tennisSnap";
 import { catalogLeague, parseMatch, pointText, sportLeague as sportLg, tennisPoint } from "../src/lib/sports";
 import { TENNIS_LIVE } from "./fixtures/tennis-live.fixture";
+import { CASES as SLIPS, GAMES as SLIP_GAMES, NOW as SLIP_NOW } from "./fixtures/settled-slips.fixture";
+import { markNote, matchRow as matchSlipRow, rowNameHit, personName } from "../src/lib/slipImport";
 import { tennisLine } from "../src/lib/tennisSnap";
 import { tennisNow } from "../src/lib/myLive";
 import { _test } from "../src/lib/askData";
@@ -1971,4 +1973,48 @@ t("t174: live tiebreak points come from the current set, set text stays clean", 
   const t5 = { away: ["6", "6"], home: ["3", "6"], serving: "away" as const, games: 21, event: null, point: tb.point };
   assert.equal(tennisLine(t5, "Away", "Home"), "6-3 6-6 · Tiebreak 5-4 · Away serving");
   assert.equal(tennisNow(t5, "home"), " · 6-6 this set · Tiebreak 4-5 · receiving");
+});
+
+// t175: settled tennis slip from a photo, plus three more settled slips.
+t("t175: settled tennis slip matches by both names, never another sport or a future match", () => {
+  const out = SLIPS.tennisSettled.map((r) => matchSlipRow(r, SLIP_GAMES, null, SLIP_NOW));
+  const [med, piros, kas, fear] = out;
+  assert.equal(med.game?.id, "184980");
+  assert.equal(med.leg?.side, "home");
+  assert.equal(gradeTennis(med.leg!, SLIP_GAMES[0]), "win");
+  for (const m of [piros, kas, fear]) {
+    assert.equal(m.game, null, `${m.row.subject} must not borrow a game`);
+    assert.ok(m.manual && /ESPN doesn't cover this event/.test(m.issue ?? ""), m.issue ?? "");
+    assert.ok(m.row.opponent, "opponent kept for the manual leg");
+  }
+  assert.ok(fear.issue?.includes("Mrva"));
+  assert.ok(out.every((m) => !/price/i.test(m.issue ?? "")), "no price on the slip is not a flag");
+  // The old read (no opponent, no sport) still never lands on UFC or a match not yet played.
+  const bare = SLIPS.tennisSettled.map((r) => matchSlipRow({ ...r, opponent: null, team: null, sport: null }, SLIP_GAMES, null, SLIP_NOW));
+  assert.ok(bare.every((m) => m.game?.league !== "ufc" && m.game?.state !== "pre"));
+  assert.ok(rowNameHit("Giusti...", "Lorenzo Giustino") && rowNameHit("Medved…", "Daniil Medvedev") && !rowNameHit("Mrva", "Hugo Gaston"));
+  assert.ok(personName("Z. Piros") && personName("M. Kasnikowski") && !personName("Celtics"));
+});
+
+t("t175: settled NBA moneyline: ESPN decides, the slip's check is only a hint", () => {
+  const m = matchSlipRow(SLIPS.nbaSettled[0], SLIP_GAMES, null, SLIP_NOW);
+  assert.equal(m.game?.id, "401809001", "the final, not next week's game");
+  assert.equal(m.leg?.side, "away");
+  assert.equal(markNote("loss", "win", false), "The slip shows a win; ESPN's final says loss. ESPN's result is used.");
+  assert.equal(markNote("win", "win", false), null);
+  assert.equal(markNote(null, "win", true), "The slip shows a win: set it in your Log.");
+  assert.equal(markNote(null, null, true), null);
+});
+
+t("t175: settled fight uses the printed opponent", () => {
+  const m = matchSlipRow(SLIPS.ufcSettled[0], SLIP_GAMES, null, SLIP_NOW);
+  assert.equal(m.game?.id, "600060");
+  const wrong = matchSlipRow({ ...SLIPS.ufcSettled[0], opponent: "Jones" }, SLIP_GAMES, null, SLIP_NOW);
+  assert.notEqual(wrong.game?.id, "600099", "a booked fight is never a settled leg");
+});
+
+t("t175: settled tennis prop with a date grades from the final's sets", () => {
+  const m = matchSlipRow(SLIPS.wtaPropSettled[0], SLIP_GAMES, null, SLIP_NOW);
+  assert.equal(m.game?.id, "186900");
+  assert.equal(gradeTennis(m.leg!, SLIP_GAMES.find((g) => g.id === "186900")!), "win"); // 6-4 7-6 = 23 games
 });

@@ -283,7 +283,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
       addPick({
         id: crypto.randomUUID(),
         slipId,
-        sport: sportOf(x.game?.league ?? ""),
+        sport: sportOf(x.game?.league ?? x.row.league ?? (x.row.sport === "tennis" ? "atp" : x.row.sport === "mma" ? "ufc" : "")),
         subject: x.row.subject,
         line: x.row.line ?? 0,
         odds: x.row.odds ?? 0,
@@ -292,7 +292,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
         date: new Date().toISOString().slice(0, 10),
         status: "open",
         createdAt: new Date().toISOString(),
-        market: x.row.kind === "prop" ? x.row.market : KIND_LABEL[x.row.kind],
+        market: x.row.kind === "prop" ? x.row.market : `${KIND_LABEL[x.row.kind]}${x.row.opponent ? ` vs ${x.row.opponent.replace(/^(vs\.?|@)\s*/i, "")}` : ""}`,
         selection: x.row.selection,
         ...plus,
         link: link.trim() || undefined,
@@ -413,6 +413,16 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                     aria-label="Price"
                     onChange={(e) => edit(i, { odds: e.target.value === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) })}
                   />
+                  {(x.row.kind === "moneyline" || x.row.kind === "spread") && (x.row.opponent != null || x.row.sport === "tennis" || x.row.sport === "mma") ? (
+                    <input
+                      className="field col-span-6 min-w-0 text-[13px]"
+                      value={x.row.opponent ?? ""}
+                      placeholder="Opponent"
+                      aria-label="Opponent"
+                      data-testid="import-opponent"
+                      onChange={(e) => edit(i, { opponent: e.target.value || null })}
+                    />
+                  ) : null}
                 </div>
                 {!x.game || x.options?.length ? (
                   <div className="mt-1.5 flex items-center gap-1.5">

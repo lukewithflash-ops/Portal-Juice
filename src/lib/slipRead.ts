@@ -28,6 +28,7 @@ import {
   salvageJson,
   expandNickname,
   leagueFromTeams,
+  markNote,
 } from "@/lib/slipImport";
 
 const GATEWAY = "https://ai-gateway.vercel.sh/v1/chat/completions";
@@ -45,8 +46,8 @@ function addDays(day: string, n: number): string {
   return d.toISOString().slice(0, 10).replace(/-/g, "");
 }
 
-/** How far the matcher looks: a week back (finished slips) through two weeks ahead (futures). */
-export const WINDOW_BACK = 7;
+/** How far the matcher looks: two weeks back (settled slips) through two weeks ahead (futures). */
+export const WINDOW_BACK = 14;
 export const WINDOW_AHEAD = 14;
 const ESPN = "https://site.api.espn.com/apis/site/v2/sports/";
 const COLLEGE_HOOPS = new Set(["ncaam", "ncaaw"]);
@@ -355,6 +356,9 @@ export async function matchRows(rows: SlipRow[], slipDate: string | null = null)
         if (bad) m = { ...m, issue: m.issue ? `${bad} ${m.issue}` : bad };
       }
       const result = await gradeLeg(m, games);
+      // The slip's own check mark is a hint, never a grade: ESPN's final decides, and a disagreement is said out loud.
+      const note = markNote(result, r0.mark ?? null, !m.game);
+      if (note) m = { ...m, issue: [m.issue, note].filter(Boolean).join(" ") };
       return result ? { ...m, result } : m;
     })
   );
@@ -394,7 +398,7 @@ function prompt(today: string): string {
 Today is ${today}. Use it only to turn printed words like "Today", "Tomorrow", "Fri", "10/14" or "Oct 14" into a YYYY-MM-DD date.
 Weekday calendar (a bare weekday means the date in this list; past weekdays for finished legs, coming ones for open legs): ${calendar(today)}.
 Return JSON:
-{"legs":[{"subject":string,"kind":"prop"|"spread"|"total"|"moneyline","market":string,"line":number|null,"line_text":string|null,"side":"over"|"under"|null,"odds":number|null,"league":string|null,"date":string|null,"team":string|null,"opponent":string|null,"settled":boolean}],"stake":null,"book":string|null,"entry":string|null,"date":string|null,"lines":[string]}
+{"legs":[{"subject":string,"kind":"prop"|"spread"|"total"|"moneyline","market":string,"line":number|null,"line_text":string|null,"side":"over"|"under"|null,"odds":number|null,"league":string|null,"date":string|null,"team":string|null,"opponent":string|null,"settled":boolean,"sport":"tennis"|"mma"|"team"|null,"result":"won"|"lost"|"push"|null}],"stake":null,"book":string|null,"entry":string|null,"date":string|null,"lines":[string]}
 Read EVERY leg on the slip, top to bottom, even when there are many (up to 20). Each player block on a pick'em slip is one leg. Each line of a parlay or same-game parlay is one leg.
 - subject: the player for props (full name as printed), the team for spread/moneyline, the matchup ("AWAY @ HOME") for game totals. Tennis: the player.
 - Keep each leg's own details together: the matchup, date and teams for a leg come from that leg's own row or the game header it sits under, never from a neighboring leg.
@@ -408,7 +412,11 @@ Read EVERY leg on the slip, top to bottom, even when there are many (up to 20). 
 - league: the league if printed or plain from the slip (logos, team names, "NBA", "WNBA", "NCAAB", "NCAAW", "NFL", "CFB", "MLB", "NHL", "ATP", "WTA", "EPL", "MLS", "UFC"), else null.
 - date: the game date as YYYY-MM-DD when printed for that leg (or its game header), else null.
 - team / opponent: teams or players printed beside the leg ("LAL vs DEN", "@ BOS", "vs C. Alcaraz"). team = the subject's side, opponent = the other side. null if not printed.
-- settled: true only if the slip marks that leg finished (a check, an X, "Won", "Lost", "Final", a final stat beside it). Otherwise false.
+- Matchup rows: many apps print, under each leg, a row with BOTH sides (flags or logos, "Final" or a time). That row belongs to the leg directly above it. team = the side named like the subject, opponent = the OTHER name in that row, copied as printed (a cut-off name like "Giusti..." stays "Giusti..."). Example: leg "Z. Piros / Winner" over row "Piros  Final  Giusti..." → subject "Z. Piros", kind "moneyline", team "Piros", opponent "Giusti...".
+- "Winner" or "To Win" under a player's name is a moneyline leg.
+- sport: "tennis" when legs are single players with country flags, a "Winner" market, or tennis stats; "mma" for fighters (UFC, "by KO/TKO", "by Decision"); "team" for team sports; null if you can't tell.
+- settled: true only if the slip marks that leg finished (a check, an X, "Won", "Lost", "Final" in its row, or the slip sits on a "Settled" tab). Otherwise false.
+- result: "won" for a green check or "Won", "lost" for a red X or "Lost", "push" for "Push"/"Void", else null.
 - stake: always null. Ignore "$X to win $Y", payouts and entry fees.
 - book: the app name if visible, else null. entry: the entry type if printed ("Power Play", "Flex Play", "Parlay", "SGP", "Champions"), else null.
 - date (top level): a date printed for the whole slip (placed or game date), YYYY-MM-DD, else null.
@@ -521,6 +529,8 @@ async function readOnce(dataUrl: string, auth: string, model: string, timeout: n
         team: txt(l.team),
         opponent: txt(l.opponent),
         settled: l.settled === true,
+        sport: l.sport === "tennis" || l.sport === "mma" || l.sport === "team" ? l.sport : null,
+        mark: l.result === "won" ? "win" : l.result === "lost" ? "loss" : l.result === "push" ? "push" : null,
         ...(plus != null && line === plus ? { plus: true } : {}),
       });
     }

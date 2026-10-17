@@ -29,6 +29,10 @@ export type SlipRow = {
   plus?: boolean;
   /** The slip marks this leg settled (a check, "Won", "Lost"). Only used to look at past games; never a grade. */
   settled?: boolean;
+  /** Sport as read from the slip (flags + two players + "Winner" = tennis). A hint for matching. */
+  sport?: "tennis" | "mma" | "team" | null;
+  /** The slip's own mark (green check = win). A hint only: ESPN's final always decides. */
+  mark?: "win" | "loss" | "push" | null;
 };
 
 export type SlateGame = {
@@ -426,7 +430,7 @@ const HOOP_ONLY = /rebounds|3-pointers|points \+|rebounds \+|steals|blocks|free 
 /** Which sport a row is about, from its league hint and market. Null = can't tell. */
 export function rowSport(row: SlipRow): "tennis" | "basketball" | null {
   const lg = (row.league ?? "").toLowerCase();
-  if (TENNIS.has(lg) || TENNIS_MARKETS.has(propMarketOf(row.market) || row.market)) return "tennis";
+  if (row.sport === "tennis" || TENNIS.has(lg) || TENNIS_MARKETS.has(propMarketOf(row.market) || row.market)) return "tennis";
   if (BASKETBALL.has(lg) || (row.kind === "prop" && HOOP_ONLY.test(propMarketOf(row.market) || row.market))) return "basketball";
   return null;
 }
@@ -447,6 +451,22 @@ export function playerNameHit(printed: string, full: string): boolean {
   return !!initial && !!rest && fw[0][0] === initial && (rest === fl || rest === fw.slice(1).join(" "));
 }
 
+/** A name as printed in a matchup row, which slips cut off ("Giusti…", "Kasnik..."). Prefix of the surname counts. */
+export function rowNameHit(printed: string, full: string): boolean {
+  const cut = /(\u2026|\.\.\.?)\s*$/.test(printed.trim());
+  const clean = printed.trim().replace(/(\u2026|\.\.\.?)\s*$/, "").trim();
+  if (!clean) return false;
+  if (!cut) return playerNameHit(clean, full);
+  const stem = normName(clean.replace(/\./g, " ")).split(" ").pop() ?? "";
+  const words = normName(full).split(" ");
+  return stem.length >= 4 && words.slice(1).some((w) => w.startsWith(stem));
+}
+
+/** The opponent printed beside a leg: "vs Paul" / "@ BOS" / "Giusti…" → the bare name. */
+export function cleanOpponent(o: string | null | undefined): string {
+  return (o ?? "").replace(/^(vs\.?|v\.?|@|at)\s+/i, "").trim();
+}
+
 /** Sports date (US Eastern) of a start time, YYYY-MM-DD. */
 export function easternDate(iso: string): string {
   const t = Date.parse(iso);
@@ -460,6 +480,11 @@ export function easternDate(iso: string): string {
  */
 export function pickGame<T extends SlateGame>(cands: T[], row: Pick<SlipRow, "date" | "settled">, now = Date.now()): T | null {
   if (!cands.length) return null;
+  // A leg the slip marks settled is over: a game that has not started is never it.
+  if (row.settled) {
+    cands = cands.filter((g) => g.state !== "pre");
+    if (!cands.length) return null;
+  }
   if (row.date && /^\d{4}-\d{2}-\d{2}$/.test(row.date)) {
     const same = cands.filter((g) => easternDate(g.start) === row.date);
     if (same.length) return same.find((g) => g.state === "in") ?? same[0];
@@ -478,15 +503,23 @@ export function pickGame<T extends SlateGame>(cands: T[], row: Pick<SlipRow, "da
 }
 
 /** Tennis matches where the printed name is one of the two players. */
-export function tennisGames(name: string, games: SlateGame[]): { game: SlateGame; side: "home" | "away" }[] {
+export function tennisGames(name: string, games: SlateGame[], opponent?: string | null): { game: SlateGame; side: "home" | "away" }[] {
   const out: { game: SlateGame; side: "home" | "away" }[] = [];
+  const opp = cleanOpponent(opponent);
   for (const g of games) {
     if (!TENNIS.has(g.league)) continue;
-    if (playerNameHit(name, g.home.name)) out.push({ game: g, side: "home" });
-    else if (playerNameHit(name, g.away.name)) out.push({ game: g, side: "away" });
+    const side = rowNameHit(name, g.home.name) ? "home" : rowNameHit(name, g.away.name) ? "away" : null;
+    if (!side) continue;
+    // The opponent printed on the slip must be the other player: same name, another match is a different leg.
+    if (opp && !rowNameHit(opp, side === "home" ? g.away.name : g.home.name)) continue;
+    out.push({ game: g, side });
   }
   return out;
 }
+
+/** "D. Medvedev", "Z. Piros": an initial and a surname reads as one person (tennis, MMA), not a team. */
+export const personName = (s: string) => /^[A-Z]\.\s?[A-Z][\p{L}'’-]+(\s[A-Z][\p{L}'’-]+)?$/u.test(s.trim());
+const INDIVIDUAL = new Set(["atp", "wta", "ufc", "pfl", "boxing"]);
 
 const gameRef = (g: SlateGame): GameRef => ({ league: g.league, id: g.id, away: g.away.abbr, home: g.home.abbr, start: g.start, state: g.state, awayName: g.away.name, homeName: g.home.name });
 
@@ -523,16 +556,19 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
     const known = propMarketOf(row.market);
     if (known) row = { ...row, market: known };
     // Tennis: the players are the two sides of the match.
-    const tennis = sport === "tennis" || (!player && row.league == null) ? tennisGames(row.subject, games) : [];
+    const tennisAll = sport === "tennis" || (!player && row.league == null) ? tennisGames(row.subject, games) : [];
+    const tennisVs = row.opponent ? tennisGames(row.subject, games, row.opponent) : [];
+    const tennis = tennisVs.length ? tennisVs : tennisAll;
     if (tennis.length) {
-      const g = pickGame(tennis.map((t) => t.game), row, now) as SlateGame;
+      const g = pickGame(tennis.map((t) => t.game), row, now);
+      if (!g) return { row, leg: null, game: null, manual: true, issue: "The slip says this is settled, but no finished game fits. Match it below, or save it as a manual leg.", options: gameOptions(row, games, now) };
       const side = tennis.find((t) => t.game === g)?.side ?? "home";
       const who = side === "home" ? g.home : g.away;
       const leg: LegInput = { league: g.league, gameId: g.id, kind: "prop", athleteId: who.id, athleteName: who.name, market: row.market, line: row.line, pick: row.selection === "Under" ? "under" : "over", odds };
       const issue = !row.market ? "Pick the stat." : row.line == null ? "Add the line." : !row.selection ? "Pick over or under." : null;
       return { row, leg, game: gameRef(g), issue, manual: true };
     }
-    if (!player) return { row, leg: null, game: null, manual: true, issue: "Player not found in games from the last week or the next two. Match it below, or save it as a manual leg.", options: gameOptions(row, games, now) };
+    if (!player) return { row, leg: null, game: null, manual: true, issue: "Player not found in games from the last two weeks or the next two. Match it below, or save it as a manual leg.", options: gameOptions(row, games, now) };
     // Team ids repeat across leagues (WNBA 5 is not MLB 5): same league only. Soccer search hits say "soccer".
     const soccer = (lg: string) => !TENNIS.has(lg) && !BASKETBALL.has(lg) && !["nfl", "ncaaf", "mlb", "nhl", "ufc"].includes(lg);
     const sameLeague = (x: SlateGame) => x.league === player.league || (player.league === "soccer" && soccer(x.league));
@@ -570,7 +606,7 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
     const twoNamed = /\s(@|vs\.?|v\.?|at)\s/i.test(row.subject) || !!(row.team && row.opponent);
     const one = twoNamed ? [] : findTeamGames(text, pool);
     const g = pickGame(bothAll.length ? bothAll : one.filter((h) => h.score === one[0]?.score).map((h) => h.game), row, now);
-    if (!g) return { row, leg: null, game: null, issue: twoNamed ? "That matchup is not in games from the last week or the next two. Match it below." : "Which game? Match it below.", options: gameOptions(row, games, now) };
+    if (!g) return { row, leg: null, game: null, issue: twoNamed ? "That matchup is not in games from the last two weeks or the next two. Match it below." : "Which game? Match it below.", options: gameOptions(row, games, now) };
     return {
       row,
       leg: { league: g.league, gameId: g.id, kind: "total", pick: row.selection === "Under" ? "under" : "over", line: row.line, odds },
@@ -578,10 +614,25 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
       issue: row.line == null ? "Add the line." : !row.selection ? "Pick over or under." : !bothAll.length ? "Only one team named. Check the game." : null,
     };
   }
-  // Spread or moneyline. Tennis: a player to win.
-  const tennis = sport === "tennis" || !findTeamGames(row.subject, pool).length ? tennisGames(row.subject, games) : [];
+  // Spread or moneyline. Tennis: a player to win, against the opponent printed on the slip.
+  const opp = cleanOpponent(row.opponent);
+  // Tennis for sure (read as tennis, or a tennis league); or maybe (a person and an opponent, sport not read).
+  const tennisLike = sport === "tennis";
+  const maybeTennis = !tennisLike && !row.sport && personName(row.subject) && !!opp && !row.league;
+  const tennis = row.sport === "mma" ? [] : tennisLike || maybeTennis || !findTeamGames(row.subject, pool).length ? tennisGames(row.subject, games, opp || null) : [];
+  if (!tennis.length && tennisLike) {
+    // Never borrow another match (a future one, another opponent) or another sport for a tennis leg.
+    const named = tennisGames(row.subject, games).length > 0;
+    const issue = opp
+      ? `ESPN doesn't cover this event (${row.subject} vs ${opp}). It saves as a manual leg you grade.`
+      : named
+        ? "No finished match fits. Add the opponent, or match it below."
+        : "Player not found in ESPN tennis from the last two weeks or the next two. It saves as a manual leg you grade.";
+    return { row: { ...row, sport: "tennis" }, leg: null, game: null, manual: true, issue, options: gameOptions({ ...row, sport: "tennis" }, games, now) };
+  }
   if (tennis.length) {
-    const g = pickGame(tennis.map((t) => t.game), row, now) as SlateGame;
+    const g = pickGame(tennis.map((t) => t.game), row, now);
+    if (!g) return { row, leg: null, game: null, manual: true, issue: "The slip says this is settled, but no finished game fits. Match it below, or save it as a manual leg.", options: gameOptions(row, games, now) };
     const side = tennis.find((t) => t.game === g)?.side ?? "home";
     const who = side === "home" ? g.home : g.away;
     const leg: LegInput =
@@ -590,13 +641,27 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
         : { league: g.league, gameId: g.id, kind: "moneyline", side, team: who.name, odds };
     return { row, leg, game: gameRef(g), issue: null, manual: row.kind === "spread" };
   }
-  const hits = findTeamGames(row.subject, pool);
-  if (!hits.length) return { row, leg: null, game: null, issue: "Team not found in games from the last week or the next two. Match it below.", options: gameOptions(row, games, now) };
+  // Fighters and players: when the slip prints the opponent, the other side has to be them.
+  // A person ("M. Kasnikowski") only matches a fighter or player by name, never by a stray word; a team needs more than a city word.
+  const person = personName(row.subject);
+  const hits = findTeamGames(row.subject, pool).filter((h) => {
+    const me = h.side === "home" ? h.game.home : h.game.away;
+    const them = h.side === "home" ? h.game.away : h.game.home;
+    if (INDIVIDUAL.has(h.game.league)) {
+      if (!rowNameHit(row.subject, me.name)) return false;
+      return !opp || rowNameHit(opp, them.name) || teamScore(opp, them) >= 2;
+    }
+    return !person || h.score >= 2;
+  });
+  if (!hits.length && maybeTennis)
+    return { row, leg: null, game: null, manual: true, issue: `ESPN doesn't cover this event (${row.subject} vs ${opp}). It saves as a manual leg you grade.`, options: gameOptions(row, games, now) };
+  if (!hits.length) return { row, leg: null, game: null, issue: "Team not found in games from the last two weeks or the next two. Match it below.", options: gameOptions(row, games, now) };
   const top = hits.filter((h) => h.score === hits[0].score);
   // The opponent, when printed, settles which game.
   const vs = row.opponent ? top.filter((h) => teamScore(row.opponent as string, h.side === "home" ? h.game.away : h.game.home) > 0) : [];
   const fits = vs.length ? vs : top;
-  const g = pickGame(fits.map((h) => h.game), row, now) as SlateGame;
+  const g = pickGame(fits.map((h) => h.game), row, now);
+  if (!g) return { row, leg: null, game: null, manual: true, issue: "The slip says this is settled, but no finished game fits. Match it below, or save it as a manual leg.", options: gameOptions(row, games, now) };
   const best = fits.find((h) => h.game === g) ?? fits[0];
   const sameDay = fits.filter((h) => h.game.id !== g.id && easternDate(h.game.start) === easternDate(g.start));
   const unsure = sameDay.length > 0;
@@ -721,4 +786,13 @@ export function leagueFromTeams(row: SlipRow, games: SlateGame[]): string | null
   };
   // Same matchup in two leagues (PHI vs BOS): the printed date picks one.
   return one(both) ?? (row.date ? one(both.filter((g) => easternDate(g.start) === row.date)) : null);
+}
+
+/** What to say about the slip's own mark. ESPN's final always wins; the mark only fills a gap ESPN leaves. Pure. */
+export function markNote(result: "win" | "loss" | "push" | null, mark: "win" | "loss" | "push" | null, noGame: boolean): string | null {
+  if (!mark) return null;
+  const said = mark === "win" ? "a win" : mark === "loss" ? "a loss" : "a push";
+  if (result && result !== mark) return `The slip shows ${said}; ESPN's final says ${result}. ESPN's result is used.`;
+  if (!result && noGame) return `The slip shows ${said}: set it in your Log.`;
+  return null;
 }
