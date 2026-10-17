@@ -29,5 +29,10 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     background_color: "#030306",
     theme_color: team ? `#${team.color}` : "#030306",
     icons,
+    shortcuts: [
+      { name: "My Live", short_name: "Live", url: "/live", description: "Your open picks and parlays, live" },
+      { name: "Log a pick", short_name: "Log", url: "/lines/portfolio" },
+      { name: "Quests", short_name: "Quests", url: "/quests" },
+    ],
   };
 }

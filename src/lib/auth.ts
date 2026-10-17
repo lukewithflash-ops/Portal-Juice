@@ -1,5 +1,6 @@
 import "server-only";
 import { dropSocial } from "@/lib/social";
+import { revokeWidgetToken } from "@/lib/widget";
 import { createHash, createSign, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { chatEnabled, redis } from "@/lib/chat";
@@ -177,6 +178,7 @@ export async function deleteAccount(u: User): Promise<void> {
   }
   await unlinkAllPush(u.id);
   await dropSocial(u.id).catch(() => {});
+  await revokeWidgetToken(u.id).catch(() => {});
   await redis(["DEL", K.userSess(u.id), K.user(u.id), `pj:sync:${u.id}`]);
 }
 

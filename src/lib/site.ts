@@ -25,6 +25,7 @@ export const MORE_NAV = [
   { href: "/friends", label: "Friends" },
   { href: "/quests", label: "Quests" },
   { href: "/wrapped", label: "Wrapped" },
+  { href: "/widget", label: "Widget" },
   { href: "/account", label: "Account" },
   { href: "/mvp", label: "MVP" },
   { href: "/trends", label: "Trends" },
