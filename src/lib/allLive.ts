@@ -250,11 +250,12 @@ async function serversFor(games: AllLiveGame[]): Promise<void> {
     need.map(async (g) => {
       const lg = g.league;
       const sit = asDict(await getJson(`https://sports.core.api.espn.com/v2/sports/tennis/leagues/${lg}/events/${g.eventId}/competitions/${g.id}/situation`, 1).catch(() => null));
+      // ESPN names the server athlete, or (doubles) the serving side; sometimes neither, then nothing shows.
       const id = String(asDict(sit.server).$ref ?? "").match(/athletes\/(\d+)/)?.[1];
-      if (!id) return;
+      const sideId = String(asDict(sit.servingSide).$ref ?? "").match(/competitors\/([\d-]+)/)?.[1];
       for (const [side, ent] of [["away", g.away], ["home", g.home]] as const) {
         const eid = g.ids?.[side] ?? "";
-        if (eid === id || eid.split("-").includes(id)) ent.serving = true;
+        if ((sideId && eid === sideId) || (id && (eid === id || eid.split("-").includes(id)))) ent.serving = true;
       }
     }),
   );

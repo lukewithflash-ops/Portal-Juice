@@ -29,10 +29,10 @@ function boardJson(url: string): Promise<unknown> {
 async function tennisServer(leaguePath: string, eventId: string, matchId: string, m: Match): Promise<void> {
   if (m.state !== "in" || m.away.serving || m.home.serving || !eventId) return;
   const lg = leaguePath.split("/")[1];
-  const sit = (await getJson(`https://sports.core.api.espn.com/v2/sports/tennis/leagues/${lg}/events/${eventId}/competitions/${matchId}/situation`, 1).catch(() => null)) as { server?: { $ref?: string } } | null;
+  const sit = (await getJson(`https://sports.core.api.espn.com/v2/sports/tennis/leagues/${lg}/events/${eventId}/competitions/${matchId}/situation`, 1).catch(() => null)) as { server?: { $ref?: string }; servingSide?: { $ref?: string } } | null;
+  const side = sit?.servingSide?.$ref?.match(/competitors\/([\d-]+)/)?.[1];
   const id = sit?.server?.$ref?.match(/athletes\/(\d+)/)?.[1];
-  if (!id) return;
-  for (const e of [m.away, m.home]) if (e.id === id || e.id.split("-").includes(id)) e.serving = true;
+  for (const e of [m.away, m.home]) if ((side && e.id === side) || (id && (e.id === id || e.id.split("-").includes(id)))) e.serving = true;
 }
 
 export type MatchPage = { match: Match; feed: MatchEvent[]; stats: StatRow[]; hasSummary: boolean };
