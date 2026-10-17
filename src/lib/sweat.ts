@@ -25,7 +25,7 @@ export function needed(line: number | null, value: number | null, over: boolean)
 
 /** Heartbeat period: 1.3s far from the line, down to 0.4s at the edge. */
 export function beatSeconds(fill: number): number {
-  const f = Math.max(0, Math.min(1, fill));
+  const f = Math.max(0, Math.min(1, fill > 1 ? fill / 100 : fill));
   return Math.round((1.3 - 0.9 * f) * 100) / 100;
 }
 

@@ -120,7 +120,7 @@ function SweatView({ s, onClose }: { s: Sweat; onClose: () => void }) {
         <span className="text-3xl text-zinc-400">/{s.leg.lineText}</span>
       </div>
       <div className="mt-4 h-4 w-full max-w-sm overflow-hidden rounded-full bg-white/10">
-        <div className="sweat-fill h-full rounded-full" style={{ width: `${Math.round(Math.max(0.03, Math.min(1, s.leg.fill)) * 100)}%` }} />
+        <div className="sweat-fill h-full rounded-full" style={{ width: `${Math.round(Math.max(3, Math.min(100, s.leg.fill > 1 ? s.leg.fill : s.leg.fill * 100)))}%` }} />
       </div>
       <p className="mt-3 text-lg font-black text-[color:var(--plus)]" data-testid="sweat-need">
         {need != null ? `Needs ${need} more ${short}` : s.leg.note || (s.leg.state === "alive" ? "On track" : "Behind")}

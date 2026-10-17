@@ -30,10 +30,12 @@ export default function SlipCheck({ legs }: { legs: CheckLeg[] }) {
     if (!legs.length) return;
     const ac = new AbortController();
     const t = setTimeout(() => {
-      fetch("/api/slip/check", { method: "POST", headers: { "content-type": "application/json" }, body: sig, signal: ac.signal })
+      fetch("/api/slip/check", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ legs: JSON.parse(sig) }), signal: ac.signal })
         .then((r) => r.json())
         .then((j: { flags?: Flag[] }) => setServer(j.flags ?? []))
-        .catch(() => {});
+        .catch((e) => {
+          if ((e as Error).name !== "AbortError") setServer([]);
+        });
     }, 400);
     return () => {
       clearTimeout(t);

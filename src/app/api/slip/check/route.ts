@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     const b = games.get(k);
     if (!b) return;
     if (b.game.state === "post") flags.push({ leg: i, kind: "final", text: `Game is final (${b.game.away.abbr} @ ${b.game.home.abbr}).` });
-    else if (b.game.state === "in") flags.push({ leg: i, kind: "started", text: `Game already started: ${b.game.detail || "live"}.` });
+    else if (b.game.state === "in") flags.push({ leg: i, kind: "started", text: "Game already started." });
     if (l.kind === "prop") {
       const ro = rosters.get(k);
       const me = ro?.players.find((p) => (l.athleteId && p.id === l.athleteId) || nameClose(p.name, l.subject));
