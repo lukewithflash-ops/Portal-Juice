@@ -21,6 +21,15 @@ export type LivePlayer = {
   headshot?: string | null;
   /** On the field/court/ice right now, when the sport's data says so. */
   onField?: boolean | null;
+  /** ESPN's own flag: basketball = on the court now; baseball = in the current lineup / pitching now. Null when ESPN doesn't send it. */
+  active?: boolean | null;
+  /** Baseball: listed in the pitching group, and pitching right now; in the batting order now. */
+  pitcher?: boolean;
+  inLineup?: boolean;
+  pitchingNow?: boolean;
+  ejected?: boolean;
+  /** Short position ("SS", "DH", "PH", "G", "C"). */
+  pos?: string | null;
 };
 
 export type LineupSub = { clock: string; teamAbbr: string; inName: string | null; outName: string | null; text: string };
@@ -126,9 +135,17 @@ export type LiveBug = {
   half: "top" | "bottom" | null;
   homeTimeouts: number | null;
   awayTimeouts: number | null;
+  /** Baseball: ESPN athlete ids at the plate and on base, when the situation names them. */
+  batterId?: string | null;
+  runnerIds?: string[];
 };
 
 /** Reads a summary or scoreboard `situation` plus the status detail ("Top 5th"). */
+function personId(v: unknown): string | null {
+  const d = asDict(v);
+  return str(d.playerId) || str(asDict(d.athlete).id) || null;
+}
+
 export function readBug(sitRaw: unknown, detail: string | null): LiveBug | null {
   const sit = asDict(sitRaw);
   const on = (v: unknown) => v === true || (!!v && typeof v === "object");
@@ -143,6 +160,8 @@ export function readBug(sitRaw: unknown, detail: string | null): LiveBug | null 
     half,
     homeTimeouts: num(sit.homeTimeouts),
     awayTimeouts: num(sit.awayTimeouts),
+    batterId: personId(sit.batter),
+    runnerIds: [sit.onFirst, sit.onSecond, sit.onThird].map(personId).filter((x): x is string => !!x),
   };
   const any = bug.balls !== null || bug.outs !== null || bug.homeTimeouts !== null || bug.onFirst || bug.onSecond || bug.onThird || half;
   return any ? bug : null;
@@ -192,6 +211,8 @@ export type LiveSnap = {
   drives: LiveDrive[];
   situation: LiveSituation | null;
   bug?: LiveBug | null;
+  /** Basketball: every substitution and ejection play this game, oldest first (the recent-play window is too short to replay lineups). */
+  subLog?: { text: string; period: number | null; clock: string; type: string }[];
   /** Substitutions in order, oldest first (soccer from key events, basketball from play-by-play). */
   subs?: LineupSub[];
   /** Basketball: every shot with real coordinates this game. */
@@ -296,6 +317,10 @@ export function parseLive(data: unknown): LiveSnap | null {
           if (key && cells[i] != null && cells[i] !== "" && statMap[key] == null) statMap[key] = cells[i];
         });
       }
+      // ESPN repeats a player per group (batting/pitching): read the flags from every row.
+      const rows = groups.map((g) => ({ g: str(g.name) || str(g.type) || "", r: asList(g.athletes).map(asDict).find((row) => str(asDict(row.athlete).id) === id) })).filter((x) => x.r);
+      const flagged = rows.filter((x) => typeof x.r!.active === "boolean");
+      const pitchRow = rows.find((x) => /pitch/i.test(x.g));
       players.push({
         id,
         name,
@@ -303,6 +328,12 @@ export function parseLive(data: unknown): LiveSnap | null {
         played: a.didNotPlay !== true,
         stats,
         statMap,
+        active: flagged.length ? flagged.some((x) => x.r!.active === true && !/pitch/i.test(x.g)) || (flagged.length === 1 && flagged[0].r!.active === true) : null,
+        pitcher: Boolean(pitchRow),
+        pitchingNow: pitchRow ? pitchRow.r!.active === true : false,
+        inLineup: rows.some((x) => /bat/i.test(x.g) && x.r!.active === true),
+        ejected: a.ejected === true,
+        pos: str(asDict(a.position).abbreviation) || str(asDict(athlete.position).abbreviation) || (rows.some((x) => /goalie/i.test(x.g)) ? "G" : null),
       });
     }
     if (!players.length) continue;
@@ -421,6 +452,17 @@ export function parseLive(data: unknown): LiveSnap | null {
       if (play) keyPlays.push(play);
     }
   }
+  const subLog: NonNullable<LiveSnap["subLog"]> = [];
+  if (!football) {
+    for (const raw of rawPlays) {
+      const r = asDict(raw);
+      const t = str(r.text) || "";
+      const type = str(asDict(r.type).text) || "";
+      if (/enters the game for|ejected|ejection|fouls? out|disqualif/i.test(t) || /substitution|ejection/i.test(type)) {
+        subLog.push({ text: t, period: num(asDict(r.period).number), clock: str(asDict(r.clock).displayValue) || "", type });
+      }
+    }
+  }
   // Drop drives whose plays were all filtered out (no text).
   const kept = new Set(plays.map((p) => p.id));
   for (const dr of drives) dr.playIds = dr.playIds.filter((pid) => kept.has(pid));
@@ -516,6 +558,7 @@ export function parseLive(data: unknown): LiveSnap | null {
     boxes,
     plays,
     keyPlays: keyPlays.length ? keyPlays : undefined,
+    subLog: subLog.length ? subLog : undefined,
     drives,
     situation,
     bug: state === "in" ? readBug(d.situation, str(asDict(asDict(comp.status).type).shortDetail)) : null,

@@ -22,6 +22,7 @@ export function slimSnap(league: string, snap: LiveSnap): LiveSnap {
     winMarks: undefined,
     shots: undefined,
     keyPlays: undefined,
+    subLog: undefined,
     subs: snap.subs ? snap.subs.slice(-8) : undefined,
     atBat: snap.atBat ? { ...snap.atBat, pitches: [] } : snap.atBat,
   };

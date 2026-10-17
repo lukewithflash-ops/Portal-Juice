@@ -2,6 +2,7 @@ import { pickGame, playerNameHit, gradeTennis, parseSlipRows as parseSlip2, slip
 import { lineIssue, lineOk, plusLine, rereadLine } from "../src/lib/lineSanity";
 import { conflicts as slipConflicts, duplicates as slipDups } from "../src/lib/slipCheck";
 import { profane } from "../src/lib/chat";
+import { hoopsLineup, mlbLineup } from "../src/lib/lineup";
 import { beatSeconds, needed, sweatOf } from "../src/lib/sweat";
 import { complete as qComplete, doneToday as qDone, EMPTY_QUESTS, mergeQuestJson, questsFor, questStreak } from "../src/lib/questsCore";
 import { diffList, emptyDoc, mergePush, resetCols } from "../src/lib/syncCore";
@@ -1751,5 +1752,29 @@ console.log(`\n${n} passed`);
     assert(profane("sh1t call") && profane("f u c k") && profane("fuuuuck") && profane("b1tch"), "threads: filter catches leetspeak and spacing");
     assert(!profane("Dickinson scores") && !profane("spicy game") && !profane("class act") && !profane("cocktail hour"), "threads: filter leaves real words alone");
     console.log("ok - threads");
+  }
+  // On the court: never more than five, ESPN's flag first, full sub log replay second.
+  {
+    const pl = (id: string, extra: Record<string, unknown> = {}) => ({ id, name: "Guy " + id.replace(/\d/g, (d) => "abcdefghij"[Number(d)]), starter: Number(id) <= 5, played: true, stats: [], statMap: {}, ...extra });
+    const box = (flags: (boolean | null)[]) => ({ abbr: "AAA", color: "#fff", columns: [], players: flags.map((f, i) => pl(String(i + 1), { active: f })) });
+    const base = { state: "in", boxes: [], plays: [], subLog: [] } as never as import("../src/lib/live").LiveSnap;
+    const flagged = hoopsLineup("nba", { ...base, boxes: [box([false, false, true, true, true, true, true, false])] });
+    assert(flagged.teams[0].on.map((p) => p.id).join() === "3,4,5,6,7" && !flagged.teams[0].bestRead, "court: ESPN on-court flag");
+    const subs = [{ text: "Guy g enters the game for Guy b", period: 1, clock: "6:00", type: "Substitution" }, { text: "Guy h enters the game for Guy c", period: 2, clock: "9:00", type: "Substitution" }];
+    const replay = hoopsLineup("nba", { ...base, subLog: subs, boxes: [box(Array(8).fill(null))] });
+    assert(replay.teams[0].on.map((p) => p.id).sort().join() === "3,4,5,6,7", "court: replay every sub this game");
+    const over = hoopsLineup("nba", { ...base, subLog: [{ text: "Guy g enters the game for Somebody Else", period: 1, clock: "6:00", type: "Substitution" }, { text: "Guy h enters the game for Nobody Atall", period: 1, clock: "5:00", type: "Substitution" }], boxes: [box(Array(8).fill(null))] });
+    assert(over.teams[0].on.length === 5 && over.teams[0].bestRead && over.teams[0].on[0].id === "7", "court: capped at five, newest check-ins first, labeled best read");
+    const fouled = hoopsLineup("nba", { ...base, subLog: subs, boxes: [{ ...box(Array(8).fill(null)), players: box(Array(8).fill(null)).players.map((p) => (p.id === "3" ? { ...p, statMap: { PF: "6" } } : p)) }] });
+    assert(!fouled.teams[0].on.some((p) => p.id === "3") && fouled.teams[0].bestRead, "court: fouled out leaves the floor");
+    const mlbBox = (abbr: string) => ({ abbr, color: "#fff", columns: [], players: [
+      ...["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"].map((pos, i) => pl(abbr + i, { pos, inLineup: true, active: true })),
+      pl(abbr + "p1", { pos: "P", pitcher: true, pitchingNow: false }), pl(abbr + "p2", { pos: "P", pitcher: true, pitchingNow: true, active: true }),
+    ] });
+    const m = mlbLineup({ ...base, awayAbbr: "AW", homeAbbr: "HM", boxes: [mlbBox("AW"), mlbBox("HM")], bug: { half: "top", batterId: "AW3", runnerIds: [], onFirst: true, onSecond: false, onThird: false } } as never);
+    const field = m.teams.find((t) => t.abbr === "HM")!;
+    assert(field.on.length === 9 && field.on[0].id === "HMp2" && !field.on.some((p) => p.pos === "DH"), "court: baseball nine in the field, no DH");
+    assert(m.teams.find((t) => t.abbr === "AW")!.extra === "At the plate: Guy AWd · On base: 1st", "court: baseball plate and bases");
+    console.log("ok - on court");
   }
 }

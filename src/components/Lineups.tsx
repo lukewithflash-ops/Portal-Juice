@@ -6,19 +6,23 @@ import { headshotFor } from "@/lib/faces";
 import type { LivePlayer, LiveSnap } from "@/lib/live";
 import { lineupOf } from "@/lib/lineup";
 import { getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
+import { getNotes, getServerNotes, subscribeNotes } from "@/lib/noteStore";
+import { playerKey } from "@/lib/notesCore";
 import { sportLeague } from "@/lib/sports";
 
-function Chip({ p, league, mine, dim }: { p: LivePlayer; league: string; mine: boolean; dim?: boolean }) {
+function Chip({ p, league, mine, noted, dim }: { p: LivePlayer; league: string; mine: boolean; noted?: boolean; dim?: boolean }) {
   const face = p.headshot ?? headshotFor(league, p.id);
   return (
     <li
-      className={`flex items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2 text-[11px] ${mine ? "your-player border-[color:var(--gold)] text-white" : dim ? "border-white/10 text-zinc-500" : "border-purple-300/30 text-zinc-100"}`}
+      className={`flex items-center gap-1.5 rounded-full border py-0.5 pl-0.5 pr-2 text-[11px] ${mine ? "your-player border-[color:var(--gold)] text-white" : noted ? "border-cyan-300/70 text-white shadow-[0_0_8px_rgba(103,232,249,.35)]" : dim ? "border-white/10 text-zinc-500" : "border-purple-300/30 text-zinc-100"}`}
       title={p.position ?? undefined}
     >
       <span className="h-5 w-5 flex-none overflow-hidden rounded-full bg-zinc-800">{face ? <img src={face} alt="" className="h-full w-full object-cover" loading="lazy" onError={(e) => (e.currentTarget.style.display = "none")} /> : null}</span>
       {p.jersey ? <span className="tabular text-[10px] text-zinc-500">#{p.jersey}</span> : null}
       <span className="truncate font-bold">{p.name}</span>
+      {p.pos ? <span className="text-[9px] text-zinc-500">{p.pos}</span> : null}
       {mine ? <span aria-label="On your picks">⭐</span> : null}
+      {noted ? <span aria-label="In your notes">📝</span> : null}
     </li>
   );
 }
@@ -31,6 +35,17 @@ export default function Lineups({ league, gameId, snap }: { league: string; game
   const lu = useMemo(() => lineupOf(league, snap, soccer), [league, snap, soccer]);
   const mineNames = useMemo(() => picks.filter((p) => p.gameId === gameId).map((p) => p.subject.toLowerCase()), [picks, gameId]);
   const isMine = (p: LivePlayer) => mineNames.some((n) => n === p.name.toLowerCase() || (n.length > 3 && p.name.toLowerCase().includes(n)));
+  const notes = useSyncExternalStore(subscribeNotes, getNotes, getServerNotes);
+  const noted = useMemo(() => {
+    const ids = new Set<string>();
+    const keys = new Set<string>();
+    for (const n of notes) for (const pl of n.players ?? []) {
+      if (pl.id) ids.add(pl.id);
+      keys.add(playerKey(pl.name));
+    }
+    return { ids, keys };
+  }, [notes]);
+  const isNoted = (p: LivePlayer) => noted.ids.has(p.id) || noted.keys.has(playerKey(p.name));
   if (lu.mode === "none" || !lu.teams.length) return null;
   const onLabel = soccer ? "On the pitch" : ["nba", "wnba", "ncaam", "ncaaw"].includes(league) ? "On the court" : league === "nhl" ? "On the ice" : "On the field";
   return (
@@ -49,17 +64,20 @@ export default function Lineups({ league, gameId, snap }: { league: string; game
             <div className="mb-1 text-[11px] font-black uppercase tracking-wider text-zinc-300">{t.abbr}</div>
             {t.on.length ? (
               <>
-                <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[color:var(--plus)]">{onLabel} · {t.on.length}</div>
-                <ul className="flex flex-wrap gap-1">{t.on.map((p) => <Chip key={p.id} p={p} league={league} mine={isMine(p)} />)}</ul>
+                <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[color:var(--plus)]" data-testid="oncourt-label">
+                  {t.onLabel ?? onLabel}{t.bestRead ? " (best read)" : ""} · {t.on.length}
+                </div>
+                <ul className="flex flex-wrap gap-1" data-testid="oncourt-list" data-team={t.abbr}>{t.on.map((p) => <Chip key={p.id} p={p} league={league} mine={isMine(p)} noted={isNoted(p)} />)}</ul>
               </>
             ) : null}
+            {t.extra ? <p className="mt-1 text-[11px] font-bold text-zinc-300" data-testid="oncourt-extra">{t.extra}</p> : null}
             {t.bench.length ? (
               <>
                 <button type="button" onClick={() => setShowBench((v) => !v)} className="mt-2 text-[10px] font-bold uppercase tracking-wider text-zinc-500 hover:text-zinc-300">
                   {lu.mode === "roster" ? "Played" : "Bench"} · {t.bench.length} {showBench ? "▴" : "▾"}
                 </button>
-                {showBench || t.bench.some(isMine) ? (
-                  <ul className="mt-1 flex flex-wrap gap-1">{(showBench ? t.bench : t.bench.filter(isMine)).map((p) => <Chip key={p.id} p={p} league={league} mine={isMine(p)} dim />)}</ul>
+                {showBench || t.bench.some((p) => isMine(p) || isNoted(p)) ? (
+                  <ul className="mt-1 flex flex-wrap gap-1">{(showBench ? t.bench : t.bench.filter((p) => isMine(p) || isNoted(p))).map((p) => <Chip key={p.id} p={p} league={league} mine={isMine(p)} noted={isNoted(p)} dim />)}</ul>
                 ) : null}
               </>
             ) : null}

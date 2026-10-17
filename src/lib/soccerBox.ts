@@ -91,7 +91,7 @@ export async function soccerBoxes(summary: unknown, path: string, event: string,
           position: str(pos.displayName) ?? str(pos.name),
           jersey: str(p.jersey),
           headshot: id ? `https://a.espncdn.com/i/headshots/soccer/players/full/${id}.png` : null,
-          onField: state === "pre" ? starter : (starter && !subOut) || (subIn && !subOut),
+          onField: state === "pre" ? starter : ((starter && !subOut) || (subIn && !subOut)) && num(RC) === 0,
         } satisfies LivePlayer;
       })
     );
