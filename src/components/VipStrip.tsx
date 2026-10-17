@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { sportsDate } from "@/lib/slate";
-import { vipDay, vipRecordAll } from "@/lib/vipStore";
+import { vipRecordAll, vipUpcoming } from "@/lib/vipStore";
 
 /** Home entry to VIP: how many picks are live today and the public record. No pick details. */
 export default async function VipStrip() {
-  const [today, rec] = await Promise.all([vipDay(sportsDate()).catch(() => []), vipRecordAll().catch(() => null)]);
+  const [today, rec] = await Promise.all([vipUpcoming().catch(() => []), vipRecordAll().catch(() => null)]);
   const open = today.filter((p) => !p.result).length;
   const r = rec?.record;
   return (
@@ -14,7 +13,7 @@ export default async function VipStrip() {
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] font-black text-white">
-          VIP {open ? <span className="text-[color:var(--gold)]">· {open} pick{open === 1 ? "" : "s"} today</span> : <span className="text-zinc-400">· picks post when the data lines up</span>}
+          VIP {open ? <span className="text-[color:var(--gold)]">· {open} pick{open === 1 ? "" : "s"} up</span> : <span className="text-zinc-400">· picks post when the data lines up</span>}
         </span>
         <span className="block truncate text-[12px] text-zinc-400">
           {r && r.wins + r.losses + r.pushes ? `Record ${r.wins}–${r.losses}${r.pushes ? `–${r.pushes}` : ""}${r.streak ? ` · ${r.streak.kind}${r.streak.n} streak` : ""}` : "Public record from the first final"} · Not a guarantee.

@@ -163,3 +163,10 @@ export async function lineMoved(g: Game): Promise<{ text: string } | null> {
   }
   return parts.length ? { text: parts.join(" · ") } : null;
 }
+
+/** Picks for today and tomorrow (PT): late-night runs lock tomorrow's early games. */
+export async function vipUpcoming(now = Date.now()): Promise<VipPick[]> {
+  const today = sportsDate(new Date(now));
+  const [a, b] = await Promise.all([vipDay(today), vipDay(addDays(today, 1))]);
+  return [...a, ...b];
+}

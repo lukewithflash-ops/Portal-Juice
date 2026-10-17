@@ -304,7 +304,7 @@ export default function VipClient() {
       </section>
 
       <section>
-        <h2 className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-zinc-500">Today’s VIP picks</h2>
+        <h2 className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-zinc-500">VIP picks</h2>
         {d.picks.length ? (
           <ul className="space-y-3">{d.picks.map((p) => (isFull(p) ? <FullPick key={p.id} p={p} /> : <LockedPick key={p.id} p={p} />))}</ul>
         ) : (
