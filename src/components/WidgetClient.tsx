@@ -127,8 +127,8 @@ export default function WidgetClient() {
             ) : null}
           </div>
           {token ? (
-            <p className="mt-2 break-all rounded-lg bg-black/40 p-2 font-mono text-[11px] text-[color:var(--plus)]" data-testid="widget-token">
-              {token}
+            <p className="mt-2 break-all rounded-lg bg-black/40 p-2 font-mono text-[11px] text-[color:var(--plus)]">
+              <code data-testid="widget-token">{token}</code>
               <span className="mt-1 block font-sans text-zinc-500">Shown once. Paste it into the app’s widget settings.</span>
             </p>
           ) : null}

@@ -106,7 +106,11 @@ export default function FriendsClient() {
         </form>
         {o.me ? (
           <label className="mt-3 flex items-center gap-2 text-[13px] text-zinc-200">
-            <input type="checkbox" checked={o.me.share} onChange={(e) => act({ action: "share", on: e.target.checked }, e.target.checked ? "Friends can see your picks." : "Your picks are hidden from friends.")} data-testid="friends-share" />
+            <input type="checkbox" checked={o.me.share} onChange={async (e) => {
+                const on = e.target.checked;
+                setO((cur) => (cur?.me ? { ...cur, me: { ...cur.me, share: on } } : cur));
+                if (!(await act({ action: "share", on }, on ? "Friends can see your picks." : "Your picks are hidden from friends."))) setO((cur) => (cur?.me ? { ...cur, me: { ...cur.me, share: !on } } : cur));
+              }} data-testid="friends-share" />
             Share my picks with friends and squads (W/L/P/open only, never stakes)
           </label>
         ) : (
