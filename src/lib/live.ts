@@ -186,6 +186,8 @@ export type LiveSnap = {
   period: number | null;
   boxes: LiveBox[];
   plays: LivePlay[];
+  /** Non-football: scores and period ends older than the recent play window. Server-side only (slimmed out). */
+  keyPlays?: LivePlay[];
   /** Football only. Every drive in order, oldest first. */
   drives: LiveDrive[];
   situation: LiveSituation | null;
@@ -366,14 +368,14 @@ export function parseLive(data: unknown): LiveSnap | null {
     }
     rawPlays = drivePlays;
   }
-  for (const raw of football ? rawPlays : rawPlays.slice(-40)) {
+  const toPlay = (raw: unknown): LivePlay | null => {
     const p = asDict(raw);
     const id = str(p.id);
     const text = str(p.text) || str(p.shortDescription);
-    if (!id || !text) continue;
+    if (!id || !text) return null;
     const start = asDict(p.start);
     const coord = asDict(p.coordinate);
-    plays.push({
+    return {
       id,
       text,
       clock: str(asDict(p.clock).displayValue) || "",
@@ -402,7 +404,22 @@ export function parseLive(data: unknown): LiveSnap | null {
             endTeamId: str(asDict(asDict(p.end).team).id),
           }
         : {}),
-    });
+    };
+  };
+  const recentRaw = football ? rawPlays : rawPlays.slice(-40);
+  for (const raw of recentRaw) {
+    const play = toPlay(raw);
+    if (play) plays.push(play);
+  }
+  // Scores and period ends from earlier in the game (outside the recent window), for game threads.
+  const keyPlays: LivePlay[] = [];
+  if (!football) {
+    for (const raw of rawPlays.slice(0, -40)) {
+      const r = asDict(raw);
+      if (r.scoringPlay !== true && !/end (of )?(period|quarter|half)|end of the/i.test(`${str(asDict(r.type).text) || ""} ${str(r.text) || ""}`)) continue;
+      const play = toPlay(raw);
+      if (play) keyPlays.push(play);
+    }
   }
   // Drop drives whose plays were all filtered out (no text).
   const kept = new Set(plays.map((p) => p.id));
@@ -498,6 +515,7 @@ export function parseLive(data: unknown): LiveSnap | null {
     period: num(asDict(comp.status).period),
     boxes,
     plays,
+    keyPlays: keyPlays.length ? keyPlays : undefined,
     drives,
     situation,
     bug: state === "in" ? readBug(d.situation, str(asDict(asDict(comp.status).type).shortDetail)) : null,

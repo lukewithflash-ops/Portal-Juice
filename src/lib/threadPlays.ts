@@ -37,7 +37,7 @@ export async function syncThreadPlays(league: string, id: string): Promise<void>
   if (lock !== "OK") return;
   const snap = await getLive(league, id).catch(() => null);
   if (!snap || snap.state === "pre") return;
-  const big = snap.plays.map((p) => ({ p, tag: bigPlay(league, p) })).filter((x): x is { p: LivePlay; tag: string } => Boolean(x.tag && x.p.id));
+  const big = [...(snap.keyPlays ?? []), ...snap.plays].map((p) => ({ p, tag: bigPlay(league, p) })).filter((x): x is { p: LivePlay; tag: string } => Boolean(x.tag && x.p.id));
   if (!big.length) return;
   const first = (await seenSystem(league, id)) === 0;
   // A thread opened mid-game gets only the latest few, not the whole game at once.
