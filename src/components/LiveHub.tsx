@@ -454,7 +454,7 @@ function ClearedParty({ leg }: { leg: Leg }) {
           <div className="text-[11px] font-black uppercase tracking-[0.3em] text-white/85">🏆 Leg cleared</div>
           <div className="cinema-name">{leg.name}</div>
           <p className="mt-1 text-sm font-semibold text-white/90">
-            {leg.side} {leg.line} {leg.market} · {leg.value ?? ""}
+            {leg.plus ? "" : leg.side + " "}{leg.lineText ?? leg.line} {leg.market} · {leg.value ?? ""}
           </p>
           <span className="cinema-stamp">Hit!</span>
         </div>

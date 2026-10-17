@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
+import PageHeader from "@/components/PageHeader";
 import { BestStrip, BEST_NOTE } from "@/components/BestLists";
 import GamesBoard from "@/components/GamesBoard";
-import MascotSlot from "@/components/MascotSlot";
 import Link from "next/link";
 import { biggestMoves, hotTrends, marketFavorites } from "@/lib/best";
 import LineBoard from "@/components/LineBoard";
@@ -27,13 +27,7 @@ export default async function LinesPage() {
   const portal = await portalPickToday(slate.games, sportsDate());
   return (
     <>
-      <div className="mb-5 flex items-center gap-3">
-        <MascotSlot size={64} />
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)] sm:text-3xl">Lines</h1>
-          <p className="mt-1 text-sm text-zinc-400">The number moved. Tap a line for its history.</p>
-        </div>
-      </div>
+<PageHeader title="Lines" sub="Where the number moved. Tap one for its history." />
       <div className="mb-4">
         <PortalPickPanel pick={portal.pick} record={portal.record} tracked={portal.tracked} compact />
       </div>

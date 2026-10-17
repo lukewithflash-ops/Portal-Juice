@@ -404,7 +404,7 @@ export async function checkPush(source = "cron"): Promise<{ enabled: boolean; su
         kind: "sweat",
         key: `sweat:${sid}`,
         title: `🔥 Last leg alive: ${leg.name}`,
-        body: `${need != null && need > 0 ? `Needs ${need} more ${p.market}` : `${leg.side} ${leg.line} ${p.market}`} · ${s0.total - 1}/${s0.total} hit · ${snap.awayAbbr} ${snap.awayScore ?? 0}-${snap.homeScore ?? 0} ${snap.homeAbbr} ${snap.detail}`,
+        body: `${need != null && need > 0 ? `Needs ${need} more ${p.market}` : `${leg.plus ? "" : leg.side + " "}${leg.lineText ?? leg.line} ${p.market}`} · ${s0.total - 1}/${s0.total} hit · ${snap.awayAbbr} ${snap.awayScore ?? 0}-${snap.homeScore ?? 0} ${snap.homeAbbr} ${snap.detail}`,
         url: `/live?sweat=${encodeURIComponent(p.id)}`,
       });
     }

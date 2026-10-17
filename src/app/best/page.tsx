@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import PageHeader from "@/components/PageHeader";
 import { FavoriteList, MoveList, MvpList, TrendList, BEST_NOTE } from "@/components/BestLists";
 import { biggestMoves, hotTrends, marketFavorites } from "@/lib/best";
 import { getMvpBoard, getSlate, getTrends } from "@/lib/espn";
@@ -31,12 +32,7 @@ export default async function BestPage() {
   const portal = await portalPickToday(slate.games, sportsDate());
   return (
     <div className="mx-auto max-w-xl">
-      <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)] sm:text-3xl">Best</h1>
-      <p className="mt-1 text-sm text-zinc-400">{BEST_NOTE}</p>
-      <p className="mt-2 mb-6 text-[12px] leading-snug text-zinc-500">
-        Every row shows its homework: the posted price, the line move, or the game log behind the rank. Gold is #1 of each list.
-        Green is a better number for that side, red is worse. Tap a row for the game.
-      </p>
+      <PageHeader title="Best" sub={BEST_NOTE} note="Each row shows its proof. Gold is #1. Green is the better number, red the worse. Tap for the game." />
 
       <div className="mb-8">
         <PortalPickPanel pick={portal.pick} record={portal.record} tracked={portal.tracked} />

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import PageHeader from "@/components/PageHeader";
 import LeadersList from "@/components/LeadersList";
 import { LEADER_MIN, LEADER_NOTE } from "@/lib/leaderRank";
 import { leaderAccounts, leadersEnabled, listLeaders } from "@/lib/leaders";
@@ -21,13 +22,7 @@ export default async function LeadersPage() {
   }
   return (
     <div className="mx-auto max-w-xl">
-      <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)] sm:text-3xl">Leaders</h1>
-      <p className="mt-1 text-sm text-zinc-400">{LEADER_NOTE}</p>
-      <p className="mt-2 mb-5 text-[12px] leading-snug text-zinc-500">
-        Ranked by hit rate (wins over wins plus losses), then sample size. Minimum {LEADER_MIN} graded lines. Results are
-        self-reported from each person&apos;s device Log. Copy adds their open lines to your Log to track. It does not place
-        anything. Copy is open to everyone for now. VIP access comes with accounts.
-      </p>
+      <PageHeader title="Leaders" sub={LEADER_NOTE} note={<>Hit rate, then sample size. {LEADER_MIN}+ graded lines, self-reported. Copy adds open lines to your Log. Nothing is placed.</>} />
       {!enabled ? (
         <p className="panel rounded-xl px-4 py-4 text-sm text-zinc-400">Leaders open when the store is connected.</p>
       ) : rows.length === 0 ? (

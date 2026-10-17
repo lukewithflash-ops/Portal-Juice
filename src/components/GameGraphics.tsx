@@ -404,19 +404,19 @@ export function Spotlight({ league, gameId, snap }: { league: string; gameId: st
                     <NoteTag player={{ name: l.name, id: l.athleteId ?? null }} />
                   </div>
                   <div className="truncate text-[10px] font-bold uppercase tracking-wider" style={{ color: l.side === "Over" ? "var(--plus)" : "#38bdf8" }}>
-                    {l.side} {l.line} {l.market}
+                    {l.plus ? "" : l.side + " "}{l.lineText ?? l.line} {l.market}
                   </div>
                 </div>
               </div>
               <div className="mt-1.5 flex items-end justify-between">
                 <span className="tabular text-2xl font-black leading-none" style={{ color }}>
                   {l.value ?? "—"}
-                  <span className="text-xs text-zinc-500">/{l.line}</span>
+                  <span className="text-xs text-zinc-500">/{l.lineText ?? l.line}</span>
                 </span>
                 <span className="text-[10px] font-black uppercase tracking-wider" style={{ color }}>{word}</span>
               </div>
               {/* Meter: the tick is the line. Over fills toward it; Under is safe while it stays left of it. */}
-              <div className="spot-meter mt-1.5" aria-label={`${l.value ?? 0} of ${l.line}`}>
+              <div className="spot-meter mt-1.5" aria-label={`${l.value ?? 0} of ${l.lineText ?? l.line}`}>
                 <div className="spot-fill" style={{ width: `${Math.min(100, pct * 80)}%`, background: color }} />
                 <span className="spot-tick" style={{ left: "80%" }} />
               </div>

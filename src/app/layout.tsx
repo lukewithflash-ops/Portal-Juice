@@ -80,7 +80,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 <SweatWatch />
                 <QuestAgent />
               </Suspense>
-              <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-10 pt-3">
+              <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-8 pt-4">
                 <NotifyBanner />
                 <PageEnter>{children}</PageEnter>
               </main>

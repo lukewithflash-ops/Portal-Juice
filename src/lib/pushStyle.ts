@@ -78,13 +78,13 @@ export function styleAlert(a: GameAlert, scene: PushScene | null, fav: FavTeam, 
   switch (a.kind) {
     case "cleared":
       emoji = "🟡";
-      title = m ? `🟡 Hit! ${m.name} ${m.side === "Under" ? `under ${m.line}` : fmtLine(m.line)} ${shortMarket(m.market)}` : "🟡 Hit!";
+      title = m ? `🟡 Hit! ${m.name} ${m.side === "Under" ? `under ${m.line}` : m.lineText?.endsWith("+") ? m.lineText : fmtLine(m.line)} ${shortMarket(m.market)}` : "🟡 Hit!";
       body = `${a.body}${clock}`;
       big = true;
       break;
     case "player":
       emoji = "⭐";
-      title = m ? `⭐ ${m.name} ${m.value ?? "—"} of ${m.line} ${shortMarket(m.market)}` : `⭐ ${a.title}`;
+      title = m ? `⭐ ${m.name} ${m.value ?? "—"} of ${m.lineText ?? m.line} ${shortMarket(m.market)}` : `⭐ ${a.title}`;
       body = `${a.body}${clock}`;
       break;
     case "close":
@@ -95,7 +95,7 @@ export function styleAlert(a: GameAlert, scene: PushScene | null, fav: FavTeam, 
       break;
     case "almost":
       emoji = "🔥";
-      title = m ? `🔥 Almost there · ${m.name} ${m.value ?? "—"} of ${m.line} ${shortMarket(m.market)}` : "🔥 Almost there";
+      title = m ? `🔥 Almost there · ${m.name} ${m.value ?? "—"} of ${m.lineText ?? m.line} ${shortMarket(m.market)}` : "🔥 Almost there";
       body = `${a.body}${clock}`;
       big = true;
       break;

@@ -236,14 +236,26 @@ export async function overview(uid: string) {
   return { me, friends, requests, blocked, squads: squadsOut, invite: me ? await myInvite(uid) : null };
 }
 
-/** Everyone whose picks this user can see: friends plus squadmates, sharing on, not blocked. */
+/** Everyone whose open picks this user can see: mutual friends with sharing on, not blocked. Squadmates who
+ * aren't friends see only the one shared live position. */
 async function circle(uid: string): Promise<string[]> {
-  const fr = await smembers(K.fr(uid));
-  const sqIds = await smembers(K.usq(uid));
-  const mates = (await Promise.all(sqIds.map(getSquad))).flatMap((s) => s?.members ?? []);
-  const all = [...new Set([...fr, ...mates])].filter((u) => u !== uid);
+  const all = (await smembers(K.fr(uid))).filter((u) => u !== uid);
   const ok = await Promise.all(all.map(async (u) => !(await blockedEither(uid, u)) && ((await getProfile(u))?.share ?? true)));
   return all.filter((_, i) => ok[i]).slice(0, 40);
+}
+
+/** A friend's open picks and parlays (W/L/P/open, no stakes). Non-friends and blocked people get only the shared position. */
+export async function friendView(uid: string, handle: string): Promise<{ friend: boolean; handle: string; share?: boolean; picks?: SlimPick[]; position: LivePosition | null }> {
+  const other = await uidOf(handle);
+  const h = cleanHandle(handle) ?? "";
+  if (!other || other === uid || (await blockedEither(uid, other))) return { friend: false, handle: h, position: other && other !== uid && !(await blockedEither(uid, other)) ? await positionOf(other) : null };
+  const prof = await getProfile(other);
+  const friend = Number(await redis(["SISMEMBER", K.fr(uid), other])) === 1;
+  const position = await positionOf(other);
+  if (!friend) return { friend: false, handle: prof?.handle ?? h, position };
+  if (prof && prof.share === false) return { friend: true, handle: prof.handle, share: false, picks: [], position };
+  const picks = (listOf("picks", await readDoc(other)) as Record<string, unknown>[]).map(slim).filter((p): p is SlimPick => !!p && p.status === "open").slice(0, 60);
+  return { friend: true, handle: prof?.handle ?? h, share: true, picks, position };
 }
 
 export function slim(p: Record<string, unknown>): SlimPick | null {

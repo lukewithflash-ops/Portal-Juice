@@ -32,7 +32,7 @@ export default function HandleEditor() {
   }
   return (
     <div className="auth-panel p-4" data-testid="handle-editor">
-      <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-200">Handle</h2>
+      <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-200">Handle and privacy</h2>
       {edit ? (
         <form onSubmit={save} className="mt-2 flex gap-2">
           <span className="self-center text-zinc-400">@</span>
@@ -49,6 +49,24 @@ export default function HandleEditor() {
       )}
       <p className="mt-1 text-[12px] text-zinc-500">{me.edited ? "Squads, threads and live positions show this name. It has been changed once and is set." : "Made from your account so squads work with one tap. You can change it once."}</p>
       {err ? <p className="mt-1 text-[12px] text-[color:var(--minus)]" role="alert">{err}</p> : null}
+      <label className="mt-4 flex items-start gap-3 border-t border-white/10 pt-3" data-testid="privacy-row">
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] text-white">Friends can see all my open picks</span>
+          <span className="block text-[12px] text-zinc-500">On: mutual friends see every open pick and parlay, W/L/P/open only, never stakes. Off: they see nothing but your one shared live position, which anyone can see.</span>
+        </span>
+        <input
+          type="checkbox"
+          className="mt-1 h-5 w-5 shrink-0 accent-[color:var(--plus)]"
+          checked={me.share}
+          onChange={async (e) => {
+            const on = e.target.checked;
+            setMe({ ...me, share: on });
+            const r = await fetch("/api/friends", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "share", on }) });
+            if (!r.ok) setMe({ ...me, share: !on });
+          }}
+          data-testid="privacy-toggle"
+        />
+      </label>
     </div>
   );
 }

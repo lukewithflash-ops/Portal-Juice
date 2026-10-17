@@ -1,5 +1,6 @@
 "use client";
 
+import PageHeader from "@/components/PageHeader";
 import { SkelRows } from "@/components/Skeleton";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -70,8 +71,7 @@ export default function WidgetClient() {
 
   return (
     <div className="mx-auto max-w-lg py-3">
-      <h1 className="text-2xl font-black text-white">Home-screen widget</h1>
-      <p className="mt-1 text-sm text-zinc-400">Live parlay progress at a glance. Open picks only: hit, missed, push or open. No money.</p>
+<PageHeader title="Widget" sub="Your live picks on the home screen. W/L/P/open only." />
 
       <section className="mt-5">
         <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-purple-200/80">Add My Live to your Home Screen</h2>

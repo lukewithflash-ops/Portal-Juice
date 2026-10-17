@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import PageHeader from "@/components/PageHeader";
 import { getStories } from "@/lib/espn";
 import { ptDayTime } from "@/lib/time";
 
@@ -13,10 +14,7 @@ export default async function NewsPage() {
   const { stories, fetchedAt } = await getStories();
   return (
     <>
-      <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)] sm:text-3xl">News</h1>
-      <p className="mt-1 mb-5 text-sm text-zinc-400">
-        Headlines from ESPN, linked out. Updated {ptDayTime(fetchedAt)}.
-      </p>
+      <PageHeader title="News" sub={<>ESPN headlines · {ptDayTime(fetchedAt)}</>} />
       {stories.length === 0 ? (
         <p className="panel rounded-xl px-4 py-5 text-sm text-zinc-400">No headlines from ESPN right now.</p>
       ) : (

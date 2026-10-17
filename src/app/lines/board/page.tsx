@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import PageHeader from "@/components/PageHeader";
 import RecordList, { type RecordItem } from "@/components/RecordList";
 import { HISTORY } from "@/data/history";
 import {
@@ -57,10 +58,7 @@ export default function BoardPage() {
 
   return (
     <>
-      <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)] sm:text-3xl">Board</h1>
-      <p className="mt-1 text-sm text-zinc-400">
-        Records from stored, graded lines. Hit rate and sample size. No money.
-      </p>
+      <PageHeader title="Board" sub="Runs and records from graded lines." />
 
       <RecordList
         title="Players on a run"

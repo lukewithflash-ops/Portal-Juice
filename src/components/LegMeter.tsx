@@ -40,7 +40,7 @@ export function LegMeter({ leg, mini = false }: { leg: Leg; mini?: boolean }) {
           <span className="tabular shrink-0 font-black" style={{ color }}>
             <ChanceBadge chance={leg.chance} />{" "}
             {leg.value ?? "—"}
-            <span className="font-semibold text-white/60">/{leg.line}</span>
+            <span className="font-semibold text-white/60">/{leg.lineText ?? leg.line}</span>
             {cleared ? " ✓" : ""}
           </span>
         </div>
@@ -63,7 +63,7 @@ export function LegMeter({ leg, mini = false }: { leg: Leg; mini?: boolean }) {
         <div className="shrink-0 text-right">
           <div className="tabular text-xl font-black" style={{ color }}>
             {leg.value ?? "—"}
-            <span className="text-xs text-zinc-500">/{leg.line}</span>
+            <span className="text-xs text-zinc-500">/{leg.lineText ?? leg.line}</span>
           </div>
           <div className="flex justify-end">
             <ChanceBadge chance={leg.chance} />

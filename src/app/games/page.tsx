@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import PageHeader from "@/components/PageHeader";
 import GamesBoard from "@/components/GamesBoard";
 import { getSlate } from "@/lib/espn";
 
@@ -13,10 +14,7 @@ export default async function GamesPage() {
   const slate = await getSlate();
   return (
     <>
-      <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)] sm:text-3xl">Games</h1>
-      <p className="mt-1 mb-5 text-sm text-zinc-400">
-        Schedule, score, and the number when ESPN has one. Times are on your phone.
-      </p>
+      <PageHeader title="Games" sub="Scores and the number, from ESPN." />
       <GamesBoard games={slate.games} fetchedAt={slate.fetchedAt} dayLabel={slate.dayLabel} missing={slate.missing} />
     </>
   );

@@ -7,7 +7,7 @@ import { createPortal } from "react-dom";
 import { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import FriendFeed from "@/components/FriendFeed";
-import { PosFor } from "@/components/LivePosition";
+import { FriendName, PosFor } from "@/components/LivePosition";
 import { usePositions } from "@/lib/positionsClient";
 
 type Overview = {
@@ -168,9 +168,9 @@ export default function FriendsClient() {
             <input type="checkbox" checked={o.me.share} onChange={async (e) => {
                 const on = e.target.checked;
                 setO((cur) => (cur?.me ? { ...cur, me: { ...cur.me, share: on } } : cur));
-                if (!(await act({ action: "share", on }, on ? "Friends can see your picks." : "Your picks are hidden from friends."))) setO((cur) => (cur?.me ? { ...cur, me: { ...cur.me, share: !on } } : cur));
+                if (!(await act({ action: "share", on }, on ? "Friends can see all your open picks." : "Your open picks are hidden from friends. Your shared live position stays public."))) setO((cur) => (cur?.me ? { ...cur, me: { ...cur.me, share: !on } } : cur));
               }} data-testid="friends-share" />
-            Share picks
+            Friends see my open picks
           </label>
         ) : null}
       </section>
@@ -214,7 +214,7 @@ export default function FriendsClient() {
             <ul className="mt-2 space-y-1.5" data-testid="friends-list">
               {(o.friends ?? []).map((f) => (
                 <li key={f.handle} className="flex items-center gap-2 text-sm">
-                  <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5"><b className="text-white">@{f.handle}</b><PosFor handle={f.handle} map={pos} /></span>
+                  <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5"><FriendName handle={f.handle} /><PosFor handle={f.handle} map={pos} /></span>
                   {!f.share ? <span className="text-[11px] text-zinc-500">not sharing</span> : null}
                   <button type="button" onClick={() => act({ action: "remove", handle: f.handle }, "Removed.")} className="text-[12px] font-bold text-zinc-400">Remove</button>
                   <button type="button" onClick={() => act({ action: "block", handle: f.handle }, "Blocked.")} className="text-[12px] font-bold text-red-300">Block</button>
@@ -248,7 +248,7 @@ export default function FriendsClient() {
                   <ul className="mt-2 space-y-1" data-testid="squad-members">
                     {s.members.map((m) => (
                       <li key={m} className="flex flex-wrap items-center gap-1.5 text-[13px] text-zinc-300">
-                        <span>@{m}</span>
+                        {m === o.me?.handle ? <span>@{m}</span> : <FriendName handle={m} className="font-normal text-zinc-200" />}
                         <PosFor handle={m} map={pos} />
                       </li>
                     ))}

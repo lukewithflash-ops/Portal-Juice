@@ -1,5 +1,6 @@
 "use client";
 
+import { FriendName } from "@/components/LivePosition";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { getPicks, getServerPicks, restorePicks, subscribe } from "@/lib/pickStore";
@@ -34,7 +35,7 @@ const asPick = (s: Slim, owner: string): Pick => ({
 
 const STATUS: Record<string, string> = { win: "W", loss: "L", push: "P", open: "open" };
 
-/** Friends' and squadmates' picks with live meters, reactions and Tail. Signed-in only. */
+/** Friends' picks with live meters, reactions and Tail. Signed-in only. */
 export default function FriendFeed({ compact = false }: { compact?: boolean }) {
   const [feed, setFeed] = useState<Feed | null>(null);
   const [snaps, setSnaps] = useState<Record<string, LiveSnap>>({});
@@ -193,7 +194,7 @@ export default function FriendFeed({ compact = false }: { compact?: boolean }) {
         <div className="space-y-3">
           {views.map(({ f, ps, slips, loose }) => (
             <div key={f.handle} data-testid="friend-block">
-              <p className="mb-1 text-[12px] font-black text-white">@{f.handle}</p>
+              <p className="mb-1 text-[12px]"><FriendName handle={f.handle} /></p>
               {slips.length || loose.length ? (
                 <div className="space-y-2">
                   {slips.slice(0, compact ? 2 : 10).map((s) => slipBox(f, s, ps))}

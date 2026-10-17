@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import PageHeader from "@/components/PageHeader";
 import Mark from "@/components/Mark";
 import { getTrends } from "@/lib/espn";
 import { PAST_HITS } from "@/lib/site";
@@ -15,11 +16,7 @@ export default async function TrendsPage() {
   const { trends, fetchedAt } = await getTrends();
   return (
     <>
-      <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)] sm:text-3xl">Trends</h1>
-      <p className="mt-1 text-sm text-zinc-400">
-        Last-5 averages from ESPN gamelogs for players leading a category on a team playing today.
-      </p>
-      <p className="mt-1 mb-5 text-[11px] text-zinc-500">Updated {ptTime(fetchedAt)}. {PAST_HITS}</p>
+      <PageHeader title="Trends" sub="Last 5 games for today’s category leaders." note={<>Updated {ptTime(fetchedAt)}. {PAST_HITS}</>} />
       {trends.length === 0 ? (
         <p className="panel rounded-xl px-4 py-5 text-sm text-zinc-400">
           No player logs from ESPN for today’s games yet.

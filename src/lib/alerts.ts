@@ -38,7 +38,7 @@ export type GameAlert = {
   /** Set on "Your player" moments. */
   player?: { name: string; athleteId: string | null; league: string; gain: number; pickId: string };
   /** Leg alerts: the meter for the rich push image. */
-  meter?: { name: string; athleteId: string | null; value: number | null; line: number; market: string; side: "Over" | "Under" };
+  meter?: { name: string; athleteId: string | null; value: number | null; line: number; market: string; side: "Over" | "Under"; lineText?: string };
   /** Big plays: the play text, so we can tell whose play it was. */
   play?: string;
 };
@@ -169,13 +169,13 @@ export function legEvents(prev: Leg | null, next: Leg, late = false, wasLate = l
   if (!prev) return [];
   const url = gameRoute(next.league, next.gameId);
   const out: GameAlert[] = [];
-  const meter = { name: next.name, athleteId: next.athleteId ?? null, value: next.value, line: next.line, market: next.market, side: next.side };
+  const meter = { name: next.name, athleteId: next.athleteId ?? null, value: next.value, line: next.line, market: next.market, side: next.side, lineText: next.lineText };
   if (prev.status !== "cleared" && next.status === "cleared") {
     out.push({
       kind: "cleared",
       key: `${next.pickId}:cleared`,
       title: "Hit!",
-      body: `${next.name} ${next.side === "Under" ? "stayed under" : "cleared"} ${next.line} ${next.market}${next.value !== null ? ` (${next.value})` : ""}.`,
+      body: `${next.name} ${next.side === "Under" ? "stayed under" : "cleared"} ${next.lineText ?? next.line} ${next.market}${next.value !== null ? ` (${next.value})` : ""}.`,
       url,
       meter,
     });
@@ -196,7 +196,7 @@ export function legEvents(prev: Leg | null, next: Leg, late = false, wasLate = l
       kind: "player",
       key: `${next.pickId}:player:${next.value}`,
       title: `${next.name} +${gain}`,
-      body: `${next.value} of ${next.line} ${next.market} · ${toHit} to hit.`,
+      body: `${next.value} of ${next.lineText ?? next.line} ${next.market} · ${toHit} to hit.`,
       url,
       player: { name: next.name, athleteId: next.athleteId ?? null, league: next.league, gain, pickId: next.pickId },
       meter,
@@ -210,7 +210,7 @@ export function legEvents(prev: Leg | null, next: Leg, late = false, wasLate = l
         kind: "almost",
         key: `${next.pickId}:almost`,
         title: "Almost there",
-        body: `${next.name} ${next.value} of ${next.line} ${next.market} · one more clears it.`,
+        body: `${next.name} ${next.value} of ${next.lineText ?? next.line} ${next.market} · one more clears it.`,
         url,
         meter,
       });
@@ -219,7 +219,7 @@ export function legEvents(prev: Leg | null, next: Leg, late = false, wasLate = l
         kind: "close",
         key: `${next.pickId}:close:${need}`,
         title: `${need} away!`,
-        body: `${next.name} ${next.value} of ${next.line} ${next.market}.`,
+        body: `${next.name} ${next.value} of ${next.lineText ?? next.line} ${next.market}.`,
         url,
         meter,
       });

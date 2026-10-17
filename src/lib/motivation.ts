@@ -20,6 +20,10 @@ export type Leg = {
   market: string;
   line: number;
   side: "Over" | "Under";
+  /** At-least leg (X+): line is X − 0.5 for grading; show "X+". */
+  plus?: boolean;
+  /** What to print for the line: "24.5" or "1+". */
+  lineText?: string;
   /** Live box value. Null before tip or when the name is not in the box yet. */
   value: number | null;
   /** Straight-line finish at the current rate. A pace, not a prediction. Null with no game clock. */
@@ -103,6 +107,11 @@ function legCore(pick: Pick, snap: LiveSnap | null, prevValue: number | null = n
   const side: Leg["side"] = pick.selection === "Under" ? "Under" : "Over";
   const line = pick.line;
   const market = shortMarket(pick.market);
+  const plus = !!pick.plus && side === "Over";
+  // X+ legs count up to X itself (line + 0.5); everything shown says "X+".
+  const target = plus ? line + 0.5 : line;
+  const lineText = plus ? `${target}+` : String(line);
+  const want = plus ? lineText : `${side} ${line}`;
   const base = {
     pickId: pick.id,
     slipKey: slipKeyOf(pick),
@@ -112,18 +121,20 @@ function legCore(pick: Pick, snap: LiveSnap | null, prevValue: number | null = n
     market,
     line,
     side,
+    plus: plus || undefined,
+    lineText,
     athleteId: null as string | null,
   };
   const state = snap?.state ?? "pre";
   if (!snap || state === "pre") {
-    return { ...base, value: null, pace: null, toGo: null, fill: 0, tone: "flat", status: "waiting", progress: `${side} ${line} ${market}`, hype: null, final: false };
+    return { ...base, value: null, pace: null, toGo: null, fill: 0, tone: "flat", status: "waiting", progress: `${want} ${market}`, hype: null, final: false };
   }
   const player = playerByName(snap.boxes, pick.subject);
   base.athleteId = player?.id ?? null;
   const value = player ? liveStat(player.statMap, pick.market, snap.plays, player.name) : null;
   const final = state === "post";
   if (value === null) {
-    return { ...base, value: null, pace: null, toGo: null, fill: 0, tone: "flat", status: "no-match", progress: `${side} ${line} ${market}`, hype: final ? null : "Not in the box yet", final };
+    return { ...base, value: null, pace: null, toGo: null, fill: 0, tone: "flat", status: "no-match", progress: `${want} ${market}`, hype: final ? null : "Not in the box yet", final };
   }
   const span = clockSpan(pick.league, snap.period, snap.clock, snap.state);
   const pace = paceOf(value, span, snap.state);
@@ -136,8 +147,8 @@ function legCore(pick: Pick, snap: LiveSnap | null, prevValue: number | null = n
   let progress: string;
 
   if (side === "Over") {
-    toGo = round1(Math.max(0, line - value));
-    fill = Math.max(0, Math.min(100, (value / line) * 100));
+    toGo = round1(Math.max(0, target - value));
+    fill = Math.max(0, Math.min(100, (value / target) * 100));
     const need = unitsNeeded(line, value);
     if (need === 0) {
       status = "cleared";
@@ -156,7 +167,7 @@ function legCore(pick: Pick, snap: LiveSnap | null, prevValue: number | null = n
       else if (onPace) hype = "On pace. Keep it coming.";
       else if (onPace === false) hype = "Needs a run.";
     }
-    progress = `${value} of ${line} ${market}` + (toGo > 0 ? ` · ${toGo} to go` : "");
+    progress = `${value} of ${lineText} ${market}` + (toGo > 0 ? ` · ${toGo} to go` : "");
   } else {
     toGo = round1(Math.max(0, line - value));
     fill = Math.max(0, Math.min(100, (value / line) * 100));

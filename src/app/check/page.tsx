@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import PageHeader from "@/components/PageHeader";
 import { SkelRows } from "@/components/Skeleton";
 import { Suspense } from "react";
 import CheckClient from "@/components/CheckClient";
@@ -11,10 +12,7 @@ export const metadata: Metadata = {
 export default function CheckPage() {
   return (
     <>
-      <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)] sm:text-3xl">Breakdown</h1>
-      <p className="mt-1 mb-5 text-sm text-zinc-400">
-        Check a leg or a parlay. Every pro and con comes from ESPN numbers shown below it.
-      </p>
+      <PageHeader title="Breakdown" sub="Check a leg or parlay. Every point cites ESPN." />
       <Suspense fallback={<SkelRows n={3} label="Loading the slate" />}>
         <CheckClient />
       </Suspense>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import PageHeader from "@/components/PageHeader";
 import Mark from "@/components/Mark";
 import { OddsText } from "@/components/Prefs";
 import MvpMovers from "@/components/MvpMovers";
@@ -43,9 +44,7 @@ export default async function MvpPage() {
   const flat = groups.flatMap((g) => g.rows.map((r) => ({ ...r, provider: g.provider, leagueLabel: g.leagueLabel })));
   return (
     <>
-      <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)] sm:text-3xl">MVP</h1>
-      <p className="mt-1 text-sm text-zinc-400">Futures from ESPN. Updated {ptTime(fetchedAt)}.</p>
-      <p className="mt-1 mb-5 text-[11px] leading-relaxed text-zinc-500">{IMPLIED_BASIS}</p>
+      <PageHeader title="MVP" sub={<>Futures from ESPN · {ptTime(fetchedAt)}</>} note={IMPLIED_BASIS} />
 
       {groups.length === 0 ? (
         <p className="panel rounded-xl px-4 py-5 text-sm text-zinc-400">No MVP futures posted.</p>

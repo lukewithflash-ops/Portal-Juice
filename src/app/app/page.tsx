@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import PageHeader from "@/components/PageHeader";
 import InstallButton from "@/components/InstallButton";
 
 export const metadata: Metadata = {
@@ -9,10 +10,7 @@ export const metadata: Metadata = {
 export default function AppPage() {
   return (
     <>
-      <h1 className="text-2xl font-black tracking-tight text-[color:var(--flat)] sm:text-3xl">Get the app</h1>
-      <p className="mt-1 mb-5 text-sm text-zinc-400">
-        Juice on your home screen. Same site, full screen. No store listing.
-      </p>
+      <PageHeader title="Get the app" sub="Full screen from your home screen. No store." />
       <div className="grid gap-3 sm:grid-cols-2">
         <section className="foil-tile p-4">
           <h2 className="text-sm font-black uppercase tracking-[0.16em] text-[color:var(--flat)]">iPhone</h2>
