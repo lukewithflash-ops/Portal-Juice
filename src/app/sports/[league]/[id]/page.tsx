@@ -9,7 +9,7 @@ import AutoRefresh from "@/components/AutoRefresh";
 import { sportLeague } from "@/lib/sports";
 import { getMatch } from "@/lib/sportsFetch";
 
-export const revalidate = 10;
+export const revalidate = 2;
 
 type Params = { league: string; id: string };
 
@@ -40,7 +40,7 @@ export default async function MatchPage({ params }: { params: Promise<Params> })
         {l.name}
         {m.state === "in" ? " · Live" : m.state === "post" ? " · Final" : ""}
       </p>
-      {m.state === "in" && l.kind !== "team" && l.kind !== "soccer" ? <AutoRefresh ms={5000} /> : null}
+      {m.state === "in" && l.kind !== "team" && l.kind !== "soccer" ? <AutoRefresh ms={l.kind === "tennis" ? 2500 : 5000} /> : null}
       {l.kind === "team" || l.kind === "soccer" ? (
         <div className="mb-4">
           <GameLive league={league} id={id} away={m.away.short} home={m.home.short} props={[]} />
@@ -48,7 +48,7 @@ export default async function MatchPage({ params }: { params: Promise<Params> })
       ) : null}
       <div className="max-w-xl">
         {l.kind === "tennis" ? (
-          <MatchFx kind="tennis" sig={`${m.away.sets.join(",")}|${m.home.sets.join(",")}|${m.state}`}>
+          <MatchFx kind="tennis" sig={`${m.away.sets.join(",")}|${m.home.sets.join(",")}|${m.state}|${m.point?.away ?? ""}-${m.point?.home ?? ""}`}>
             <MatchRow m={m} href={null} />
           </MatchFx>
         ) : l.kind === "fight" ? (

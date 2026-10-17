@@ -1,5 +1,6 @@
 "use client";
 
+import { tennisLine } from "@/lib/tennisSnap";
 import { gameRoute } from "@/lib/gameRoute";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -155,7 +156,8 @@ function GameStrip({
   const homeAbbr = s?.homeAbbr ?? r?.homeAbbr ?? "";
   const awayScore = s?.awayScore ?? r?.awayScore ?? "0";
   const homeScore = s?.homeScore ?? r?.homeScore ?? "0";
-  const detail = s?.detail || r?.detail || "Live";
+  // Tennis: sets, the in-game score ESPN sent, and who is serving, all in the banner line.
+  const detail = (s?.tennis ? tennisLine(s.tennis, s.awayAbbr, s.homeAbbr) : "") || s?.detail || r?.detail || "Live";
   const favHome = game.fav && favAbbr === homeAbbr;
   const color = lift(
     game.fav ? (favHome ? s?.homeColor : s?.awayColor) ?? "#7c3aed" : s?.homeColor ?? "#7c3aed"

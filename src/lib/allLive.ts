@@ -5,7 +5,7 @@ import "server-only";
  */
 import { getJson } from "@/lib/espn";
 import { LEAGUES, parseScoreboard, sportsDate } from "@/lib/slate";
-import { catalogLeague, parseSportScoreboard, SPORT_LEAGUES, type SportLeague } from "@/lib/sports";
+import { catalogLeague, parseSportScoreboard, SPORT_LEAGUES, type SportLeague , type TennisPoint } from "@/lib/sports";
 import { ESPN_CATALOG } from "@/lib/espnCatalog";
 import { gameRoute } from "@/lib/gameRoute";
 
@@ -27,6 +27,8 @@ export type AllLiveGame = {
   leaders?: { name: string; score: string; thru: string | null }[];
   /** Tennis set scores. */
   sets?: { away: string[]; home: string[] };
+  /** Tennis in-game score ESPN sent (tiebreak points), if any. Never invented. */
+  point?: TennisPoint | null;
 };
 
 export type AllLive = { fetchedAt: string; games: AllLiveGame[]; leagues: { id: string; label: string; count: number }[] };
@@ -35,7 +37,7 @@ const BASE = "https://site.api.espn.com/apis/site/v2/sports/";
 const GROUP: Record<string, string> = { nfl: "Football", ncaaf: "Football", nba: "Basketball", mlb: "Baseball", nhl: "Hockey" };
 /** Every FBS / D-I game, not only ranked ones. */
 const GROUPS: Record<string, string> = { ncaaf: "&groups=80", ncaam: "&groups=50", ncaaw: "&groups=50" };
-const TTL_MS = 5_000;
+const TTL_MS = 3_000;
 /** How often every other ESPN league is scanned for games that are live or about to start. */
 const SCAN_MS = 120_000;
 /** A league that failed this pull keeps its last good list this long, so one bad feed never empties the page. */
@@ -149,6 +151,7 @@ export function liveFromBoard(l: SportLeague, data: unknown): AllLiveGame[] {
       away: side(m.away),
       home: side(m.home),
       sets: l.kind === "tennis" ? { away: m.away.sets, home: m.home.sets } : undefined,
+      point: l.kind === "tennis" ? m.point ?? null : undefined,
     });
   }
   for (const b of golf.filter((g) => g.state === "in")) {

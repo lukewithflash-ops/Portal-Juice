@@ -3,7 +3,7 @@
  * Score = sets won. Each player gets a one-row box with games won, sets won, total games and sets played. Pure.
  */
 import type { LiveSnap } from "@/lib/live";
-import type { Match } from "@/lib/sports";
+import { pointText, type Match } from "@/lib/sports";
 
 const games = (xs: string[]) => xs.map((x) => parseInt(x, 10)).map((n) => (Number.isFinite(n) ? n : 0));
 
@@ -12,6 +12,15 @@ function setDone(a: number, b: number): boolean {
   const hi = Math.max(a, b);
   const lo = Math.min(a, b);
   return (hi >= 6 && hi - lo >= 2) || (hi === 7 && lo === 6);
+}
+
+/** One line for a live tennis match: "6-3 5-3 · Tiebreak 5-4 · Jones serving". Points only when ESPN sent them. Pure. */
+export function tennisLine(t: NonNullable<LiveSnap["tennis"]>, awayShort: string, homeShort: string): string {
+  const n = Math.max(t.away.length, t.home.length);
+  const sets = Array.from({ length: n }, (_, i) => `${(t.away[i] ?? "0").replace(/\(\d+\)$/, "")}-${(t.home[i] ?? "0").replace(/\(\d+\)$/, "")}`).join(" ");
+  const pt = pointText(t.point, awayShort, homeShort);
+  const srv = t.serving === "away" ? `${awayShort} serving` : t.serving === "home" ? `${homeShort} serving` : null;
+  return [sets, pt, srv].filter(Boolean).join(" · ");
 }
 
 export function tennisSnap(m: Match): LiveSnap {
@@ -72,6 +81,6 @@ export function tennisSnap(m: Match): LiveSnap {
     drives: [],
     situation: null,
     start: m.start,
-    tennis: { away: m.away.sets, home: m.home.sets, serving, games: total, event: [m.event, m.round].filter(Boolean).join(" · ") || null },
+    tennis: { away: m.away.sets, home: m.home.sets, serving, games: total, event: [m.event, m.round].filter(Boolean).join(" · ") || null, point: m.point ?? null },
   };
 }

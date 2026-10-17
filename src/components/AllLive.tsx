@@ -8,6 +8,8 @@ import { usePoll, POLL_ERROR_MS } from "@/components/usePoll";
 import type { AllLive as AllLiveData, AllLiveGame } from "@/lib/allLive";
 
 const ACTIVE_MS = 10_000;
+/** A live tennis match moves point to point: refresh faster. */
+const TENNIS_MS = 3_000;
 const IDLE_MS = 45_000;
 
 /** Every game in progress across every league. Polls one batched endpoint. */
@@ -16,8 +18,9 @@ export function useAllLive(active: boolean): AllLiveData | null {
   usePoll(async (signal) => {
     const r = await fetch("/api/live/all", { cache: "no-store", signal });
     if (!r.ok) return POLL_ERROR_MS;
-    setData((await r.json()) as AllLiveData);
-    return active ? ACTIVE_MS : IDLE_MS;
+    const d = (await r.json()) as AllLiveData;
+    setData(d);
+    return active ? (d.games.some((g) => g.sets) ? TENNIS_MS : ACTIVE_MS) : IDLE_MS;
   }, "all-live:" + (active ? "on" : "off"));
   return data;
 }
@@ -99,7 +102,7 @@ function Chip({ on, onClick, label, count }: { on: boolean; onClick: () => void;
   );
 }
 
-function Side({ s, lead, sets }: { s: AllLiveGame["away"]; lead: boolean; sets?: string[] }) {
+function Side({ s, lead, sets, point }: { s: AllLiveGame["away"]; lead: boolean; sets?: string[]; point?: string | null }) {
   return (
     <div className="flex items-center gap-1.5">
       {s.logo ? (
@@ -120,6 +123,9 @@ function Side({ s, lead, sets }: { s: AllLiveGame["away"]; lead: boolean; sets?:
           ))}
         </span>
       ) : null}
+      {sets?.length && point != null ? (
+        <span className="tabular min-w-[1.6rem] rounded bg-[color:var(--plus)]/15 px-1 text-center text-[12px] font-black text-[color:var(--plus)]" data-testid="tennis-point">{point}</span>
+      ) : null}
       <span className={"tabular w-7 text-right text-[14px] font-black " + (lead ? "text-white" : "text-white/70")}>{sets?.length ? "" : s.score ?? ""}</span>
     </div>
   );
@@ -133,7 +139,7 @@ function AllRow({ g }: { g: AllLiveGame }) {
       <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider">
         <LeagueBadge league={g.league} label={g.label} />
         <span className="tv-live-dot shrink-0" aria-hidden />
-        <span className="tabular min-w-0 truncate text-white">{g.detail || "Live"}</span>
+        <span className="tabular min-w-0 truncate text-white">{[g.detail || "Live", g.point?.kind === "tiebreak" ? "Tiebreak" : null].filter(Boolean).join(" · ")}</span>
         {!g.sets && !g.leaders ? <NoteTag matchup={matchupKey(g.league, g.away.short, g.home.short)} label={`${g.away.short} vs ${g.home.short}`} /> : null}
         {g.event ? <span className="ml-auto min-w-0 truncate normal-case tracking-normal text-zinc-500">{g.event}</span> : null}
       </div>
@@ -150,8 +156,8 @@ function AllRow({ g }: { g: AllLiveGame }) {
         </ol>
       ) : (
         <>
-          <Side s={g.away} lead={a > h} sets={g.sets?.away} />
-          <Side s={g.home} lead={h > a} sets={g.sets?.home} />
+          <Side s={g.away} lead={a > h} sets={g.sets?.away} point={g.point?.away} />
+          <Side s={g.home} lead={h > a} sets={g.sets?.home} point={g.point?.home} />
         </>
       )}
     </Link>

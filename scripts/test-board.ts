@@ -15,7 +15,10 @@ import { parseBatch, slimSnap } from "../src/lib/liveSlim";
 import assert from "node:assert/strict";
 import { salvageJson, expandNickname, leagueFromTeams } from "../src/lib/slipImport";
 import { tennisSnap } from "../src/lib/tennisSnap";
-import { catalogLeague } from "../src/lib/sports";
+import { catalogLeague, parseMatch, pointText, sportLeague as sportLg, tennisPoint } from "../src/lib/sports";
+import { TENNIS_LIVE } from "./fixtures/tennis-live.fixture";
+import { tennisLine } from "../src/lib/tennisSnap";
+import { tennisNow } from "../src/lib/myLive";
 import { _test } from "../src/lib/askData";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -1931,4 +1934,41 @@ t("t170: one book only — DraftKings picked, no second-book price", () => {
   walk(join(__dirname, "../src/app"));
   const bad = files.filter((f) => !/PortfolioClient|slip\/read/.test(f)).filter((f) => /fanduel|betmgm|caesars/i.test(readFileSync(f, "utf8")));
   assert.deepEqual(bad, [], "no second sportsbook rendered");
+});
+
+// t174: live tennis in-game score, only from ESPN.
+t("t174: recorded live ESPN tennis has sets and server, no invented game points", () => {
+  for (const r of TENNIS_LIVE) {
+    const m = parseMatch(sportLg(r.league)!, r.event, JSON.parse(JSON.stringify(r.comp)), "");
+    assert.ok(m && m.state === "in" && m.away.sets.length > 0);
+    assert.ok(!m!.point || m!.point.kind === "tiebreak", "no 0/15/30/40 from a feed that does not send it");
+  }
+  const withServe = TENNIS_LIVE.map((r) => parseMatch(sportLg(r.league)!, r.event, JSON.parse(JSON.stringify(r.comp)), "")!).filter((m) => m.away.serving || m.home.serving);
+  assert.ok(withServe.length >= 1 && withServe.every((m) => !(m.away.serving && m.home.serving)));
+});
+
+t("t174: live tiebreak points come from the current set, set text stays clean", () => {
+  const comp = (a: object[], h: object[], state = "in") => ({ id: "9", status: { type: { state } }, competitors: [
+    { homeAway: "away", athlete: { displayName: "Ann Away", shortName: "A. Away" }, linescores: a, possession: true },
+    { homeAway: "home", athlete: { displayName: "Hal Home", shortName: "H. Home" }, linescores: h },
+  ] });
+  const tb = parseMatch(sportLg("wta")!, "X", comp([{ value: 6 }, { value: 6, tiebreak: 5 }], [{ value: 3 }, { value: 6, tiebreak: 4 }]), "")!;
+  assert.deepEqual(tb.point, { kind: "tiebreak", away: "5", home: "4" });
+  assert.deepEqual(tb.away.sets, ["6", "6"]);
+  assert.equal(pointText(tb.point, "A. Away", "H. Home"), "Tiebreak 5-4");
+  const sixAll = parseMatch(sportLg("atp")!, "X", comp([{ value: 6 }], [{ value: 6 }]), "")!;
+  assert.deepEqual(sixAll.point, { kind: "tiebreak", away: null, home: null });
+  assert.equal(pointText(sixAll.point, "a", "h"), "Tiebreak");
+  const done = parseMatch(sportLg("atp")!, "X", comp([{ value: 7, tiebreak: 7 }, { value: 2 }], [{ value: 6, tiebreak: 5 }, { value: 1 }]), "")!;
+  assert.equal(done.point, null, "a finished set's tiebreak is history, not the live score");
+  assert.deepEqual(done.away.sets, ["7(7)", "2"]);
+  assert.equal(parseMatch(sportLg("atp")!, "X", comp([{ value: 6 }], [{ value: 6 }], "post"), "")!.point, null);
+  assert.equal(tennisPoint({ competitors: [{ linescores: [{ value: 3 }] }, { linescores: [{ value: 2 }] }] }, "in", 0, 1), null);
+  const gp = tennisPoint({ competitors: [{ linescores: [{ value: 3 }], gamePoints: "40" }, { linescores: [{ value: 2 }], gamePoints: "A" }] }, "in", 0, 1);
+  assert.equal(pointText(gp, "A", "H"), "Ad H");
+  assert.equal(pointText({ kind: "game", away: "40", home: "40" }, "A", "H"), "Deuce");
+  assert.equal(pointText({ kind: "game", away: "30", home: "15" }, "A", "H"), "30-15");
+  const t5 = { away: ["6", "6"], home: ["3", "6"], serving: "away" as const, games: 21, event: null, point: tb.point };
+  assert.equal(tennisLine(t5, "Away", "Home"), "6-3 6-6 · Tiebreak 5-4 · Away serving");
+  assert.equal(tennisNow(t5, "home"), " · 6-6 this set · Tiebreak 4-5 · receiving");
 });

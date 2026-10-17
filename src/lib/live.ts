@@ -229,7 +229,7 @@ export type LiveSnap = {
   /** Scheduled start, ISO, from the summary header. */
   start?: string | null;
   /** Tennis: games per set, who is serving, total games so far, tournament and round. */
-  tennis?: { away: string[]; home: string[]; serving: "away" | "home" | null; games: number; event: string | null };
+  tennis?: { away: string[]; home: string[]; serving: "away" | "home" | null; games: number; event: string | null; point?: import("@/lib/sports").TennisPoint | null };
 };
 
 function colorOf(raw: unknown): string {

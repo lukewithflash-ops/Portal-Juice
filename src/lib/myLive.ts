@@ -176,7 +176,7 @@ export function teamView(pick: Pick, snap: LiveSnap | null, slipKey: string): Le
       const win = snap.homeWin != null && !final ? clamp(side === "home" ? snap.homeWin : 100 - snap.homeWin, 0, 100) : null;
       const state: LegState = margin >= 0 ? "alive" : "behind";
       const unit = snap.tennis ? (Math.abs(margin) === 1 ? " set" : " sets") : "";
-      const note = `${margin > 0 ? `Up ${margin}${unit}` : margin < 0 ? `Down ${-margin}${unit}` : snap.tennis ? "Sets level" : "Tied"}${win !== null ? ` · ESPN ${Math.round(win)}% to win` : ""}`;
+      const note = `${margin > 0 ? `Up ${margin}${unit}` : margin < 0 ? `Down ${-margin}${unit}` : snap.tennis ? "Sets level" : "Tied"}${snap.tennis && !final ? tennisNow(snap.tennis, side) : ""}${win !== null ? ` · ESPN ${Math.round(win)}% to win` : ""}`;
       const tone: TrackTone = win !== null ? chanceTone(win) === "gold" ? "green" : chanceTone(win) : margin > 0 ? "green" : margin < 0 ? "red" : "flat";
       out = { ...base, label: label2, value: margin, valueText: marginText, fill: win ?? clamp(50 + 50 * (margin / scale), 2, 100), state, note, tone, chance: win };
     }
@@ -385,3 +385,18 @@ export function fmtStart(iso: string | null, now: Date): string {
 }
 
 export const _test = { teamView, groupViews, buildFeed, buildGames, fmtLine, sameLocalDay };
+
+/** Live tennis context for a moneyline meter, from the picked side: " · 5-3 this set · Tiebreak 5-4 · serving". Pure. */
+export function tennisNow(t: NonNullable<LiveSnap["tennis"]>, side: "home" | "away"): string {
+  const n = Math.max(t.away.length, t.home.length);
+  if (!n) return "";
+  const g = (xs: string[]) => (xs[n - 1] ?? "0").replace(/\(\d+\)$/, "");
+  const mine = side === "home" ? g(t.home) : g(t.away);
+  const theirs = side === "home" ? g(t.away) : g(t.home);
+  const bits = [`${mine}-${theirs} this set`];
+  const p = t.point;
+  if (p?.kind === "tiebreak") bits.push(p.away !== null && p.home !== null ? `Tiebreak ${side === "home" ? p.home : p.away}-${side === "home" ? p.away : p.home}` : "Tiebreak");
+  else if (p?.kind === "game" && p.away !== null && p.home !== null) bits.push(`Game ${side === "home" ? p.home : p.away}-${side === "home" ? p.away : p.home}`);
+  if (t.serving) bits.push(t.serving === side ? "serving" : "receiving");
+  return " · " + bits.join(" · ");
+}

@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
-import { getLive } from "@/lib/espn";
+import { liveSnapAny } from "@/lib/liveAny";
 import { LIVE_HEADERS } from "@/lib/liveCache";
 import type { LiveSnap } from "@/lib/live";
 import { parseBatch, slimSnap } from "@/lib/liveSlim";
-import { sportLeague } from "@/lib/sports";
-import { getMatch } from "@/lib/sportsFetch";
-import { tennisSnap } from "@/lib/tennisSnap";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -17,9 +14,7 @@ export async function GET(req: Request) {
   await Promise.all(
     games.map(async ({ league, id }) => {
       // Tennis has no game summary: the match comes from its scoreboard, set by set.
-      const snap = sportLeague(league)?.kind === "tennis"
-        ? await getMatch(league, id).then((p) => (p ? tennisSnap(p.match) : null)).catch(() => null)
-        : await getLive(league, id).catch(() => null);
+      const snap = await liveSnapAny(league, id);
       snaps[`${league}/${id}`] = snap ? slimSnap(league, snap) : null;
     })
   );

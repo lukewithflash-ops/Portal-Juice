@@ -76,7 +76,15 @@ export type Entrant = {
 
 export type MatchPrice = { provider: string; homeMl: string | null; awayMl: string | null; drawMl: string | null; total: number | null; spread: string | null };
 
+/**
+ * Tennis in-game score. ESPN's ATP/WTA feeds carry set games, the server, and tiebreak points per set;
+ * they carry no 0/15/30/40 game points. kind "game" is kept for a source that sends them; nothing invents it.
+ */
+export type TennisPoint = { kind: "game" | "tiebreak"; away: string | null; home: string | null };
+
 export type Match = {
+  /** Tennis, live only: the in-game score ESPN sent (tiebreak points), or null. */
+  point?: TennisPoint | null;
   id: string;
   league: string;
   event: string;
@@ -185,7 +193,13 @@ export function parseMatch(league: SportLeague, eventName: string, compRaw: unkn
   const away = ents[ai] as Entrant;
   if (price?.spread) price.spread = price.spread.replace(/^Home\b/, home.short).replace(/^Away\b/, away.short);
   const round = str(asDict(comp.round).displayName) || str(asDict(comp.type).abbreviation) || str(asDict(comp.type).text) || null;
+  const point = league.kind === "tennis" ? tennisPoint(comp, state, ai, hi) : null;
+  if (point?.kind === "tiebreak") {
+    // The live set's tiebreak count shows once, as the in-game score, not glued onto the set.
+    for (const e of [home, away]) if (e.sets.length) e.sets[e.sets.length - 1] = e.sets[e.sets.length - 1].replace(/\(\d+\)$/, "");
+  }
   return {
+    point,
     id: str(comp.id) ?? "",
     league: league.id,
     event: eventName,
@@ -199,6 +213,54 @@ export function parseMatch(league: SportLeague, eventName: string, compRaw: unkn
     price,
     win: winPct({ state, homeMl: price?.homeMl, awayMl: price?.awayMl, drawMl: price?.drawMl ?? null }),
   };
+}
+
+const GAME_POINT = /^(0|15|30|40|A|AD|Ad)$/;
+
+/**
+ * The live in-game score for a tennis match, only from what ESPN sent. Pure.
+ * - Tiebreak: the current set's linescore carries tiebreak counts, or the set sits at 6-6 (points null if not sent).
+ * - Game points (0/15/30/40/Ad): only if a competitor carries them in a known field. ESPN ATP/WTA do not today.
+ */
+export function tennisPoint(comp: unknown, state: GameState, awayIdx: number, homeIdx: number): TennisPoint | null {
+  if (state !== "in") return null;
+  const cs = asList(asDict(comp).competitors).map(asDict);
+  const a = cs[awayIdx];
+  const h = cs[homeIdx];
+  if (!a || !h) return null;
+  const la = asList(a.linescores).map(asDict);
+  const lh = asList(h.linescores).map(asDict);
+  const n = Math.max(la.length, lh.length);
+  if (n) {
+    const ca = la[n - 1] ?? {};
+    const ch = lh[n - 1] ?? {};
+    const ga = finiteNumber(ca.value);
+    const gh = finiteNumber(ch.value);
+    const ta = finiteNumber(ca.tiebreak);
+    const th = finiteNumber(ch.tiebreak);
+    const decided = ga !== null && gh !== null && (Math.max(ga, gh) >= 7 || (Math.max(ga, gh) >= 6 && Math.abs(ga - gh) >= 2));
+    if (!decided && ((ga === 6 && gh === 6) || ta !== null || th !== null)) {
+      return { kind: "tiebreak", away: ta !== null || th !== null ? String(ta ?? 0) : null, home: ta !== null || th !== null ? String(th ?? 0) : null };
+    }
+  }
+  const gp = (c: Dict): string | null => {
+    const v = str(c.gamePoints) ?? str(c.points) ?? str(asDict(c.currentGame).points);
+    return v && GAME_POINT.test(v.trim()) ? (v.trim().toUpperCase() === "A" ? "AD" : v.trim().toUpperCase()) : null;
+  };
+  const pa = gp(a);
+  const ph = gp(h);
+  return pa && ph ? { kind: "game", away: pa, home: ph } : null;
+}
+
+/** Display text for a tennis in-game score: "30-15", "Deuce", "Ad Jones", "Tiebreak 5-4", "Tiebreak". Pure. */
+export function pointText(p: TennisPoint | null | undefined, awayShort: string, homeShort: string): string | null {
+  if (!p) return null;
+  if (p.kind === "tiebreak") return p.away !== null && p.home !== null ? `Tiebreak ${p.away}-${p.home}` : "Tiebreak";
+  if (p.away === null || p.home === null) return null;
+  if (p.away === "40" && p.home === "40") return "Deuce";
+  if (p.away === "AD") return `Ad ${awayShort}`;
+  if (p.home === "AD") return `Ad ${homeShort}`;
+  return `${p.away}-${p.home}`;
 }
 
 function golfBoard(ev: Dict): GolfBoard | null {

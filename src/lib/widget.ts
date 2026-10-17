@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { redis } from "@/lib/chat";
 import { readDoc } from "@/lib/cloud";
-import { getLive } from "@/lib/espn";
+import { liveSnapAny } from "@/lib/liveAny";
 import type { LiveSnap } from "@/lib/live";
 import { slipKeyOf } from "@/lib/motivation";
 import { gameKey, groupViews, legViews } from "@/lib/myLive";
@@ -49,7 +49,7 @@ export async function widgetData(uid: string): Promise<WidgetData> {
   await Promise.all(
     games.map(async (g) => {
       const [league, id] = g.split("|");
-      const s = await getLive(league, id).catch(() => null);
+      const s = await liveSnapAny(league, id);
       if (s) snaps[gameKey(league, id)] = s;
     })
   );

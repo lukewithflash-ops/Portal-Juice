@@ -450,7 +450,8 @@ function TeamLine({ abbr, color, ball, football, lead }: { abbr: string; color: 
 function Situation({ g, snap, compact }: { g: GameView; snap: LiveSnap; compact: boolean }) {
   if (snap.tennis) {
     const tn = snap.tennis;
-    const row = (abbr: string, sets: string[], serving: boolean) => (
+    const live = snap.state === "in" && tn.point && tn.point.away !== null && tn.point.home !== null ? tn.point : null;
+    const row = (abbr: string, sets: string[], serving: boolean, pt: string | null) => (
       <div className="flex items-center gap-1.5">
         <span className="min-w-0 flex-1 truncate">
           {abbr}
@@ -459,12 +460,14 @@ function Situation({ g, snap, compact }: { g: GameView; snap: LiveSnap; compact:
         {sets.map((x, i) => (
           <span key={i} className={"w-4 text-center " + (i === sets.length - 1 ? "text-white" : "text-zinc-400")}>{x}</span>
         ))}
+        {pt !== null ? <span className="min-w-[1.4rem] rounded bg-[color:var(--plus)]/15 px-0.5 text-center text-[color:var(--plus)]" data-testid="tennis-point">{pt}</span> : null}
       </div>
     );
     return (
       <div className="tabular mt-1 rounded-md bg-white/[0.04] px-1.5 py-1 text-[11px] font-black text-zinc-200" data-testid="tennis-sets">
-        {row(snap.awayAbbr, tn.away, tn.serving === "away")}
-        {row(snap.homeAbbr, tn.home, tn.serving === "home")}
+        {snap.state === "in" && tn.point?.kind === "tiebreak" ? <p className="text-[9px] uppercase tracking-wider text-[color:var(--plus)]">Tiebreak</p> : null}
+        {row(snap.awayAbbr, tn.away, tn.serving === "away", live ? live.away : null)}
+        {row(snap.homeAbbr, tn.home, tn.serving === "home", live ? live.home : null)}
         {!compact && tn.event ? <p className="mt-0.5 truncate text-[10px] font-semibold text-zinc-500">{tn.event}</p> : null}
       </div>
     );

@@ -8,6 +8,6 @@ export const revalidate = 0;
 export async function GET() {
   const data = await getAllLive();
   return NextResponse.json(data, {
-    headers: { "Cache-Control": "no-store, max-age=0", "CDN-Cache-Control": "public, max-age=5", "Vercel-CDN-Cache-Control": "public, max-age=5" },
+    headers: { "Cache-Control": "no-store, max-age=0", "CDN-Cache-Control": "public, max-age=2", "Vercel-CDN-Cache-Control": "public, max-age=2" },
   });
 }
