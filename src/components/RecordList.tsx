@@ -55,16 +55,16 @@ export default function RecordList({
                   <span className="tabular text-zinc-300">{fmtLine(it.lastLine, it.lastLineSigned)}</span>{" "}
                   · {shortDate(it.lastDate)}
                 </div>
+                <div className="tabular truncate text-[10px] uppercase tracking-wider text-zinc-500">
+                  {it.statKind === "streak" ? `straight · ${it.detail ?? ""}` : it.detail} · n={it.sample}
+                </div>
               </div>
-              <div className="text-right">
+              <div className="flex-none text-right">
                 <CountUp
                   value={it.stat}
                   kind={it.statKind === "rate" ? "pct" : "int"}
                   className="big-num block text-2xl font-black text-[color:var(--plus)]"
                 />
-                <div className="tabular text-[10px] uppercase tracking-wider text-zinc-500">
-                  {it.statKind === "streak" ? `straight · ${it.detail ?? ""}` : it.detail} · n={it.sample}
-                </div>
               </div>
             </li>
           ))}
