@@ -20,9 +20,13 @@ export function AutoGrade() {
     }
     run();
     const t = setInterval(run, 120_000);
+    // Edited picks re-grade right away.
+    const now = () => void run();
+    window.addEventListener("pj-regrade", now);
     return () => {
       stop = true;
       clearInterval(t);
+      window.removeEventListener("pj-regrade", now);
     };
   }, []);
   return null;

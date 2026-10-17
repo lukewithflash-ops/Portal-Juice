@@ -10,6 +10,7 @@ import AllLive, { useAllLive } from "@/components/AllLive";
 import { gameRoute } from "@/lib/gameRoute";
 import { getFollows, getServerFollows, subscribeFollows } from "@/lib/follows";
 import { getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
+import { PickActions } from "@/components/PickEdit";
 import { slipKeyOf, TONE_COLOR } from "@/lib/motivation";
 import { fieldGeom } from "@/lib/fieldGeom";
 import type { LiveSnap } from "@/lib/live";
@@ -619,6 +620,9 @@ function SlipBox({ slip, byKey, now, compact }: { slip: SlipView; byKey: Record<
     return (
       <div className="rounded-xl border bg-black/50" style={{ borderColor: border }} data-testid="ml-slip">
         <LegRow leg={l} game={byKey[l.key]} now={now} />
+        <div className="flex justify-end px-3 pb-2">
+          <SlipActions pickIds={[l.pickId]} />
+        </div>
       </div>
     );
   }
@@ -661,11 +665,20 @@ function SlipBox({ slip, byKey, now, compact }: { slip: SlipView; byKey: Record<
           ))}
           <div className="px-3 pb-2">
             <SlipNotes slipKey={slip.key} pickIds={slip.legs.map((l) => l.pickId)} />
+            <div className="mt-1.5 flex justify-end">
+              <SlipActions pickIds={slip.legs.map((l) => l.pickId)} />
+            </div>
           </div>
         </div>
       ) : null}
     </div>
   );
+}
+
+function SlipActions({ pickIds }: { pickIds: string[] }) {
+  const picks = useSyncExternalStore(subscribe, getPicks, getServerPicks);
+  const mine = useMemo(() => picks.filter((p) => pickIds.includes(p.id)), [picks, pickIds]);
+  return <PickActions picks={mine} />;
 }
 
 function SlipNotes({ slipKey, pickIds }: { slipKey: string; pickIds: string[] }) {

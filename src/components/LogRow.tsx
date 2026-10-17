@@ -12,7 +12,8 @@ import type { PickLook } from "@/components/useLogLeans";
 import { checkHref, legFromLogged } from "@/lib/breakdown";
 import { TONE_COLOR, type Leg } from "@/lib/motivation";
 import { fmtLine } from "@/lib/odds";
-import { removePick, setStatus } from "@/lib/pickStore";
+import { setStatus } from "@/lib/pickStore";
+import { PickActions } from "@/components/PickEdit";
 import { shortDate } from "@/lib/time";
 import type { Pick, PickStatus } from "@/lib/types";
 
@@ -114,9 +115,7 @@ export default function LogRow({
                   Game
                 </Link>
               ) : null}
-              <button type="button" onClick={() => removePick(pick.id)} className="text-[11px] text-zinc-500 hover:text-zinc-300">
-                Remove
-              </button>
+              <PickActions picks={[pick]} small />
             </div>
           </div>
           <PickNotes pick={pick} athleteId={leg?.athleteId} />

@@ -11,6 +11,7 @@ import { useLiveHub } from "@/components/LiveHub";
 import { useLogLooks } from "@/components/useLogLeans";
 import { checkHref, legFromLogged, type LegInput } from "@/lib/breakdown";
 import SlipSummary from "@/components/SlipSummary";
+import { PickActions } from "@/components/PickEdit";
 import { pickKind, summarize } from "@/lib/ledger";
 import SharePanel from "@/components/SharePanel";
 import NightRecap from "@/components/NightRecap";
@@ -211,6 +212,9 @@ export default function PortfolioClient() {
               <div key={id}>
                 <SlipSummary legs={ls} href={checkHref(ls)} auto={i < 4} />
                 {ls.length > 1 ? <ParlayNotes slipId={id} legs={picks.filter((p) => p.slipId === id)} /> : null}
+                <div className="mt-1 flex justify-end">
+                  <PickActions picks={picks.filter((p) => p.slipId === id)} />
+                </div>
               </div>
             ))}
           </div>

@@ -80,3 +80,21 @@ export function applyGrades(grades: Record<string, PickStatus>) {
 export function clearPicks() {
   write([]);
 }
+
+/** Edit: replace the given picks (same ids), add new legs, drop removed ones, in one write. */
+export function replacePicks(next: Pick[], removeIds: string[] = []) {
+  const byId = new Map(next.map((p) => [p.id, p]));
+  const drop = new Set(removeIds);
+  const kept = getPicks().filter((p) => !drop.has(p.id)).map((p) => byId.get(p.id) ?? p);
+  const added = next.filter((p) => !getPicks().some((x) => x.id === p.id));
+  write([...added, ...kept]);
+}
+export function removePicks(ids: string[]) {
+  const drop = new Set(ids);
+  write(getPicks().filter((p) => !drop.has(p.id)));
+}
+/** Undo a delete: put the same picks back (same ids). */
+export function restorePicks(ps: Pick[]) {
+  const have = new Set(getPicks().map((p) => p.id));
+  write([...ps.filter((p) => !have.has(p.id)), ...getPicks()].sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1)));
+}
