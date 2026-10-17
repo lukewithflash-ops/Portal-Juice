@@ -126,4 +126,6 @@ export type Pick = {
   slipId?: string;
   /** Copied from a friend's pick: their handle. */
   tailFrom?: string;
+  /** "X+" (at least X): line is stored as X - 0.5, so exactly X is a hit. False = you chose a plain over in Edit. */
+  plus?: boolean;
 };

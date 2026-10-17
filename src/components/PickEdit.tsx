@@ -1,5 +1,6 @@
 "use client";
 
+import { atLeastOf, isPickem } from "@/lib/plusLegs";
 import { Component, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { pickFromLeg } from "@/lib/legPick";
@@ -163,7 +164,9 @@ type Row = {
   subject: string;
   market: string;
   line: string;
-  selection: "Over" | "Under" | "";
+  selection: "Over" | "Under" | "Plus" | "";
+  /** Whole-number over on a pick'em slip: you chose a plain over (exactly N pushes). */
+  plainOver?: boolean;
   league?: string;
   gameId?: string;
   gameLabel?: string;
@@ -181,11 +184,25 @@ function rowOf(p: Pick): Row {
     id: p.id,
     subject: String(p.subject ?? ""),
     market: String(p.market ?? ""),
-    line: p.line == null || !Number.isFinite(Number(p.line)) ? "" : String(p.line),
-    selection: sel.startsWith("o") ? "Over" : sel.startsWith("u") ? "Under" : "",
+    line: p.plus ? String(atLeastOf(p)) : p.line == null || !Number.isFinite(Number(p.line)) ? "" : String(p.line),
+    selection: p.plus ? "Plus" : sel.startsWith("o") ? "Over" : sel.startsWith("u") ? "Under" : "",
+    plainOver: p.plus === false && Number.isInteger(p.line) ? true : undefined,
     league: p.league,
     gameId: p.gameId,
   };
+}
+
+/** What a row saves as. "Plus" (or a whole-number over on a pick'em slip you didn't mark plain) is at least N: line N - 0.5. */
+function effOf(r: Row, book: string): { line: number; selection: "Over" | "Under" | null; plus: boolean } {
+  const n = Number(r.line);
+  const prop = !TEAM.test(r.market) && !/^total/i.test(r.market);
+  const ask = wholePickem(r, book);
+  if (Number.isFinite(n) && (r.selection === "Plus" || (ask && !r.plainOver))) return { line: Math.ceil(n) - 0.5, selection: "Over", plus: true };
+  return { line: Number.isFinite(n) ? n : 0, selection: r.selection === "Plus" ? "Over" : r.selection || (prop ? null : null), plus: false };
+}
+function wholePickem(r: Row, book: string): boolean {
+  const n = Number(r.line);
+  return r.selection === "Over" && !TEAM.test(r.market) && !/^total/i.test(r.market) && r.line.trim() !== "" && Number.isInteger(n) && n > 0 && isPickem(book);
 }
 
 function EditDialog({ picks, onClose }: { picks: Pick[]; onClose: () => void }) {
@@ -203,8 +220,9 @@ function EditDialog({ picks, onClose }: { picks: Pick[]; onClose: () => void }) 
   async function match(r: Row) {
     upd(r.key, { busy: true, msg: undefined });
     const kind: SlipKind = /money|^ml$/i.test(r.market) ? "moneyline" : /spread/i.test(r.market) ? "spread" : /^total/i.test(r.market) ? "total" : "prop";
-    const n = Number(r.line);
-    const row: SlipRow = { subject: r.subject.trim(), kind, market: kind === "prop" ? r.market : kind, line: kind === "moneyline" || !Number.isFinite(n) ? null : n, selection: kind === "prop" || kind === "total" ? (r.selection || "Over") : null, odds: null, league: r.league ?? null, date };
+    const e = effOf(r, book);
+    const n = r.line.trim() === "" ? NaN : e.line;
+    const row: SlipRow = { subject: r.subject.trim(), kind, market: kind === "prop" ? r.market : kind, line: kind === "moneyline" || !Number.isFinite(n) ? null : n, selection: kind === "prop" || kind === "total" ? (e.selection || "Over") : null, odds: null, league: r.league ?? null, date, plus: e.plus };
     try {
       const res = await fetch("/api/slip/read", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ rows: [row] }) });
       const j = (await res.json()) as { legs?: ImportLeg[] };
@@ -232,19 +250,21 @@ function EditDialog({ picks, onClose }: { picks: Pick[]; onClose: () => void }) 
     const next: Pick[] = [];
     for (const r of live) {
       const o = orig.find((p) => p.id === r.id);
-      const line = Number(r.line);
+      const e = effOf(r, book);
+      const line = r.line.trim() === "" ? NaN : e.line;
       let p: Pick;
       if (r.matched?.leg && r.matched.game) {
         const base = pickFromLeg(r.matched.leg, { home: r.matched.game.home, away: r.matched.game.away }, { book, date, slipId: sid });
-        p = { ...base, id: o?.id ?? base.id, createdAt: o?.createdAt ?? base.createdAt, odds: o?.odds ?? base.odds, stake: o?.stake ?? 0, status: r.matched.result ?? "open" };
+        p = { ...base, id: o?.id ?? base.id, createdAt: o?.createdAt ?? base.createdAt, odds: o?.odds ?? base.odds, stake: o?.stake ?? 0, status: r.matched.result ?? "open", plus: e.plus };
       } else {
-        const changed = !o || o.subject !== r.subject.trim() || (o.market ?? "") !== r.market || String(o.line) !== r.line || (o.selection ?? "") !== r.selection;
+        const changed = !o || o.subject !== r.subject.trim() || (o.market ?? "") !== r.market || o.line !== line || (o.selection ?? null) !== e.selection || Boolean(o.plus) !== e.plus;
         p = {
           ...(o ?? { id: crypto.randomUUID(), sport: orig[0].sport, odds: -110, stake: 0, createdAt: new Date().toISOString(), status: "open" as const }),
           subject: r.subject.trim(),
           market: r.market || undefined,
           line: Number.isFinite(line) ? line : 0,
-          selection: r.selection || null,
+          selection: e.selection,
+          plus: e.plus,
           ...(o ? {} : { league: r.league, gameId: r.gameId }),
           status: changed ? "open" : (o?.status ?? "open"),
         } as Pick;
@@ -291,12 +311,22 @@ function EditDialog({ picks, onClose }: { picks: Pick[]; onClose: () => void }) 
               <div className="mt-1 grid grid-cols-[1fr_5rem_6.5rem] gap-1">
                 <input value={r.market} onChange={(e) => upd(r.key, { market: e.target.value, matched: null })} placeholder="Stat (points, spread…)" className="field text-[13px]" aria-label="Stat" data-testid="edit-market" />
                 <input value={r.line} onChange={(e) => upd(r.key, { line: e.target.value, matched: null })} inputMode="decimal" placeholder="Line" className="field text-[13px]" aria-label="Line" data-testid="edit-line" />
-                <select value={r.selection} onChange={(e) => upd(r.key, { selection: e.target.value as Row["selection"], matched: null })} className="field text-[13px]" aria-label="Over or under">
+                <select value={r.selection} onChange={(e) => upd(r.key, { selection: e.target.value as Row["selection"], matched: null, plainOver: undefined })} className="field text-[13px]" aria-label="Over, under or at least" data-testid="edit-side">
                   <option value="Over">Over</option>
                   <option value="Under">Under</option>
+                  {!TEAM.test(r.market) ? <option value="Plus">At least (+)</option> : null}
                   <option value="">—</option>
                 </select>
               </div>
+              {r.selection === "Plus" && r.line.trim() ? (
+                <p className="mt-1 text-[11px] text-[color:var(--plus)]" data-testid="edit-plus-note">Saves as {Math.ceil(Number(r.line))}+ : exactly {Math.ceil(Number(r.line))} is a hit.</p>
+              ) : wholePickem(r, book) ? (
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]" data-testid="edit-plus-ask">
+                  <span className="text-zinc-300">{r.line} on a pick&apos;em slip:</span>
+                  <button type="button" onClick={() => upd(r.key, { plainOver: false, matched: null })} className={`rounded-full px-2 py-0.5 font-black ${!r.plainOver ? "bg-[color:var(--plus)] text-black" : "border border-white/20 text-zinc-300"}`} data-testid="edit-plus-yes">{r.line}+ (exactly {r.line} hits)</button>
+                  <button type="button" onClick={() => upd(r.key, { plainOver: true, matched: null })} className={`rounded-full px-2 py-0.5 font-black ${r.plainOver ? "bg-white text-black" : "border border-white/20 text-zinc-300"}`} data-testid="edit-plus-no">Over {r.line} (exactly {r.line} pushes)</button>
+                </div>
+              ) : null}
               <div className="mt-1 flex items-center gap-2 text-[11px]">
                 <button type="button" onClick={() => match(r)} disabled={r.busy || !r.subject.trim()} className="rounded-lg border border-[color:var(--plus)]/60 px-2 py-0.5 font-black text-white" data-testid="edit-match">
                   {r.busy ? "Finding…" : "Match it"}

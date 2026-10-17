@@ -25,6 +25,8 @@ export type SlipRow = {
   /** Team or opponent printed next to the leg ("LAL vs DEN"). Hints only. */
   team?: string | null;
   opponent?: string | null;
+  /** Printed "X+" (at least X): line holds X - 0.5. False = you chose a plain over. */
+  plus?: boolean;
   /** The slip marks this leg settled (a check, "Won", "Lost"). Only used to look at past games; never a grade. */
   settled?: boolean;
 };

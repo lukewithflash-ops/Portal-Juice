@@ -1,3 +1,4 @@
+import { effLine } from "@/lib/plusLegs";
 /** Auto-grade a logged pick from a final ESPN snapshot. Pure. Null = can't grade yet. */
 import type { LiveSnap } from "@/lib/live";
 import type { Pick as LoggedPick, PickStatus } from "@/lib/types";
@@ -30,7 +31,7 @@ export function gradePick(pick: LoggedPick, snap: LiveSnap | null): PickStatus |
   const scored = snap.awayScore != null && snap.homeScore != null && Number.isFinite(away) && Number.isFinite(home);
   if (market === "total") {
     if (!scored || !(pick.line > 0)) return null;
-    const r = cmp(snap.tennis ? snap.tennis.games : away + home, pick.line);
+    const r = cmp(snap.tennis ? snap.tennis.games : away + home, effLine(pick));
     return pick.selection === "Under" ? (r === "win" ? "loss" : r === "loss" ? "win" : "push") : r;
   }
   if (market === "moneyline" || market === "spread") {
@@ -47,6 +48,7 @@ export function gradePick(pick: LoggedPick, snap: LiveSnap | null): PickStatus |
   if (!player) return null;
   const v = liveStat(player.statMap, pick.market ?? "", snap.plays, player.name);
   if (v === null) return player.played === false ? "loss" : null;
-  const r = cmp(v, pick.line);
+  // "1+" legs: at least 1, so exactly 1 is a hit (effLine is 0.5), never a push.
+  const r = cmp(v, effLine(pick));
   return pick.selection === "Under" ? (r === "win" ? "loss" : r === "loss" ? "win" : "push") : r;
 }

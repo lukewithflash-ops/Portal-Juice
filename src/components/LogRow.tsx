@@ -1,5 +1,6 @@
 "use client";
 
+import { sideLine } from "@/lib/plusLegs";
 import { gameRoute } from "@/lib/gameRoute";
 import PortalRecap from "@/components/PortalRecap";
 import Link from "next/link";
@@ -47,7 +48,7 @@ export default function LogRow({
   const ml = /money|^ml$/i.test(pick.market ?? "");
   const pl = pickPlayer(pick);
   const player = pl ? { ...pl, id: leg?.athleteId ?? null } : null;
-  const side = pick.selection ? `${pick.selection} ${pick.line}` : ml ? "to win" : fmtLine(pick.line, pick.line < 0);
+  const side = pick.plus ? sideLine(pick) : pick.selection ? `${pick.selection} ${pick.line}` : ml ? "to win" : fmtLine(pick.line, pick.line < 0);
 
   return (
     <li className={`foil-tile list-none overflow-hidden ${pick.status === "win" ? "gold-edge" : ""}`} style={{ borderLeft: `3px solid ${color}` }}>

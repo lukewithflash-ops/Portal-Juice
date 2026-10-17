@@ -2,6 +2,7 @@ import { pickGame, playerNameHit, gradeTennis, parseSlipRows as parseSlip2, slip
 import { lineIssue, lineOk, plusLine, rereadLine } from "../src/lib/lineSanity";
 import { conflicts as slipConflicts, duplicates as slipDups } from "../src/lib/slipCheck";
 import { profane } from "../src/lib/chat";
+import { effLine, markPlus, migratePlus, sideLine } from "../src/lib/plusLegs";
 import { hoopsLineup, mlbLineup } from "../src/lib/lineup";
 import { beatSeconds, needed, sweatOf } from "../src/lib/sweat";
 import { complete as qComplete, doneToday as qDone, EMPTY_QUESTS, mergeQuestJson, questsFor, questStreak } from "../src/lib/questsCore";
@@ -1776,5 +1777,15 @@ console.log(`\n${n} passed`);
     assert(field.on.length === 9 && field.on[0].id === "HMp2" && !field.on.some((p) => p.pos === "DH"), "court: baseball nine in the field, no DH");
     assert(m.teams.find((t) => t.abbr === "AW")!.extra === "At the plate: Guy AWd · On base: 1st", "court: baseball plate and bases");
     console.log("ok - on court");
+  }
+  // X+ legs: at least X, exactly X is a hit, never a push.
+  {
+    const leg = { id: "s1", sport: "NHL", subject: "Beckett Sennecke", odds: 0, stake: 0, book: "PrizePicks · 5-Pick", date: "2026-10-16", status: "push", createdAt: "", league: "nhl", gameId: "401892518", market: "Shots on Goal", selection: "Over", line: 1 } as never as import("../src/lib/types").Pick;
+    const m = migratePlus([leg]);
+    assert(m.length === 1 && m[0].line === 0.5 && m[0].plus === true && m[0].status === "open" && sideLine(m[0]) === "1+", "plus: pick'em whole-number over becomes 1+ and re-grades");
+    assert(migratePlus([{ ...leg, plus: false }]).length === 0 && migratePlus([{ ...leg, book: "DraftKings" }]).length === 0, "plus: plain overs and sportsbooks untouched");
+    assert(effLine({ line: 1, plus: true }) === 0.5 && effLine({ line: 1 }) === 1, "plus: grading line");
+    assert(markPlus({ subject: "Beckett Sennecke", kind: "prop", market: "shots on goal", line: 0.5, selection: "Over", odds: null }, "Beckett Sennecke\n1+ Shots on Goal").plus === true, "plus: text slip keeps 1+");
+    console.log("ok - plus legs");
   }
 }

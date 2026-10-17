@@ -8,6 +8,7 @@ import type { ScoreRow } from "@/lib/slate";
 import type { Follow } from "@/lib/follows";
 import { bigLabel, isKeyPlay, playNames } from "@/lib/alerts";
 import { sideOf, gradePick } from "@/lib/grade";
+import { sideLine } from "@/lib/plusLegs";
 import { legFromPick, unitsNeeded, type Leg } from "@/lib/motivation";
 import { clockSpan, type TrackTone } from "@/lib/tracker";
 import { chanceTone, playedShare } from "@/lib/chance";
@@ -86,11 +87,11 @@ export function propView(pick: Pick, leg: Leg, snap: LiveSnap | null): LegView {
     key: gameKey(leg.league, leg.gameId),
     kind: "prop",
     name: leg.name,
-    label: `${leg.side} ${leg.line} ${leg.market}`,
+    label: pick.plus ? `${sideLine(pick)} ${leg.market}` : `${leg.side} ${leg.line} ${leg.market}`,
     side: leg.side,
     value: leg.value,
     valueText: leg.value === null ? "—" : String(leg.value),
-    lineText: String(leg.line),
+    lineText: pick.plus ? sideLine(pick) : String(leg.line),
     fill: leg.fill,
     tone: TONE_OF[state] ?? leg.tone,
     state,

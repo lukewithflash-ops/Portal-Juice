@@ -1,4 +1,5 @@
 "use client";
+import { isPickem } from "@/lib/plusLegs";
 import SlipCheck, { checkLegOf } from "@/components/SlipCheck";
 
 import Link from "next/link";
@@ -259,19 +260,23 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
     const legs = ready.map(asLeg).slice(0, 6);
     if (!legs.length) return;
     if (onBreakDown) onBreakDown(legs);
-    else window.location.href = checkHref(legs);
+    else window.location.assign(checkHref(legs));
   }
 
   function track() {
     if (!kept.length) return;
     const slipId = crypto.randomUUID();
     const amount = Number(stake);
-    kept.forEach((x, i) => {
+    kept.forEach((x0, i) => {
+      // Pick'em slips have no whole-number pushes: a whole-number over saves as at least (N+) unless you picked plain Over.
+      const pe = x0.row.kind === "prop" && x0.row.selection === "Over" && x0.row.plus === undefined && x0.row.line != null && x0.row.line > 0 && Number.isInteger(x0.row.line) && isPickem(book);
+      const x = pe ? { ...x0, result: x0.result === "push" ? null : x0.result, row: { ...x0.row, plus: true, line: x0.row.line! - 0.5 }, leg: x0.leg ? { ...x0.leg, line: x0.row.line! - 0.5 } : x0.leg } : x0;
+      const plus = x.row.plus ? { plus: true } : x.row.plus === false ? { plus: false } : {};
       const extra = { slipId, book: book || "Slip", stake: i === 0 && amount > 0 ? amount : 0, odds: x.row.odds };
       if (x.leg && x.game && !x.dirty) {
         // Tied to a game: the Log can follow it live when the stat is trackable. Finished games land graded.
         const p = pickFromLeg(x.row.kind === "prop" ? { ...x.leg, market: x.row.market } : x.leg, { home: x.game.home, away: x.game.away }, { ...extra, date: localDay(x.game.start) });
-        addPick({ ...p, status: x.result ?? "open", link: link.trim() || undefined });
+        addPick({ ...p, ...plus, status: x.result ?? "open", link: link.trim() || undefined });
         return;
       }
       // Not tied to a game: saved as read, so you can fix it in the Log.
@@ -289,6 +294,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
         createdAt: new Date().toISOString(),
         market: x.row.kind === "prop" ? x.row.market : KIND_LABEL[x.row.kind],
         selection: x.row.selection,
+        ...plus,
         link: link.trim() || undefined,
       });
     });
@@ -370,20 +376,34 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                   ) : null}
                   {x.row.kind === "prop" && x.row.market ? <StatTipLine market={x.row.market} /> : null}
                   {x.row.kind === "prop" || x.row.kind === "total" ? (
-                    <select className="field col-span-2 min-w-0" value={x.row.selection ?? ""} aria-label="Side" onChange={(e) => edit(i, { selection: e.target.value === "Over" || e.target.value === "Under" ? e.target.value : null })}>
+                    <select
+                      className="field col-span-2 min-w-0"
+                      value={x.row.plus ? "+" : x.row.selection ?? ""}
+                      aria-label="Side"
+                      data-testid="import-side"
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === "+") edit(i, { selection: "Over", plus: true, line: x.row.line == null ? null : Number.isInteger(x.row.line) ? x.row.line - 0.5 : x.row.line });
+                        else edit(i, { selection: v === "Over" || v === "Under" ? v : null, plus: false, line: x.row.plus && x.row.line != null ? x.row.line + 0.5 : x.row.line });
+                      }}
+                    >
                       <option value="">—</option>
                       <option value="Over">Over</option>
                       <option value="Under">Under</option>
+                      {x.row.kind === "prop" ? <option value="+">At least (+)</option> : null}
                     </select>
                   ) : null}
                   {x.row.kind !== "moneyline" ? (
                     <input
                       className={"field min-w-0 " + (x.row.kind === "prop" || x.row.kind === "total" ? "col-span-2" : "col-span-3") + (!x.dirty && x.issue?.startsWith("Check this line") ? " ring-2 ring-[color:var(--minus)]" : "")}
-                      value={x.row.line ?? ""}
-                      placeholder="Line"
+                      value={x.row.plus && x.row.line != null ? x.row.line + 0.5 : x.row.line ?? ""}
+                      placeholder={x.row.plus ? "At least" : "Line"}
                       inputMode="decimal"
                       aria-label="Line"
-                      onChange={(e) => edit(i, { line: e.target.value === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) })}
+                      onChange={(e) => {
+                        const n = e.target.value === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value);
+                        edit(i, { line: n == null ? null : x.row.plus ? Math.ceil(n) - 0.5 : n });
+                      }}
                     />
                   ) : null}
                   <input

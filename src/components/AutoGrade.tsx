@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { applyGrades, getPicks } from "@/lib/pickStore";
+import { applyGrades, getPicks, replacePicks } from "@/lib/pickStore";
+import { migratePlus } from "@/lib/plusLegs";
 import type { PickStatus } from "@/lib/types";
 
 /** Grades open picks whose game is final, on load and every 2 minutes. Device-only log. */
@@ -9,6 +10,9 @@ export function AutoGrade() {
   useEffect(() => {
     let stop = false;
     async function run() {
+      // Old "X+" legs saved as whole-number pick'em overs become at-least legs; a push from that tie re-opens and re-grades below.
+      const fixed = migratePlus(getPicks());
+      if (fixed.length) replacePicks(fixed);
       const open = getPicks().filter((p) => p.status === "open" && p.gameId && p.league);
       if (!open.length) return;
       try {

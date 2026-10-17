@@ -4,6 +4,7 @@ import { LEAGUES, parseScoreboard, sportsDate } from "@/lib/slate";
 import { SPORT_LEAGUES, parseSportScoreboard } from "@/lib/sports";
 import { gradePick } from "@/lib/grade";
 import { pickFromLeg } from "@/lib/legPick";
+import { markPlus } from "@/lib/plusLegs";
 import { lineIssue, lineOk, plusLine, rereadLine } from "@/lib/lineSanity";
 import {
   BASKETBALL,
@@ -520,6 +521,7 @@ async function readOnce(dataUrl: string, auth: string, model: string, timeout: n
         team: txt(l.team),
         opponent: txt(l.opponent),
         settled: l.settled === true,
+        ...(plus != null && line === plus ? { plus: true } : {}),
       });
     }
     const book = [typeof json.book === "string" ? json.book.slice(0, 20) : "", typeof json.entry === "string" ? json.entry.slice(0, 20) : ""].filter(Boolean).join(" · ") || null;
@@ -543,5 +545,5 @@ export function rowsFromText(text: string): { rows: SlipRow[]; stake: number | n
     const again = rereadLine(normalizeSlipText(text), r.subject, r.league, r.market);
     return again ? { ...r, line: again.line, selection: again.over ? ("Over" as const) : r.selection } : r;
   });
-  return { rows: fixed, stake: null, date: slipDateOf(text) };
+  return { rows: fixed.map((r) => markPlus(r, text)), stake: null, date: slipDateOf(text) };
 }
