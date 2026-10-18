@@ -136,7 +136,8 @@ export default function GameLive({
     if (added.length && el && typeof window !== "undefined" && el.getBoundingClientRect().top < 0) {
       feedH.current = el.offsetHeight;
       // Sit just under the sticky header so the pill is never hidden behind it.
-      setPillTop(Math.round(document.querySelector(".top-stack")?.getBoundingClientRect().bottom ?? 64) + 8);
+      const bars = [...document.querySelectorAll<HTMLElement>('.top-stack, section.sticky[aria-label="Your bets"]')].map((b) => b.getBoundingClientRect()).filter((r) => r.height > 0 && r.top < 240);
+      setPillTop(Math.round(Math.max(64, ...bars.map((r) => r.bottom))) + 8);
       setUnseen((n) => n + added.length);
     }
     const big = [...added].reverse().find(isBigPlay);
