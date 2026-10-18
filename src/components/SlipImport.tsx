@@ -357,7 +357,8 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                     Keep
                   </label>
                   <select
-                    className="field ml-auto w-[5.5rem] py-0.5 text-[11px] font-bold"
+                    className="field ml-auto shrink-0 font-bold text-[color:var(--plus)]"
+                    style={{ width: "4.9rem", padding: "0.2rem 0.35rem", fontSize: "11px" }}
                     aria-label="League"
                     data-testid="leg-league"
                     value={x.row.leagueLocked ? (x.row.league ?? "") : (x.game?.league ?? x.row.league ?? "")}
@@ -371,7 +372,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                     ))}
                   </select>
                   <span className={"flex items-center gap-1.5 " + (x.game ? "font-bold text-[color:var(--plus)]" : "font-bold tone-gold")} data-testid="slip-match">
-                    {x.game ? `${x.game.league.toUpperCase()} · ${x.game.away} @ ${x.game.home} · ${x.game.state === "post" ? "Final" : x.game.state === "in" ? "Live" : ptTime(x.game.start)}` : "Manual leg"}
+                    {x.game ? `${x.game.away} @ ${x.game.home} · ${x.game.state === "post" ? "Final" : x.game.state === "in" ? "Live" : ptTime(x.game.start)}` : "Manual leg"}
                     {x.result ? (
                       <span className="rounded px-1 text-[10px] font-black text-black" style={{ background: x.result === "win" ? "var(--gold)" : x.result === "loss" ? "var(--minus)" : "#a1a1aa" }} title="Graded from the final ESPN score or box">
                         {RESULT_LABEL[x.result]}
