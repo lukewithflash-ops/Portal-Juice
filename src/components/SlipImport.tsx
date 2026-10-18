@@ -15,6 +15,12 @@ import { ptTime } from "@/lib/time";
 
 type Item = ImportLeg & { keep: boolean; dirty: boolean };
 
+/** Leagues you can put a leg in, one tap from the leg. */
+const LEAGUE_CHOICES: [string, string][] = [
+  ["nfl", "NFL"], ["ncaaf", "NCAAF"], ["nba", "NBA"], ["wnba", "WNBA"], ["ncaam", "NCAAM"], ["ncaaw", "NCAAW"], ["mlb", "MLB"], ["nhl", "NHL"],
+  ["mls", "MLS"], ["epl", "EPL"], ["ucl", "UCL"], ["laliga", "La Liga"], ["seriea", "Serie A"], ["bundesliga", "Bundesliga"], ["atp", "ATP"], ["wta", "WTA"], ["ufc", "UFC"],
+];
+
 const KIND_LABEL: Record<SlipKind, string> = { prop: "Prop", spread: "Spread", total: "Total", moneyline: "Moneyline" };
 
 /** Shrinks a photo to a JPEG data URL (max 1600px) so it uploads fast. */
@@ -178,6 +184,21 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
     }
   }
 
+  /** One tap on the league: match this leg again inside that league only ("" = let the reader decide). */
+  async function setLeague(i: number, league: string) {
+    if (!items) return;
+    const x = items[i];
+    const row: SlipRow = { ...x.row, league: league || null, leagueLocked: !!league, slipLeagues: undefined };
+    setBusy("Matching to games…");
+    try {
+      const r = await post({ rows: [row] });
+      const m = r.legs?.[0];
+      setItems((xs) => (xs ? xs.map((y, j) => (j === i ? { ...(m ?? { ...y, row }), keep: y.keep, dirty: false } : y)) : xs));
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function loadOptions(i: number) {
     if (!items) return;
     const x = items[i];
@@ -335,6 +356,20 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                     <input type="checkbox" checked={x.keep} onChange={(e) => setItems(items.map((y, j) => (j === i ? { ...y, keep: e.target.checked } : y)))} />
                     Keep
                   </label>
+                  <select
+                    className="field ml-auto w-[5.5rem] py-0.5 text-[11px] font-bold"
+                    aria-label="League"
+                    data-testid="leg-league"
+                    value={x.row.leagueLocked ? (x.row.league ?? "") : (x.game?.league ?? x.row.league ?? "")}
+                    onChange={(e) => setLeague(i, e.target.value)}
+                  >
+                    {x.game || x.row.league ? null : <option value="">League?</option>}
+                    {LEAGUE_CHOICES.map(([id, label]) => (
+                      <option key={id} value={id}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
                   <span className={"flex items-center gap-1.5 " + (x.game ? "font-bold text-[color:var(--plus)]" : "font-bold tone-gold")} data-testid="slip-match">
                     {x.game ? `${x.game.league.toUpperCase()} · ${x.game.away} @ ${x.game.home} · ${x.game.state === "post" ? "Final" : x.game.state === "in" ? "Live" : ptTime(x.game.start)}` : "Manual leg"}
                     {x.result ? (

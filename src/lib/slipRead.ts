@@ -28,6 +28,7 @@ import {
   salvageJson,
   expandNickname,
   leagueFromTeams,
+  findTeamGames,
   markNote,
   isWinnerMarket,
 } from "@/lib/slipImport";
@@ -340,15 +341,25 @@ export async function matchRows(rows: SlipRow[], slipDate: string | null = null)
   const printed = list.map((r) => r.date).filter((d): d is string => !!d);
   const games = await windowGames(printed);
   const now = Date.now();
+  // Two passes: legs that name one league for sure ("Lakers", a player) tell the matcher which league "LA" or "Kings" is.
+  const sure = list.flatMap((r) => {
+    if (r.leagueLocked && r.league) return [r.league];
+    if (r.kind === "prop") return [];
+    const hits = findTeamGames(r.subject, r.league ? games.filter((g) => g.league === r.league) : games);
+    const top = hits.filter((h) => h.score === hits[0]?.score);
+    const lgs = new Set(top.map((h) => h.game.league));
+    return lgs.size === 1 ? [...lgs] : [];
+  });
   return Promise.all(
-    list.map(async (r0) => {
+    list.map(async (rIn) => {
+      const r0 = { ...rIn, slipLeagues: sure.length ? sure : undefined };
       // The matchup printed beside a leg names its league ("PHI vs BOS" on a Friday is the NBA game).
       const lg = leagueFromTeams(r0, games);
       const r = lg ? { ...r0, league: lg } : r0;
       let player = r.kind === "prop" ? await propPlayer({ ...r, subject: expandNickname(r.subject) }, games) : null;
       let m = matchRow(r, games, player, now);
       // A league the reader guessed wrong ("WNBA + NBA" header) must not hide the player: try the matchup's league, then any.
-      if (!m.game && r0.league) {
+      if (!m.game && r0.league && !r0.leagueLocked) {
         const r2 = { ...r0, league: leagueFromTeams({ ...r0, league: null }, games) };
         player = r2.kind === "prop" ? await propPlayer({ ...r2, subject: expandNickname(r2.subject) }, games) : null;
         const m2 = matchRow(r2, games, player, now);

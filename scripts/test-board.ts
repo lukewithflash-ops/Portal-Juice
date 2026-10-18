@@ -84,6 +84,8 @@ import { liveStat, longestPassFromPlays, marketTerms } from "../src/lib/tracker"
 import { qualifies, selectVip, teaser, toVip, vipRecord, type Candidate, type VipPick } from "../src/lib/vipCore";
 import { verifyStripeSignature } from "../src/lib/stripeSig";
 import { createHmac } from "node:crypto";
+import { GAMES as TR_GAMES, NOW as TR_NOW, TEAM_CASES, NO_GAME_CASE, PROP_CASES } from "./fixtures/team-resolve.fixture";
+import { leaguesForMarket, leaguesForSpread, teamScoreLeague } from "../src/lib/teamResolve";
 
 let n = 0;
 const t = (name: string, fn: () => void) => {
@@ -982,8 +984,8 @@ t("slip import matches teams and players to real slate games, flags the rest", (
     { league: "nfl", id: "1", start: "2026-10-11T17:00Z", state: "pre", away: { id: "12", abbr: "KC", name: "Kansas City Chiefs" }, home: { id: "2", abbr: "BUF", name: "Buffalo Bills" } },
     { league: "nba", id: "9", start: "2026-10-11T02:00Z", state: "pre", away: { id: "13", abbr: "LAL", name: "Los Angeles Lakers" }, home: { id: "2", abbr: "BOS", name: "Boston Celtics" } },
   ];
-  assert.equal(teamScore("Chiefs", games[0].away), 2);
-  assert.equal(teamScore("KC", games[0].away), 3);
+  assert.equal(teamScore("Chiefs", games[0].away), 4);
+  assert.equal(teamScore("KC", games[0].away), 5);
   assert.equal(findTeamGames("Bills", games)[0].side, "home");
   const [prop, spread, ml, total] = parseSlipRows("Josh Allen Over 245.5 Passing Yards -115\nChiefs -3.5 -110\nLakers ML +150\nOver 47.5 KC @ BUF");
   const p = matchRow(prop, games, { id: "3918298", name: "Josh Allen", league: "nfl", teamId: "2" });
@@ -2019,4 +2021,65 @@ t("t175: settled tennis prop with a date grades from the final's sets", () => {
   const m = matchSlipRow(SLIPS.wtaPropSettled[0], SLIP_GAMES, null, SLIP_NOW);
   assert.equal(m.game?.id, "186900");
   assert.equal(gradeTennis(m.leg!, SLIP_GAMES.find((g) => g.id === "186900")!), "win"); // 6-4 7-6 = 23 games
+});
+
+t("t176: nickname beats city — 'LA Rams' is never the LA Kings", () => {
+  const rams = { abbr: "LAR", name: "Los Angeles Rams" };
+  const kings = { abbr: "LA", name: "Los Angeles Kings" };
+  const sac = { abbr: "SAC", name: "Sacramento Kings" };
+  assert.ok(teamScoreLeague("LA Rams", rams, "nfl") > teamScoreLeague("LA Rams", kings, "nhl"));
+  assert.equal(teamScoreLeague("LA Rams", rams, "nfl"), 6);
+  assert.ok(teamScoreLeague("LA Rams", kings, "nhl") <= 1);
+  assert.equal(teamScoreLeague("LA Kings", sac, "nba"), 0);
+  assert.equal(teamScoreLeague("LAK", kings, "nhl"), 5);
+  assert.equal(teamScoreLeague("LAK", rams, "nfl"), 0);
+  assert.equal(teamScoreLeague("Rams", rams, "nfl"), 4);
+  assert.equal(teamScoreLeague("LA Clippers", { abbr: "LAC", name: "LA Clippers" }, "nba"), 6);
+  assert.equal(teamScoreLeague("Kansas City Chiefs", { abbr: "MNC", name: "Manchester City" }, "epl"), 0);
+});
+
+t("t176: market and spread size name the sport", () => {
+  assert.deepEqual(leaguesForMarket("Passing Yards")?.[0], "nfl");
+  assert.deepEqual(leaguesForMarket("Shots on Goal")?.[0], "nhl");
+  assert.deepEqual(leaguesForMarket("Rebounds")?.[0], "nba");
+  assert.deepEqual(leaguesForMarket("Strikeouts")?.[0], "mlb");
+  assert.equal(leaguesForMarket("moneyline"), null);
+  assert.ok(leaguesForSpread(-1.5)?.includes("nhl"));
+  assert.ok(leaguesForSpread(-3.5)?.includes("nfl"));
+  assert.equal(leaguesForSpread(null), null);
+});
+
+for (const [name, r, lg, ab] of TEAM_CASES) {
+  t(`t176 team: ${name} → ${lg.toUpperCase()} ${ab}`, () => {
+    const m = matchSlipRow(r, TR_GAMES, null, TR_NOW);
+    assert.equal(m.game?.league, lg, `${name}: ${m.game?.league} ${m.issue ?? ""}`);
+    if (r.kind === "total") assert.ok([m.game!.home, m.game!.away].includes(ab));
+    else assert.equal(m.leg?.side === "away" ? m.game!.away : m.game!.home, ab);
+  });
+}
+
+t("t176: a team with a game in the window beats a hint for one without", () => {
+  const m = matchSlipRow(NO_GAME_CASE.row, NO_GAME_CASE.games, null, TR_NOW);
+  assert.equal(m.game?.league, NO_GAME_CASE.league);
+  assert.ok([m.game!.home, m.game!.away].includes(NO_GAME_CASE.abbr));
+});
+
+for (const [name, r, p, lg, ab] of PROP_CASES) {
+  t(`t176 prop without team: ${name}`, () => {
+    const m = matchSlipRow(r, TR_GAMES, p, TR_NOW);
+    assert.equal(m.game?.league, lg);
+    assert.ok([m.game!.home, m.game!.away].includes(ab));
+  });
+}
+
+t("t176: same name in two leagues with no hint says so on the leg", () => {
+  const m = matchSlipRow({ subject: "Kings", kind: "moneyline", market: "moneyline", line: null, selection: null, odds: null }, TR_GAMES, null, TR_NOW);
+  assert.ok(m.game);
+  assert.match(m.issue ?? "", /Could be (NBA or NHL|NHL or NBA)/);
+});
+
+t("t176: every leg shows its league with a one-tap change", () => {
+  const src = readFileSync("src/components/SlipImport.tsx", "utf8");
+  assert.ok(src.includes('data-testid="leg-league"'));
+  assert.ok(src.includes("leagueLocked: !!league"));
 });

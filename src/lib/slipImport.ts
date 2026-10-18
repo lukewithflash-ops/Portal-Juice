@@ -6,6 +6,7 @@
 
 import { statFromMarket, type LegInput } from "@/lib/breakdown";
 import { marketTerms } from "@/lib/tracker";
+import { leaguesForMarket, leaguesForSpread, teamScoreLeague } from "@/lib/teamResolve";
 
 const liveTrackable = (market: string) => marketTerms(market).length > 0;
 
@@ -33,6 +34,10 @@ export type SlipRow = {
   sport?: "tennis" | "mma" | "team" | null;
   /** The slip's own mark (green check = win). A hint only: ESPN's final always decides. */
   mark?: "win" | "loss" | "push" | null;
+  /** You picked the league on this leg: match only inside it. */
+  leagueLocked?: boolean;
+  /** Leagues of the slip's other legs (filled by the matcher). Breaks a tie between same-name teams. */
+  slipLeagues?: string[];
 };
 
 export type SlateGame = {
@@ -388,28 +393,18 @@ export function stakeOf(raw: string): number | null {
   return Number.isFinite(n) && n > 0 && n < 100000 ? n : null;
 }
 
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 
-/** How well text names a team: 3 exact abbr or full name, 2 nickname, 1 city word. 0 none. */
-export function teamScore(text: string, t: { abbr: string; name: string }): number {
-  const x = norm(text);
-  if (!x) return 0;
-  const name = norm(t.name);
-  const words = name.split(" ");
-  const nick = words[words.length - 1];
-  const tokens = new Set(x.split(" "));
-  if (x === name || x.includes(name) || tokens.has(t.abbr.toLowerCase())) return 3;
-  if (nick.length >= 3 && tokens.has(nick)) return 2;
-  if (words.length > 1 && words.slice(0, -1).join(" ").length >= 4 && x.includes(words.slice(0, -1).join(" "))) return 1;
-  return 0;
+/** How well text names a team (see teamResolve): nickname over city, full name highest. 0 none. */
+export function teamScore(text: string, t: { abbr: string; name: string }, league?: string): number {
+  return teamScoreLeague(text, t, league);
 }
 
 /** Games where `text` names one side. Best score first; ties keep slate order (soonest). */
 export function findTeamGames(text: string, games: SlateGame[]): { game: SlateGame; side: "home" | "away"; score: number }[] {
   const out: { game: SlateGame; side: "home" | "away"; score: number }[] = [];
   for (const g of games) {
-    const h = teamScore(text, g.home);
-    const a = teamScore(text, g.away);
+    const h = teamScore(text, g.home, g.league);
+    const a = teamScore(text, g.away, g.league);
     if (h || a) out.push({ game: g, side: h >= a ? "home" : "away", score: Math.max(h, a) });
   }
   return out.sort((p, q) => q.score - p.score);
@@ -417,7 +412,7 @@ export function findTeamGames(text: string, games: SlateGame[]): { game: SlateGa
 
 /** Games where both teams are named (for totals). */
 export function findBothTeams(text: string, games: SlateGame[]): SlateGame | null {
-  return games.find((g) => teamScore(text, g.home) > 0 && teamScore(text, g.away) > 0) ?? null;
+  return games.find((g) => teamScore(text, g.home, g.league) > 0 && teamScore(text, g.away, g.league) > 0) ?? null;
 }
 
 export type FoundPlayer = { id: string; name: string; league: string; teamId: string | null };
@@ -530,7 +525,7 @@ export function gameOptions(row: SlipRow, games: SlateGame[], now = Date.now(), 
   let pool = games.filter((g) => (lg ? g.league === lg : sport === "tennis" ? TENNIS.has(g.league) : sport === "basketball" ? BASKETBALL.has(g.league) : true));
   if (!pool.length) pool = games;
   const text = [row.team, row.opponent, row.kind === "prop" ? "" : row.subject].filter(Boolean).join(" ");
-  const named = text ? pool.filter((g) => teamScore(text, g.home) > 0 || teamScore(text, g.away) > 0 || playerNameHit(text, g.home.name) || playerNameHit(text, g.away.name)) : [];
+  const named = text ? pool.filter((g) => teamScore(text, g.home, g.league) > 0 || teamScore(text, g.away, g.league) > 0 || playerNameHit(text, g.home.name) || playerNameHit(text, g.away.name)) : [];
   const at = row.date ? Date.parse(row.date + "T23:00:00Z") : now;
   return (named.length ? named : pool)
     .slice()
@@ -544,8 +539,41 @@ function byLeague(row: SlipRow, games: SlateGame[]): SlateGame[] {
   const lg = (row.league ?? "").toLowerCase();
   if (!lg) return games;
   const only = games.filter((g) => g.league === lg);
-  return only.length ? only : games;
+  return only.length || row.leagueLocked ? only : games;
 }
+
+/**
+ * Same-name teams across leagues (Kings, Giants, Rangers, "LA"): narrow by what the slip says around the name,
+ * strongest first: the stat or market, the spread size, the printed date, the slip's other legs. A hint that
+ * fits none of the candidates is skipped, so a team with a game in the window is never dropped for one without. Pure.
+ */
+export function narrowByContext<T extends { game: SlateGame }>(hits: T[], row: SlipRow): T[] {
+  const leagues = (xs: T[]) => new Set(xs.map((h) => h.game.league));
+  if (leagues(hits).size < 2) return hits;
+  const hints: (string[] | null)[] = [
+    leaguesForMarket(row.kind === "prop" || row.kind === "total" ? row.market : ""),
+    row.kind === "spread" ? leaguesForSpread(row.line) : null,
+    row.date ? [...leagues(hits.filter((h) => easternDate(h.game.start) === row.date))] : null,
+    row.slipLeagues?.length ? mostCommon(row.slipLeagues) : null,
+  ];
+  let out = hits;
+  for (const hint of hints) {
+    if (!hint?.length || leagues(out).size < 2) continue;
+    const sub = out.filter((h) => hint.includes(h.game.league));
+    if (sub.length) out = sub;
+  }
+  return out;
+}
+
+const mostCommon = (xs: string[]): string[] => {
+  const n = new Map<string, number>();
+  for (const x of xs) n.set(x, (n.get(x) ?? 0) + 1);
+  const top = Math.max(...n.values());
+  return [...n].filter(([, c]) => c === top).map(([k]) => k);
+};
+
+const LEAGUE_NAME: Record<string, string> = { nfl: "NFL", ncaaf: "NCAAF", nba: "NBA", wnba: "WNBA", ncaam: "NCAAM", ncaaw: "NCAAW", mlb: "MLB", nhl: "NHL", mls: "MLS", epl: "EPL" };
+const leagueList = (xs: string[]) => [...new Set(xs)].map((x) => LEAGUE_NAME[x] ?? x.toUpperCase()).join(" or ");
 
 /** Ties one row to a game and a leg. `player` is the ESPN search or roster hit for prop rows (or null). */
 /** "Winner", "To Win", "Match Winner", "Moneyline", "ML": a pick to win, not a stat. */
@@ -606,10 +634,11 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
   }
   if (row.kind === "total") {
     const text = [row.subject, row.team, row.opponent].filter(Boolean).join(" @ ");
-    const bothAll = pool.filter((g) => (teamScore(text, g.home) > 0 && teamScore(text, g.away) > 0) || (TENNIS.has(g.league) && playerNameHit(row.team ?? row.subject, g.home.name) && playerNameHit(row.opponent ?? "", g.away.name)));
+    const bothAll = pool.filter((g) => (teamScore(text, g.home, g.league) > 0 && teamScore(text, g.away, g.league) > 0) || (TENNIS.has(g.league) && playerNameHit(row.team ?? row.subject, g.home.name) && playerNameHit(row.opponent ?? "", g.away.name)));
     const twoNamed = /\s(@|vs\.?|v\.?|at)\s/i.test(row.subject) || !!(row.team && row.opponent);
     const one = twoNamed ? [] : findTeamGames(text, pool);
-    const g = pickGame(bothAll.length ? bothAll : one.filter((h) => h.score === one[0]?.score).map((h) => h.game), row, now);
+    const wrap = (xs: SlateGame[]) => narrowByContext(xs.map((game) => ({ game })), row).map((h) => h.game);
+    const g = pickGame(wrap(bothAll.length ? bothAll : one.filter((h) => h.score === one[0]?.score).map((h) => h.game)), row, now);
     if (!g) return { row, leg: null, game: null, issue: twoNamed ? "That matchup is not in games from the last two weeks or the next two. Match it below." : "Which game? Match it below.", options: gameOptions(row, games, now) };
     return {
       row,
@@ -653,7 +682,7 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
     const them = h.side === "home" ? h.game.away : h.game.home;
     if (INDIVIDUAL.has(h.game.league)) {
       if (!rowNameHit(row.subject, me.name)) return false;
-      return !opp || rowNameHit(opp, them.name) || teamScore(opp, them) >= 2;
+      return !opp || rowNameHit(opp, them.name) || teamScore(opp, them, h.game.league) >= 2;
     }
     return !person || h.score >= 2;
   });
@@ -661,20 +690,22 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
     return { row, leg: null, game: null, manual: true, issue: `ESPN doesn't cover this event (${row.subject} vs ${opp}). It saves as a manual leg you grade.`, options: gameOptions(row, games, now) };
   if (!hits.length) return { row, leg: null, game: null, issue: "Team not found in games from the last two weeks or the next two. Match it below.", options: gameOptions(row, games, now) };
   const top = hits.filter((h) => h.score === hits[0].score);
-  // The opponent, when printed, settles which game.
-  const vs = row.opponent ? top.filter((h) => teamScore(row.opponent as string, h.side === "home" ? h.game.away : h.game.home) > 0) : [];
-  const fits = vs.length ? vs : top;
+  // The opponent, when printed, settles which game; then the stat, spread size, date and other legs pick the league.
+  const vs = row.opponent ? top.filter((h) => teamScore(row.opponent as string, h.side === "home" ? h.game.away : h.game.home, h.game.league) > 0) : [];
+  const fits = narrowByContext(vs.length ? vs : top, row);
+  const leagueSet = [...new Set(fits.map((h) => h.game.league))];
   const g = pickGame(fits.map((h) => h.game), row, now);
   if (!g) return { row, leg: null, game: null, manual: true, issue: "The slip says this is settled, but no finished game fits. Match it below, or save it as a manual leg.", options: gameOptions(row, games, now) };
   const best = fits.find((h) => h.game === g) ?? fits[0];
   const sameDay = fits.filter((h) => h.game.id !== g.id && easternDate(h.game.start) === easternDate(g.start));
   const unsure = sameDay.length > 0;
+  const otherLeagues = leagueSet.length > 1 ? `Could be ${leagueList(leagueSet)}. Tap the league to change it.` : null;
   const t = best.side === "home" ? best.game.home : best.game.away;
   const leg: LegInput =
     row.kind === "spread"
       ? { league: best.game.league, gameId: best.game.id, kind: "spread", side: best.side, team: t.abbr, line: row.line, odds }
       : { league: best.game.league, gameId: best.game.id, kind: "moneyline", side: best.side, team: t.abbr, odds };
-  return { row, leg, game: gameRef(best.game), issue: unsure ? "More than one game fits. Check the team." : null };
+  return { row, leg, game: gameRef(best.game), issue: otherLeagues ?? (unsure ? "More than one game fits. Check the team." : null) };
 }
 
 /**
@@ -773,7 +804,7 @@ const abbrEq = (a: string, b: string) => {
   const y = b.toUpperCase().replace(/[^A-Z&]/g, "");
   return !!x && !!y && (x === y || (x.length >= 2 && y.length >= 2 && (x.startsWith(y) || y.startsWith(x)) && Math.abs(x.length - y.length) <= 1));
 };
-const teamHit = (t: string, side: SlateGame["home"]) => abbrEq(t, side.abbr) || (t.length > 3 && (side.name ?? "").toLowerCase().includes(t.toLowerCase()));
+const teamHit = (t: string, side: SlateGame["home"], league?: string) => abbrEq(t, side.abbr) || (t.length > 3 && (side.name ?? "").toLowerCase().includes(t.toLowerCase())) || teamScoreLeague(t, side, league) >= 3;
 
 /**
  * The league a row belongs to from the matchup printed beside it ("PHI vs BOS"): the leagues of window games
@@ -783,7 +814,7 @@ export function leagueFromTeams(row: SlipRow, games: SlateGame[]): string | null
   if (row.league || !row.team || !row.opponent) return null;
   const t = row.team.replace(/^(vs\.?|@)\s*/i, "").trim();
   const o = row.opponent.replace(/^(vs\.?|@)\s*/i, "").trim();
-  const both = games.filter((g) => (teamHit(t, g.home) && teamHit(o, g.away)) || (teamHit(t, g.away) && teamHit(o, g.home)));
+  const both = games.filter((g) => (teamHit(t, g.home, g.league) && teamHit(o, g.away, g.league)) || (teamHit(t, g.away, g.league) && teamHit(o, g.home, g.league)));
   const one = (xs: SlateGame[]) => {
     const l = new Set(xs.map((g) => g.league));
     return l.size === 1 ? [...l][0] : null;
