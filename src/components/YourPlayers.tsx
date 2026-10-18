@@ -11,7 +11,7 @@ import { sportOf } from "@/lib/legPick";
 import { legFromPick, TONE_COLOR, type Leg } from "@/lib/motivation";
 import { addPick, getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
 import { clockSpan } from "@/lib/tracker";
-import { tagPlayers } from "@/lib/yourPlayers";
+import { shortName, tagPlayers } from "@/lib/yourPlayers";
 
 type Ctx = { names: string[]; moment: PlayerMoment | null };
 const YP = createContext<Ctx>({ names: [], moment: null });
@@ -186,7 +186,7 @@ export function BetsDock({ variant }: { variant: "bar" | "side" }) {
             <li key={l.pickId} className={`flex flex-none items-center gap-1.5 rounded-full border bg-black/40 py-0.5 pl-0.5 pr-2 ${moment?.pickId === l.pickId ? "your-player" : ""}`} style={{ borderColor: `color-mix(in srgb, ${TONE_COLOR[l.tone]} 55%, transparent)` }}>
               <Face league={league} leg={l} size={22} hot={moment?.pickId === l.pickId} />
               <span className="tabular text-[11px] font-black" style={{ color: TONE_COLOR[l.tone] }}>
-                {l.name.split(" ").slice(-1)[0]} {l.value ?? "—"}/{l.lineText ?? l.line}
+                {shortName(l.name)} {l.value ?? "—"}/{l.lineText ?? l.line}
               </span>
               <ChanceBadge chance={l.chance} />
             </li>
