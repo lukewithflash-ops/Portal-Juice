@@ -1,5 +1,6 @@
 "use client";
 
+import { useViz } from "@/components/vizContext";
 import { TaggedText, useYourPlayers } from "@/components/YourPlayers";
 import { mentions } from "@/lib/yourPlayers";
 
@@ -116,18 +117,25 @@ function PlayRow({ play, color, fresh, newest, snap }: { play: LivePlay; color: 
   const big = isBigPlay(play);
   const kind = playKind(play);
   const yards = yardsLabel(play);
-  const { moment } = useYourPlayers();
+  const { moment, names } = useYourPlayers();
+  const { replay, current } = useViz();
   const mine = !!moment && fresh && mentions(play.text, moment.name);
+  const logged = names.some((n) => mentions(play.text, n));
   const cls =
     (mine ? "your-player " : "") +
     "feed-row rounded-l-md bg-white/[0.03] px-2.5 py-1.5 text-[13px] " +
     (fresh ? "feed-spring " : "") +
     (newest ? "newest " : "") +
     (play.scoring ? "score-flash " : "") +
-    (big && !play.turnover ? "gold-edge " : "");
+    (big && !play.turnover ? "gold-edge " : "") +
+    (logged ? "mine-row " : "") +
+    (current === play.id ? "replaying " : "");
   return (
     <li
       className={cls}
+      onClick={() => replay(play)}
+      title="Replay this play on the field"
+      data-testid="pbp-row"
       style={
         {
           ["--team" as string]: play.turnover ? "var(--minus)" : color,

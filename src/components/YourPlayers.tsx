@@ -79,6 +79,8 @@ function useTeamLegs(league: string, gameId: string, snap: LiveSnap | null): Tea
 
 type DockData = { league: string; gameId: string; snap: LiveSnap | null; legs: Leg[]; team: TeamLeg[]; moment: PlayerMoment | null };
 const Dock = createContext<DockData | null>(null);
+/** Your open player legs on this game (empty outside a game page). */
+export const useGameLegList = (): Leg[] => useContext(Dock)?.legs ?? [];
 
 /** Wraps the game so play rows can tag your players and the bets dock can sit beside the play. */
 export function YourPlayersProvider({ league, gameId, snap, children }: { league: string; gameId: string; snap: LiveSnap | null; children: React.ReactNode }) {

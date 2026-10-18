@@ -6,7 +6,12 @@ import { driveTrail, fieldGeom, spotX, type FieldSide, type TrailSeg } from "@/l
 import { clutch, heatCheck, isHuge, otLabel, runMeter } from "@/lib/gameFeel";
 import { playCrowd, playSignature } from "@/lib/emotes";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import PlayViz, { type VizMine } from "@/components/PlayViz";
+import LiveClock from "@/components/LiveClock";
+import { VizCtx, useViz } from "@/components/vizContext";
+import { vizFor } from "@/lib/playViz";
+import { headshotFor } from "@/lib/faces";
 import { pickEmote, playSound, replaySnap, type Emote } from "@/lib/emotes";
 import { CrowdToggle, EmoteLayer, SoundToggle } from "@/components/Emotes";
 import DriveFeed from "@/components/DriveFeed";
@@ -17,7 +22,7 @@ import { questDone } from "@/lib/questStore";
 import { LiveNotes } from "@/components/Notes";
 import { LeadShockwave, leadFlip, LineMoveTags, PitcherFatigue, RedZoneAlarm, WinStrip, type Shock } from "@/components/GameUpgrades";
 import Mark from "@/components/Mark";
-import { BetsDock, MomentBadge, TaggedText, YourPlayersProvider, useYourPlayers } from "@/components/YourPlayers";
+import { BetsDock, MomentBadge, TaggedText, YourPlayersProvider, useGameLegList, useYourPlayers } from "@/components/YourPlayers";
 import { mentions } from "@/lib/yourPlayers";
 import { isBehind, type LivePlay, type LiveSnap } from "@/lib/live";
 import { POLL_ERROR_MS, pollDelay, usePoll } from "@/components/usePoll";
@@ -93,6 +98,11 @@ export default function GameLive({
   const [shock, setShock] = useState<Shock | null>(null);
   const shockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [tab, setTab] = useState<"play" | "lines" | "chat">("play");
+  // Play visualizer: every new play in order (a few at most, so it keeps up), or one you tapped to replay.
+  const [vizQ, setVizQ] = useState<LivePlay[]>([]);
+  const [unseen, setUnseen] = useState(0);
+  const feedRef = useRef<HTMLDivElement | null>(null);
+  const feedH = useRef<number | null>(null);
   const seen = useRef<Set<string> | null>(null);
   const scores = useRef<{ away: string | null; home: string | null }>({ away: null, home: null });
   const shownRef = useRef<LiveSnap | null>(null);
@@ -118,6 +128,14 @@ export default function GameLive({
     const added = first ? [] : data.plays.filter((p) => !prior.has(p.id));
     seen.current = new Set([...prior, ...data.plays.map((p) => p.id)]);
     setFreshIds(added.map((p) => p.id));
+    const drawable = added.filter((p) => vizFor(p, data, league));
+    if (drawable.length) setVizQ((q) => [...q, ...drawable].slice(-4));
+    // Reading further down the page: keep your place and count what came in above.
+    const el = feedRef.current;
+    if (added.length && el && typeof window !== "undefined" && el.getBoundingClientRect().top < 0) {
+      feedH.current = el.offsetHeight;
+      setUnseen((n) => n + added.length);
+    }
     const big = [...added].reverse().find(isBigPlay);
     if (big && !quiet) {
       if (isHuge(big, clutch(league, data))) {
@@ -180,6 +198,28 @@ export default function GameLive({
     scores.current = { away: data.awayScore, home: data.homeScore };
     shownRef.current = data;
   }, [league]);
+
+  const newestId = live?.plays.length ? live.plays[live.plays.length - 1].id : null;
+  useLayoutEffect(() => {
+    const el = feedRef.current;
+    if (el && feedH.current !== null) {
+      const grew = el.offsetHeight - feedH.current;
+      if (grew > 0) window.scrollBy(0, grew);
+      feedH.current = null;
+    }
+  }, [newestId]);
+  useEffect(() => {
+    if (!unseen) return;
+    const onScroll = () => {
+      const el = feedRef.current;
+      if (el && el.getBoundingClientRect().top >= 0) setUnseen(0);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [unseen]);
+  const vizNow = vizQ[0] ?? null;
+  const vizDone = useCallback(() => setVizQ((q) => q.slice(1)), []);
+  const vizApi = useMemo(() => ({ replay: (p: LivePlay) => setVizQ([p]), current: vizNow?.id ?? null }), [vizNow]);
 
   usePoll(async (signal) => {
     const res = await fetch("/api/live/" + league + "/" + id, { cache: "no-store", signal });
@@ -257,6 +297,7 @@ export default function GameLive({
 
   return (
     <YourPlayersProvider league={league} gameId={id} snap={view}>
+    <VizCtx.Provider value={vizApi}>
     <div className="game-stage">
       <div className={tab === "chat" ? "max-lg:hidden" : ""}>
         <div className={tab === "lines" ? "max-lg:hidden" : ""} style={vars}>
@@ -281,8 +322,11 @@ export default function GameLive({
             swing={swing ? <SwingBanner swing={swing} /> : null}
             shock={shock ? <LeadShockwave shock={shock} /> : null}
             alarm={football ? <RedZoneAlarm snap={snap} /> : null}
-            pop={popPlay ? <PlayPop play={popPlay} color={teamColor(snap, popPlay.teamId, awayColor, homeColor)} icon={ICON[playKind(popPlay)]} /> : null}
+            vizPlay={vizNow}
+            onVizDone={vizDone}
+            pop={popPlay && !vizNow ? <PlayPop play={popPlay} color={teamColor(snap, popPlay.teamId, awayColor, homeColor)} icon={ICON[playKind(popPlay)]} /> : null}
           />
+          <MineChip league={league} play={vizNow} />
           <GameFeel league={league} snap={snap} awayColor={awayColor} homeColor={homeColor} />
           {live?.state === "post" && live.plays.length > 3 ? (
             <div className="mt-2 flex items-center justify-between gap-2">
@@ -318,11 +362,18 @@ export default function GameLive({
               <Tracker top={top.slice(0, 3)} rest={[]} state={snap?.state ?? "pre"} />
             </div>
           ) : null}
+          {unseen > 0 ? (
+            <button type="button" className="new-plays-pill fixed left-1/2 top-16 -translate-x-1/2" data-testid="new-plays" onClick={() => { feedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); setUnseen(0); }}>
+              ↑ {unseen} new play{unseen === 1 ? "" : "s"}
+            </button>
+          ) : null}
+          <div ref={feedRef} className="scroll-mt-20">
           {snap && snap.drives.length ? (
             <DriveFeed snap={snap} freshIds={freshIds} awayColor={awayColor} homeColor={homeColor} />
           ) : (
             <Feed plays={plays.slice(0, 30)} freshIds={freshIds} snap={snap} awayColor={awayColor} homeColor={homeColor} />
           )}
+          </div>
           <Lineups league={league} gameId={id} snap={snap} />
         </div>
         <div className={tab === "play" ? "max-lg:hidden" : ""}>
@@ -357,6 +408,7 @@ export default function GameLive({
         ))}
       </div>
     </div>
+    </VizCtx.Provider>
     </YourPlayersProvider>
   );
 }
@@ -440,7 +492,11 @@ function Hero({
   swing,
   shock,
   alarm,
+  vizPlay,
+  onVizDone,
 }: {
+  vizPlay: LivePlay | null;
+  onVizDone: () => void;
   league: string;
   snap: LiveSnap | null;
   away: string;
@@ -474,7 +530,7 @@ function Hero({
           </div>
           <div className="tabular mt-0.5 text-sm font-black text-[color:var(--flat)]">
             {live && otLabel(league, snap?.period ?? null) ? <span className="ot-pill mr-1">{otLabel(league, snap?.period ?? null)}</span> : null}
-            {live && snap?.clock ? snap.clock : ""}
+            {live && snap?.clock ? <LiveClock league={league} snap={snap} /> : ""}
           </div>
           <div className="text-[10px] text-zinc-400">{snap?.detail || ""}</div>
           {live && league === "mlb" && bug ? (
@@ -488,11 +544,14 @@ function Hero({
       </div>
       <div className="tv-surface">
         {snap ? (
-          <Surface league={league} snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} />
+          <Surface league={league} snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds}>
+            {vizPlay ? <VizLayer key={vizPlay.id} league={league} snap={snap} play={vizPlay} awayColor={awayColor} homeColor={homeColor} onDone={onVizDone} /> : null}
+          </Surface>
         ) : (
           <p className="w-full pb-6 text-center text-sm text-zinc-500">Waiting on the live feed.</p>
         )}
       </div>
+      {vizPlay && snap ? <VizCaption league={league} snap={snap} play={vizPlay} awayColor={awayColor} homeColor={homeColor} /> : null}
       {pop}
       <EmoteLayer emote={emote} color={teamColor(snap, emote?.teamId ?? null, awayColor, homeColor)} />
       {cinema ? <Cinema play={cinema} color={teamColor(snap, cinema.teamId, awayColor, homeColor)} /> : null}
@@ -503,7 +562,7 @@ function Hero({
   );
 }
 
-function Diamond({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: string; homeColor: string }) {
+function Diamond({ snap, awayColor, homeColor, children }: { snap: LiveSnap; awayColor: string; homeColor: string; children?: React.ReactNode }) {
   const bug = snap.bug;
   const batting = bug?.half === "bottom" ? homeColor : awayColor;
   const base = (on: boolean | undefined, x: number, y: number, key: string) => (
@@ -531,6 +590,7 @@ function Diamond({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: st
       {!bug ? (
         <text x="60" y="8" fontSize="4" textAnchor="middle" fill="rgba(255,255,255,0.6)">{last ? "" : "Waiting on the first pitch"}</text>
       ) : null}
+      {children}
     </svg>
   );
 }
@@ -541,22 +601,61 @@ function Surface({
   awayColor,
   homeColor,
   freshIds,
+  children,
 }: {
   league: string;
   snap: LiveSnap;
   awayColor: string;
   homeColor: string;
   freshIds: string[];
+  children?: React.ReactNode;
 }) {
-  if (league === "nfl" || league === "ncaaf") return <Field snap={snap} awayColor={awayColor} homeColor={homeColor} />;
+  if (league === "nfl" || league === "ncaaf") return <Field snap={snap} awayColor={awayColor} homeColor={homeColor}>{children}</Field>;
   if (league === "nba" || league === "wnba" || league === "ncaam" || league === "ncaaw")
-    return <Court snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} />;
-  if (league === "nhl") return <Rink snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} />;
-  if (league === "mlb") return <Diamond snap={snap} awayColor={awayColor} homeColor={homeColor} />;
-  return <Pitch snap={snap} awayColor={awayColor} homeColor={homeColor} />;
+    return <Court snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds}>{children}</Court>;
+  if (league === "nhl") return <Rink snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds}>{children}</Rink>;
+  if (league === "mlb") return <Diamond snap={snap} awayColor={awayColor} homeColor={homeColor}>{children}</Diamond>;
+  return <Pitch snap={snap} awayColor={awayColor} homeColor={homeColor}>{children}</Pitch>;
 }
 
-function Field({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: string; homeColor: string }) {
+/** The play being drawn, with your logged player marked when ESPN's text names them. */
+function VizLayer({ league, snap, play, awayColor, homeColor, onDone }: { league: string; snap: LiveSnap; play: LivePlay; awayColor: string; homeColor: string; onDone: () => void }) {
+  const legs = useGameLegList();
+  const spec = useMemo(() => vizFor(play, snap, league), [play, snap, league]);
+  useEffect(() => {
+    if (spec) return;
+    const t = setTimeout(onDone, 50);
+    return () => clearTimeout(t);
+  }, [spec, onDone]);
+  if (!spec) return null;
+  const leg = legs.find((l) => mentions(play.text, l.name)) ?? null;
+  const passer = spec.player;
+  const mine: VizMine = leg
+    ? {
+        name: leg.name.split(" ").slice(-1)[0],
+        face: headshotFor(league, leg.athleteId),
+        // A catch: the receiver is where the ball lands, not the passer.
+        onBall: spec.sport === "football" && (spec.kind === "pass" || spec.kind === "incomplete") && !(passer && mentions(passer, leg.name)),
+      }
+    : null;
+  const color = spec.side === "home" ? homeColor : spec.side === "away" ? awayColor : "#a855f7";
+  return <PlayViz spec={spec} color={color} mine={mine} onDone={onDone} />;
+}
+
+function VizCaption({ league, snap, play, awayColor, homeColor }: { league: string; snap: LiveSnap; play: LivePlay; awayColor: string; homeColor: string }) {
+  const spec = vizFor(play, snap, league);
+  if (!spec) return null;
+  const abbr = spec.side === "home" ? snap.homeAbbr : spec.side === "away" ? snap.awayAbbr : "";
+  const color = spec.side === "home" ? homeColor : awayColor;
+  return (
+    <div className="viz-caption" style={{ ["--viz" as string]: color } as React.CSSProperties} data-testid="viz-caption">
+      <b>{abbr}</b>
+      <span>{spec.caption}</span>
+    </div>
+  );
+}
+
+function Field({ snap, awayColor, homeColor, children }: { snap: LiveSnap; awayColor: string; homeColor: string; children?: React.ReactNode }) {
   const sit = snap.situation;
   // With ESPN drives, trust only the posted situation; between snaps (after a score or kick) show no ball.
   const drive = snap.drives.length ? null : currentDrive(snap.plays);
@@ -650,6 +749,7 @@ function Field({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: stri
       ) : (
         trail.length ? null : <text x="60" y="30" fontSize="4" textAnchor="middle" fill="rgba(255,255,255,0.6)">{label ? "Waiting on the next snap" : "No yard line posted yet"}</text>
       )}
+      {children}
     </svg>
   );
 }
@@ -730,11 +830,13 @@ function Court({
   awayColor,
   homeColor,
   freshIds,
+  children,
 }: {
   snap: LiveSnap;
   awayColor: string;
   homeColor: string;
   freshIds: string[];
+  children?: React.ReactNode;
 }) {
   const shots = snap.plays.filter(isShotAttempt).slice(-24);
   const line = "rgba(255,255,255,0.4)";
@@ -772,6 +874,7 @@ function Court({
           </g>
         );
       })}
+      {children}
     </svg>
   );
 }
@@ -781,11 +884,13 @@ function Rink({
   awayColor,
   homeColor,
   freshIds,
+  children,
 }: {
   snap: LiveSnap;
   awayColor: string;
   homeColor: string;
   freshIds: string[];
+  children?: React.ReactNode;
 }) {
   const shots = snap.plays.filter((p) => p.x !== null && p.y !== null && (p.scoring || /shot|goal/i.test(p.typeText))).slice(-20);
   return (
@@ -808,6 +913,7 @@ function Rink({
           </g>
         );
       })}
+      {children}
     </svg>
   );
 }
@@ -931,7 +1037,8 @@ function Feed({
 }) {
   const box = useRef<HTMLOListElement | null>(null);
   const pinned = useRef(true);
-  const { moment } = useYourPlayers();
+  const { moment, names } = useYourPlayers();
+  const { replay, current } = useViz();
   const newest = plays[0]?.id;
   useEffect(() => {
     if (box.current && pinned.current) box.current.scrollTo({ top: 0 });
@@ -961,8 +1068,13 @@ function Feed({
                 (i === 0 ? "newest " : "older ") +
                 (freshIds.includes(p.id) ? "feed-spring " : "") +
                 (p.scoring ? "score-flash " : "") +
-                (big ? "gold-edge" : "")
+                (big ? "gold-edge " : "") +
+                (names.some((n) => mentions(p.text, n)) ? "mine-row " : "") +
+                (current === p.id ? "replaying" : "")
               }
+              onClick={() => replay(p)}
+              title="Replay this play"
+              data-testid="pbp-row"
               style={{ ["--team" as string]: color, ["--flash" as string]: color } as React.CSSProperties}
             >
               <div className="flex items-start gap-2">
@@ -1052,7 +1164,7 @@ function TrackTile({ row }: { row: TrackRow }) {
 }
 
 /** Neon soccer pitch: halves in team colors, the last key moment named. */
-function Pitch({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: string; homeColor: string }) {
+function Pitch({ snap, awayColor, homeColor, children }: { snap: LiveSnap; awayColor: string; homeColor: string; children?: React.ReactNode }) {
   const last = [...snap.plays].reverse().find((p) => p.text);
   return (
     <svg viewBox="0 0 120 70" preserveAspectRatio="xMidYMax meet" aria-label="Pitch">
@@ -1075,6 +1187,7 @@ function Pitch({ snap, awayColor, homeColor }: { snap: LiveSnap; awayColor: stri
           {last.text.slice(0, 70)}
         </text>
       ) : null}
+      {children}
     </svg>
   );
 }
@@ -1111,5 +1224,52 @@ function GameFeel({ league, snap, awayColor, homeColor }: { league: string; snap
         ) : null}
       </div>
     </>
+  );
+}
+
+/**
+ * Your player was in the play just drawn: their leg, ticking. "Kupp 64/70.5 rec yds +12".
+ * Gold level-up and HIT when the leg clears; a red glitch when the play hurt it (an Under moving up, a miss).
+ */
+function MineChip({ league, play }: { league: string; play: LivePlay | null }) {
+  const legs = useGameLegList();
+  const last = useRef<Map<string, number>>(new Map());
+  const shown = useRef<string | null>(null);
+  const leg = play ? legs.find((l) => mentions(play.text, l.name)) ?? null : null;
+  const [chip, setChip] = useState<{ id: string; text: string; gain: number | null; hit: boolean; hurt: boolean; face: string | null } | null>(null);
+  useEffect(() => {
+    // Remember every leg's value so the next play can show what it added.
+    for (const l of legs) if (l.value !== null && !last.current.has(l.pickId)) last.current.set(l.pickId, l.value);
+  }, [legs]);
+  useEffect(() => {
+    if (!play || !leg || shown.current === play.id) return;
+    shown.current = play.id;
+    const before = last.current.get(leg.pickId);
+    const gain = leg.value !== null && before !== undefined ? leg.value - before : null;
+    if (leg.value !== null) last.current.set(leg.pickId, leg.value);
+    const short = leg.name.split(" ").slice(-1)[0];
+    const lineText = leg.lineText ?? String(leg.line);
+    const stat = leg.market.replace(/receiving/i, "rec").replace(/rushing/i, "rush").replace(/passing/i, "pass").replace(/yards/i, "yds").toLowerCase();
+    const hit = leg.status === "cleared";
+    const hurt = leg.status === "missed" || (leg.side === "Under" && (gain ?? 0) > 0) || (!!play.turnover && leg.side === "Over");
+    setChip({ id: play.id, text: `${short} ${leg.value ?? "–"}/${lineText} ${stat}`, gain: gain && gain !== 0 ? gain : null, hit, hurt, face: headshotFor(league, leg.athleteId) });
+    const t = setTimeout(() => setChip((c) => (c?.id === play.id ? null : c)), 4200);
+    return () => clearTimeout(t);
+  }, [play, leg, league]);
+  if (!chip) return null;
+  return (
+    <div className="mt-2 flex justify-center" aria-live="polite">
+      <span key={chip.id} className={"mine-chip" + (chip.hit ? " hit" : chip.hurt ? " hurt" : "")} data-testid="mine-chip">
+        {chip.face ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={chip.face} alt="" referrerPolicy="no-referrer" />
+        ) : (
+          <span className="mine-dot" />
+        )}
+        <span className="tabular">{chip.text}</span>
+        {chip.gain !== null ? <span className={"tabular " + (chip.hurt ? "text-[color:var(--minus)]" : "gain")}>{chip.gain > 0 ? "+" : ""}{chip.gain}</span> : null}
+        {chip.hit ? <span className="hit-tag">HIT</span> : null}
+      </span>
+    </div>
   );
 }

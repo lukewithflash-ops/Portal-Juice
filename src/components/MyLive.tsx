@@ -17,6 +17,7 @@ import FriendFeed from "@/components/FriendFeed";
 import { sweatOf } from "@/lib/sweat";
 import { slipKeyOf, TONE_COLOR } from "@/lib/motivation";
 import { fieldGeom } from "@/lib/fieldGeom";
+import { mentions } from "@/lib/yourPlayers";
 import type { LiveSnap } from "@/lib/live";
 import type { ScoreRow } from "@/lib/slate";
 import {
@@ -376,12 +377,14 @@ function LiveTile({ g, compact, now }: { g: GameView; compact: boolean; now: Dat
   const homeWin = live && s?.homeWin != null ? Math.round(s.homeWin) : null;
   const last = live && s?.plays.length ? s.plays[s.plays.length - 1] : null;
   const hit = g.legs.filter((l) => l.state === "hit").length;
+  // A logged player is in the latest play: the tile gets the gold portal glow.
+  const mineLeg = last?.text ? g.legs.find((l) => mentions(last.text!, l.name)) ?? null : null;
   const followed = g.reasons.includes("follow");
   const label = `${t.awayAbbr} at ${t.homeAbbr}`;
 
   return (
     <div
-      className={"ml-tile relative overflow-hidden rounded-xl border text-white " + (final ? "opacity-90" : "")}
+      className={"ml-tile relative overflow-hidden rounded-xl border text-white " + (final ? "opacity-90" : "") + (mineLeg ? " mylive-mine" : "")}
       style={{
         borderColor: live ? t.homeColor : "rgba(255,255,255,0.14)",
         background: live
@@ -391,6 +394,7 @@ function LiveTile({ g, compact, now }: { g: GameView; compact: boolean; now: Dat
       }}
       data-testid="ml-tile"
       data-state={g.state}
+      data-mine={mineLeg ? "1" : undefined}
     >
       <Link href={href} className="block px-2.5 pb-2 pt-1.5" aria-label={`Open ${label}`}>
         <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider">
@@ -415,7 +419,17 @@ function LiveTile({ g, compact, now }: { g: GameView; compact: boolean; now: Dat
         </div>
         {live && s ? <Situation g={g} snap={s} compact={compact} /> : null}
         {homeWin != null ? <WinBar away={t.awayAbbr} home={t.homeAbbr} awayColor={t.awayColor} homeColor={t.homeColor} homeWin={homeWin} compact={compact} /> : null}
-        {!compact && last?.text ? <p className="mt-1 line-clamp-2 text-[11px] font-semibold leading-snug text-white/85">{last.text.trim()}</p> : null}
+        {mineLeg && compact ? (
+          <p className="mt-1 truncate text-[10px] font-black" style={{ color: "var(--gold)" }} data-testid="ml-mine">
+            ◎ {mineLeg.name.split(" ").slice(-1)[0]} in the last play · {mineLeg.valueText}
+            {mineLeg.lineText ? `/${mineLeg.lineText}` : ""}
+          </p>
+        ) : null}
+        {!compact && last?.text ? (
+          <p className="mt-1 line-clamp-2 text-[11px] font-semibold leading-snug" style={{ color: mineLeg ? "var(--gold)" : "rgba(255,255,255,0.85)" }} data-testid={mineLeg ? "ml-mine" : undefined}>
+            {last.text.trim()}
+          </p>
+        ) : null}
         {g.legs.length ? <TileLegs legs={g.legs} compact={compact} final={final} /> : null}
       </Link>
       <div className="absolute right-1.5 top-1">

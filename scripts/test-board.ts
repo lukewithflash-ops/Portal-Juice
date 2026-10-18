@@ -84,6 +84,8 @@ import { liveStat, longestPassFromPlays, marketTerms } from "../src/lib/tracker"
 import { qualifies, selectVip, teaser, toVip, vipRecord, type Candidate, type VipPick } from "../src/lib/vipCore";
 import { verifyStripeSignature } from "../src/lib/stripeSig";
 import { createHmac } from "node:crypto";
+import { clockAt, clockSecs, footballClockRuns, nextClock } from "../src/lib/liveClock";
+import { vizFor, namedPlayer } from "../src/lib/playViz";
 import { GAMES as TR_GAMES, NOW as TR_NOW, TEAM_CASES, NO_GAME_CASE, PROP_CASES } from "./fixtures/team-resolve.fixture";
 import { leaguesForMarket, leaguesForSpread, teamScoreLeague } from "../src/lib/teamResolve";
 
@@ -2082,4 +2084,88 @@ t("t176: every leg shows its league with a one-tap change", () => {
   const src = readFileSync("src/components/SlipImport.tsx", "utf8");
   assert.ok(src.includes('data-testid="leg-league"'));
   assert.ok(src.includes("leagueLocked: !!league"));
+});
+
+t("t177: clock ticks only on evidence and re-anchors on every ESPN update", () => {
+  assert.equal(clockSecs("11:46"), 706);
+  assert.equal(clockSecs("47.3"), 47.3);
+  const base = { league: "nba", state: "in" as const, detail: "5:00 - 2nd Quarter", period: 2, lastPlay: { typeText: "Jump Shot", text: "X makes 18-foot jumper" } };
+  const a = nextClock(null, { ...base, clock: "5:00" }, 0);
+  assert.equal(a.dir, 0); // one look: unknown, so still
+  const b = nextClock(a, { ...base, clock: "4:58" }, 2000);
+  assert.equal(b.dir, -1);
+  assert.equal(clockAt(b, 3000), "4:57");
+  assert.equal(clockAt(b, 60000), "4:52"); // capped: never runs away from ESPN
+  const c = nextClock(b, { ...base, clock: "4:58" }, 6000);
+  assert.equal(c.dir, 0); // same value 4 s later: stopped
+  const ft = nextClock(b, { ...base, clock: "4:55", lastPlay: { typeText: "Free Throw - 1 of 2", text: "X makes free throw 1 of 2" } }, 5000);
+  assert.equal(ft.dir, 0);
+  const half = nextClock(b, { ...base, clock: "0:00", detail: "Halftime" }, 5000);
+  assert.equal(half.dir, 0);
+  // Football: runs after a run in bounds, stops after an incompletion or a timeout.
+  assert.equal(footballClockRuns({ typeText: "Rush", text: "J.Cook up the middle to BUF 45 for 11 yards (T.Stukes)." }), true);
+  assert.equal(footballClockRuns({ typeText: "Pass Incompletion", text: "J.Allen pass incomplete short middle to K.Shakir." }), false);
+  assert.equal(footballClockRuns({ typeText: "Pass Reception", text: "J.Allen pass short right to K.Shakir pushed ob at BUF 40 for 16 yards" }), false);
+  assert.equal(footballClockRuns({ typeText: "Official Timeout", text: "Official Timeout at 11:46." }), false);
+  const f = nextClock(null, { league: "nfl", state: "in", clock: "10:40", detail: "10:40 - 4th Quarter", period: 4, lastPlay: { typeText: "Rush", text: "J.Cook up the middle to BUF 45 for 11 yards" } }, 0);
+  assert.equal(f.dir, -1);
+  assert.equal(clockAt(f, 10_000), "10:30");
+  assert.equal(clockAt(f, 120_000), "10:00"); // 40 s cap, then it waits for ESPN
+  // Soccer counts up only after seeing a minute change; stoppage keeps "+n'".
+  const s1 = nextClock(null, { league: "mls", state: "in", clock: "80'", detail: "80'", period: 2 }, 0);
+  assert.equal(s1.dir, 0);
+  const s2 = nextClock(s1, { league: "mls", state: "in", clock: "81'", detail: "81'", period: 2 }, 50_000);
+  assert.equal(s2.dir, 1);
+  assert.equal(clockAt(s2, 50_000 + 61_000), "82'");
+  const s3 = nextClock(s2, { league: "mls", state: "in", clock: "90'+2'", detail: "90'+2'", period: 2 }, 200_000);
+  assert.equal(clockAt(s3, 200_000 + 61_000), "90'+3'");
+  // Unknown clock: shown as ESPN wrote it, never ticked.
+  assert.equal(clockAt(nextClock(null, { league: "mlb", state: "in", clock: "Top 5th", detail: "Top 5th", period: 5 }, 0), 9e9), "Top 5th");
+});
+
+t("t178: plays become field pictures from ESPN data only", () => {
+  const snap = { homeId: "13", awayId: "2", homeAbbr: "LV", awayAbbr: "BUF" } as unknown as LiveSnap;
+  const base = { clock: "9:00", period: "4th", points: 0, awayScore: null, homeScore: null, x: null, y: null, down: 1, distance: 10, spot: null } as const;
+  const run = vizFor({ ...base, id: "1", text: "J.Cook up the middle to BUF 45 for 11 yards (T.Stukes).", scoring: false, teamId: "2", yardsToEndzone: 66, typeText: "Rush", yards: 11, startTeamId: "2", endToGoal: 55, endTeamId: "2" }, snap, "nfl");
+  assert.equal(run?.sport, "football");
+  if (run?.sport !== "football") return;
+  assert.equal(run.kind, "run");
+  assert.equal(run.dir, 1); // away attacks right
+  assert.equal(run.x1, 44);
+  assert.equal(run.x2, 55);
+  assert.equal(run.player, "J.Cook");
+  const inc = vizFor({ ...base, id: "2", text: "(Shotgun) J.Allen pass incomplete deep right to K.Coleman.", scoring: false, teamId: "2", yardsToEndzone: 60, typeText: "Pass Incompletion", startTeamId: "2", endToGoal: 60, endTeamId: "2" }, snap, "nfl");
+  assert.equal(inc?.sport === "football" && inc.kind, "incomplete");
+  assert.equal(inc?.sport === "football" && inc.target, 50 + 20);
+  // Home team attacks left; a touchdown pass ends in the end zone even with the try in the text.
+  const td = vizFor({ ...base, id: "3", text: "K.Cousins pass short right to T.Tucker for 11 yards, TOUCHDOWN. M.Gay extra point is GOOD.", scoring: true, points: 7, teamId: "13", yardsToEndzone: 11, typeText: "Passing Touchdown", startTeamId: "13", endToGoal: 65, endTeamId: "2" }, snap, "nfl");
+  assert.equal(td?.sport === "football" && td.kind, "pass");
+  assert.equal(td?.sport === "football" && td.x2, 10);
+  assert.equal(td?.big, "score");
+  assert.equal(vizFor({ ...base, id: "4", text: "Official Timeout at 11:56.", scoring: false, teamId: null, yardsToEndzone: null, typeText: "Official Timeout" }, snap, "nfl"), null);
+  // Basketball: a shot uses ESPN's coordinates; a rebound has no spot, so no spot is drawn.
+  const shot = vizFor({ ...base, id: "5", text: "Stephen Curry makes 26-foot three point jumper", scoring: true, points: 3, teamId: "13", yardsToEndzone: null, x: 8, y: 22, typeText: "Jump Shot" }, snap, "nba");
+  assert.equal(shot?.sport === "court" && shot.x, 8);
+  const reb = vizFor({ ...base, id: "6", text: "Draymond Green defensive rebound", scoring: false, teamId: "13", yardsToEndzone: null, x: 10, y: 3, typeText: "Defensive Rebound" }, snap, "nba");
+  assert.equal(reb?.sport === "court" && reb.x, null);
+  // Soccer: placed only by ESPN's zone words.
+  const soc = vizFor({ ...base, id: "7", text: "Attempt saved. Evander (FC Cincinnati) right footed shot from outside the box is saved in the centre of the goal.", scoring: false, teamId: "13", yardsToEndzone: null, typeText: "Shot On Target" }, snap, "mls");
+  assert.equal(soc?.sport === "pitch" && soc.zone, "outside the box");
+  const soc2 = vizFor({ ...base, id: "8", text: "Corner, FC Cincinnati. Conceded by X.", scoring: false, teamId: "13", yardsToEndzone: null, typeText: "Corner Kick" }, snap, "mls");
+  assert.equal(soc2?.sport === "pitch" && soc2.x, null);
+  // Baseball: direction from ESPN's words.
+  const hit = vizFor({ ...base, id: "9", text: "Freeman doubled to left center.", scoring: false, teamId: "13", yardsToEndzone: null, typeText: "Play Result" }, snap, "mlb");
+  assert.equal(hit?.sport === "diamond" && hit.kind, "double");
+  assert.equal(hit?.sport === "diamond" && hit.angle, -22);
+  assert.equal(namedPlayer("T.Zuhn reported in as eligible.  A.Jeanty up the middle to BUF 4"), "A.Jeanty");
+});
+
+t("t178/t179: visualizer, your-player ring and tap-to-replay are wired on the game page", () => {
+  const src = readFileSync("src/components/GameLive.tsx", "utf8");
+  assert.ok(src.includes("<VizLayer") && src.includes("<MineChip") && src.includes("new-plays"));
+  const viz = readFileSync("src/components/PlayViz.tsx", "utf8");
+  assert.ok(viz.includes("prefers-reduced-motion") && viz.includes("viz-portal"));
+  assert.ok(readFileSync("src/components/DriveFeed.tsx", "utf8").includes("replay(play)"));
+  const css = readFileSync("src/app/globals.css", "utf8");
+  assert.ok(/prefers-reduced-motion: reduce\) \{\s*\.play-viz \.viz-trail/.test(css));
 });

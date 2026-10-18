@@ -663,7 +663,8 @@ export function getMvpBoard(): Promise<{ groups: MvpGroup[]; fetchedAt: string }
  * No shared data cache here: live reads must never be served from a stale copy.
  */
 const liveMemo = new Map<string, { at: number; value: Promise<unknown> }>();
-const LIVE_TTL_MS = 2_000;
+/** One ESPN call per URL per second per server, shared by every request in flight. */
+const LIVE_TTL_MS = 1_000;
 
 function memoJson(url: string): Promise<unknown> {
   const now = Date.now();
