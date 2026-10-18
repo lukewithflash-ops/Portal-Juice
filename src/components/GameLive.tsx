@@ -101,6 +101,7 @@ export default function GameLive({
   // Play visualizer: every new play in order (a few at most, so it keeps up), or one you tapped to replay.
   const [vizQ, setVizQ] = useState<LivePlay[]>([]);
   const [unseen, setUnseen] = useState(0);
+  const [pillTop, setPillTop] = useState(72);
   const feedRef = useRef<HTMLDivElement | null>(null);
   const feedH = useRef<number | null>(null);
   const seen = useRef<Set<string> | null>(null);
@@ -134,6 +135,8 @@ export default function GameLive({
     const el = feedRef.current;
     if (added.length && el && typeof window !== "undefined" && el.getBoundingClientRect().top < 0) {
       feedH.current = el.offsetHeight;
+      // Sit just under the sticky header so the pill is never hidden behind it.
+      setPillTop(Math.round(document.querySelector(".top-stack")?.getBoundingClientRect().bottom ?? 64) + 8);
       setUnseen((n) => n + added.length);
     }
     const big = [...added].reverse().find(isBigPlay);
@@ -363,7 +366,7 @@ export default function GameLive({
             </div>
           ) : null}
           {unseen > 0 ? (
-            <button type="button" className="new-plays-pill fixed left-1/2 top-16 -translate-x-1/2" data-testid="new-plays" onClick={() => { feedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); setUnseen(0); }}>
+            <button type="button" className="new-plays-pill" style={{ top: pillTop }} data-testid="new-plays" onClick={() => { feedRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); setUnseen(0); }}>
               ↑ {unseen} new play{unseen === 1 ? "" : "s"}
             </button>
           ) : null}

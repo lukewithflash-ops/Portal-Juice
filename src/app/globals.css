@@ -1022,7 +1022,7 @@ body { padding-bottom: var(--tabbar); -webkit-tap-highlight-color: transparent; 
 .feed-row.mine-row { border-left-color: #f5c542; box-shadow: -6px 0 22px -6px #f5c542, inset 0 0 0 1px rgba(245,197,66,0.45); }
 .feed-row.replaying { outline: 1px solid rgba(168,85,247,0.8); }
 .feed-row { cursor: pointer; }
-.new-plays-pill { position: sticky; top: 0.25rem; z-index: 5; margin: 0 auto 0.4rem; display: block; border-radius: 999px; padding: 0.25rem 0.8rem; font-size: 12px; font-weight: 900; color: #000; background: #a855f7; box-shadow: 0 0 16px -2px #a855f7; }
+.new-plays-pill { position: fixed; left: 50%; transform: translateX(-50%); z-index: 60; display: block; white-space: nowrap; border-radius: 999px; padding: 0.25rem 0.8rem; font-size: 12px; font-weight: 900; color: #000; background: #a855f7; box-shadow: 0 0 16px -2px #a855f7; }
 .mylive-mine { box-shadow: 0 0 0 1.5px #f5c542, 0 0 22px -4px #f5c542; }
 @media (prefers-reduced-motion: reduce) {
   .play-viz .viz-trail { animation: none; stroke-dashoffset: 0; }
