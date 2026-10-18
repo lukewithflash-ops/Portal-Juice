@@ -37,3 +37,9 @@ export function mentions(text: string, name: string): boolean {
   const re = namePattern(name);
   return re ? re.test(text) : false;
 }
+
+/** "Kenneth Walker III" → "Walker"; "Marvin Harrison Jr." → "Harrison". */
+export function shortName(name: string): string {
+  const w = name.trim().split(/\s+/).filter((x) => !/^(jr|sr|ii|iii|iv|v)\.?$/i.test(x));
+  return w[w.length - 1] ?? name;
+}

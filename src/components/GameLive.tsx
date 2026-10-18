@@ -23,7 +23,7 @@ import { LiveNotes } from "@/components/Notes";
 import { LeadShockwave, leadFlip, LineMoveTags, PitcherFatigue, RedZoneAlarm, WinStrip, type Shock } from "@/components/GameUpgrades";
 import Mark from "@/components/Mark";
 import { BetsDock, MomentBadge, TaggedText, YourPlayersProvider, useGameLegList, useYourPlayers } from "@/components/YourPlayers";
-import { mentions } from "@/lib/yourPlayers";
+import { mentions, shortName } from "@/lib/yourPlayers";
 import { isBehind, type LivePlay, type LiveSnap } from "@/lib/live";
 import { POLL_ERROR_MS, pollDelay, usePoll } from "@/components/usePoll";
 import {
@@ -632,7 +632,7 @@ function VizLayer({ league, snap, play, awayColor, homeColor, onDone }: { league
   const passer = spec.player;
   const mine: VizMine = leg
     ? {
-        name: leg.name.split(" ").slice(-1)[0],
+        name: shortName(leg.name),
         face: headshotFor(league, leg.athleteId),
         // A catch: the receiver is where the ball lands, not the passer.
         onBall: spec.sport === "football" && (spec.kind === "pass" || spec.kind === "incomplete") && !(passer && mentions(passer, leg.name)),
@@ -1247,7 +1247,7 @@ function MineChip({ league, play }: { league: string; play: LivePlay | null }) {
     const before = last.current.get(leg.pickId);
     const gain = leg.value !== null && before !== undefined ? leg.value - before : null;
     if (leg.value !== null) last.current.set(leg.pickId, leg.value);
-    const short = leg.name.split(" ").slice(-1)[0];
+    const short = shortName(leg.name);
     const lineText = leg.lineText ?? String(leg.line);
     const stat = leg.market.replace(/receiving/i, "rec").replace(/rushing/i, "rush").replace(/passing/i, "pass").replace(/yards/i, "yds").toLowerCase();
     const hit = leg.status === "cleared";

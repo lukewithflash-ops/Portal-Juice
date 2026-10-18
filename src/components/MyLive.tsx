@@ -17,7 +17,7 @@ import FriendFeed from "@/components/FriendFeed";
 import { sweatOf } from "@/lib/sweat";
 import { slipKeyOf, TONE_COLOR } from "@/lib/motivation";
 import { fieldGeom } from "@/lib/fieldGeom";
-import { mentions } from "@/lib/yourPlayers";
+import { mentions, shortName } from "@/lib/yourPlayers";
 import type { LiveSnap } from "@/lib/live";
 import type { ScoreRow } from "@/lib/slate";
 import {
@@ -421,7 +421,7 @@ function LiveTile({ g, compact, now }: { g: GameView; compact: boolean; now: Dat
         {homeWin != null ? <WinBar away={t.awayAbbr} home={t.homeAbbr} awayColor={t.awayColor} homeColor={t.homeColor} homeWin={homeWin} compact={compact} /> : null}
         {mineLeg && compact ? (
           <p className="mt-1 truncate text-[10px] font-black" style={{ color: "var(--gold)" }} data-testid="ml-mine">
-            ◎ {mineLeg.name.split(" ").slice(-1)[0]} in the last play · {mineLeg.valueText}
+            ◎ {shortName(mineLeg.name)} in the last play · {mineLeg.valueText}
             {mineLeg.lineText ? `/${mineLeg.lineText}` : ""}
           </p>
         ) : null}
@@ -593,7 +593,7 @@ function TileLegs({ legs, compact, final }: { legs: LegView[]; compact: boolean;
         <div key={l.pickId} className="min-w-0">
           <div className="flex items-baseline justify-between gap-2 text-[11px]">
             <span className="min-w-0 truncate font-bold text-white">
-              {compact ? l.name.split(" ").slice(-1)[0] : l.name}
+              {compact ? shortName(l.name) : l.name}
               {!compact ? <span className="ml-1 font-semibold text-white/50">{l.label}</span> : null}
             </span>
             <span className="tabular shrink-0 font-black" style={{ color: TONE_COLOR[l.tone] }}>
