@@ -29,9 +29,10 @@ export default function RaceLive({ initial }: { initial: RacePage }) {
   const mine = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const p of picks) {
-      if (p.status !== "open" || p.league !== page.league || p.gameId !== page.event.id) continue;
+      // Every logged pick on this race keeps its driver gold, graded or not.
+      if (p.league !== page.league || p.gameId !== page.event.id) continue;
       const k = norm(p.subject);
-      m.set(k, [...(m.get(k) ?? []), p.market ?? "Pick"]);
+      m.set(k, [...(m.get(k) ?? []), `${p.market ?? "Pick"}${p.status === "open" ? "" : ` · ${p.status === "win" ? "W" : p.status === "loss" ? "L" : "P"}`}`]);
     }
     return m;
   }, [picks, page.league, page.event.id]);
