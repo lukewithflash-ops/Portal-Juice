@@ -386,11 +386,12 @@ function LiveTile({ g, compact, now }: { g: GameView; compact: boolean; now: Dat
     <div
       className={"ml-tile relative overflow-hidden rounded-xl border text-white " + (final ? "opacity-90" : "") + (mineLeg ? " mylive-mine" : "")}
       style={{
-        borderColor: live ? t.homeColor : "rgba(255,255,255,0.14)",
+        borderColor: mineLeg ? "#f5c542" : live ? t.homeColor : "rgba(255,255,255,0.14)",
         background: live
           ? `linear-gradient(110deg, color-mix(in srgb, ${t.awayColor} 26%, #06050c) 0%, #06050c 50%, color-mix(in srgb, ${t.homeColor} 26%, #06050c) 100%)`
           : "rgba(8,7,14,0.9)",
-        boxShadow: live ? `0 6px 20px -10px ${t.homeColor}` : undefined,
+        // Inline wins over the class, so the gold portal glow lives here too.
+        boxShadow: mineLeg ? "0 0 0 1.5px #f5c542, 0 0 22px -4px #f5c542" : live ? `0 6px 20px -10px ${t.homeColor}` : undefined,
       }}
       data-testid="ml-tile"
       data-state={g.state}
