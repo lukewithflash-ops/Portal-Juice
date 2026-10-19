@@ -1,8 +1,10 @@
 import MatchFx from "@/components/MatchFx";
 import type { GolfBoard } from "@/lib/sports";
+import RaceBoardTile from "@/components/RaceBoardTile";
 
 /** Golf leaderboard from ESPN, top 25. */
 export default function GolfBoardView({ b }: { b: GolfBoard }) {
+  if (b.race) return <RaceBoardTile b={{ ...b, race: b.race }} />;
   return (
     <section className="foil-tile p-4">
       <div className="flex items-baseline justify-between gap-2">

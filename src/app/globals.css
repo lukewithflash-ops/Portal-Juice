@@ -1028,3 +1028,14 @@ body { padding-bottom: var(--tabbar); -webkit-tap-highlight-color: transparent; 
   .play-viz .viz-trail { animation: none; stroke-dashoffset: 0; }
   .viz-portal, .viz-flag, .viz-glitch, .mine-chip, .mine-chip.hit, .mine-chip.hurt { animation: none; }
 }
+
+/* Racing: running order slides, track cars glide, logged drivers glow gold. */
+.race-row { transition: transform 600ms cubic-bezier(.2,.8,.2,1), background-color 400ms; background: rgba(255,255,255,0.03); }
+.race-row.race-up { background: color-mix(in srgb, var(--plus) 22%, transparent); }
+.race-row.race-down { background: color-mix(in srgb, var(--minus) 22%, transparent); }
+.race-row.race-mine { box-shadow: inset 0 0 0 1.5px #f5c542, 0 0 14px -4px #f5c542; background: rgba(245,197,66,0.08); }
+.race-car { transition: transform 900ms cubic-bezier(.2,.8,.2,1); }
+.race-mine-panel { box-shadow: 0 0 0 1.5px #f5c542, 0 0 22px -6px #f5c542; }
+@media (prefers-reduced-motion: reduce) {
+  .race-row, .race-car { transition: none; }
+}

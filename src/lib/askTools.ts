@@ -11,6 +11,9 @@ import { researchGame } from "@/lib/research";
 import { findPlayer } from "@/lib/slipRead";
 import { SPORT_LEAGUES } from "@/lib/sports";
 import { getSportSlate } from "@/lib/sportsFetch";
+import { gapText, nextRace, raceHref, RACING, type RacingId } from "@/lib/racing";
+import { getRacePage, getRacingHome } from "@/lib/racingFetch";
+import { ptDayTime } from "@/lib/time";
 import { LEAGUES } from "@/lib/slate";
 import {
   TEAM_LEAGUES,
@@ -37,7 +40,7 @@ import {
 /** Plain-words guide to the site. The model answers site questions from this only. */
 export const SITE_HELP = `Portal Juice guide:
 - Lines: every posted line and how it moved since open (DraftKings). Green = better price for that side, red = worse. Totals moves are off-white.
-- Games: today's games across NFL, NBA, MLB, NHL, NCAAF plus WNBA, NCAAM, NCAAW, soccer (EPL, UCL, La Liga, Serie A, Bundesliga, MLS), tennis (ATP, WTA), golf (PGA), UFC. Sticky league bar at the top. Each game page has a live score bug, play-by-play, box score, projected win % (ESPN projection or from the moneyline with vig removed), and "Our lean".
+- Games: today's games across NFL, NBA, MLB, NHL, NCAAF plus WNBA, NCAAM, NCAAW, soccer (EPL, UCL, La Liga, Serie A, Bundesliga, MLS), tennis (ATP, WTA), golf (PGA), UFC, auto racing (F1, NASCAR, IndyCar: race pages with live running order, schedule in PT, reads from form/track/grid/teammates, and racing picks: winner, top 3/5/10, head to head). Sticky league bar at the top. Each game page has a live score bug, play-by-play, box score, projected win % (ESPN projection or from the moneyline with vig removed), and "Our lean".
 - Best: the biggest line moves and best numbers right now.
 - Props: player prop lines and moves.
 - Log (/lines/portfolio): picks you saved. Tally is wins, losses, pushes, open. Live meters show each leg's progress and chance to hit (an estimate from pace and price, not a guarantee). Every saved slip has a Break it down button and a summary.
@@ -51,6 +54,7 @@ Portal Juice does not take bets or place bets. It is not a book.`;
 
 const ALL_IDS = [...LEAGUES.map((l) => l.id), ...SPORT_LEAGUES.map((l) => l.id)] as string[];
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+const normRace = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
 
 export const askTools = {
   todaysGames: tool({
@@ -349,6 +353,34 @@ export const askTools = {
       return {
         legs: r.reports.map((x) => ({ title: x.title, sub: x.sub, lean: x.lean, score: x.score, implied: x.implied, pros: x.pros.map((p) => p.text), cons: x.cons.map((p) => p.text), facts: x.facts.map((f) => `${f.label}: ${f.value}`) })),
         parlay: r.parlay ? { combinedFromPrices: r.parlay.combined, summary: r.parlay.summary } : null,
+      };
+    },
+  }),
+  racing: tool({
+    description:
+      "Auto racing from ESPN (F1, NASCAR Cup, IndyCar, NASCAR O'Reilly, NASCAR Trucks): schedule with times in PT, next race, running order or result, championship standings, and reads per driver (season form: starts, avg finish, wins, top-3/5/10, last 5; track history at this circuit; grid; trend; teammate head to head). ESPN carries no racing odds right now, so never quote a price.",
+    inputSchema: z.object({
+      league: z.enum(RACING.map((r) => r.id) as [RacingId, ...RacingId[]]).describe("racing.f1, racing.nascar-premier (Cup), racing.irl (IndyCar), racing.nascar-secondary, racing.nascar-truck"),
+      eventId: z.string().optional().describe("ESPN event id; omit for the next or live race"),
+      driver: z.string().optional().describe("Driver name to focus on"),
+    }),
+    execute: async ({ league, eventId, driver }) => {
+      const { season } = await getRacingHome(league).catch(() => ({ season: [] as Awaited<ReturnType<typeof getRacingHome>>["season"] }));
+      const ev = eventId ? season.find((e) => e.id === eventId) : nextRace(season);
+      if (!ev) return { missing: "No race found on ESPN for that series." };
+      const page = await getRacePage(league, ev.id).catch(() => null);
+      if (!page) return { missing: "ESPN didn't return that race." };
+      const want = driver ? normRace(driver) : null;
+      const pickDrivers = want ? page.drivers.filter((d) => normRace(d.name).includes(want) || want.includes(normRace(d.name).split(" ").slice(-1)[0])) : page.drivers.slice(0, 12);
+      return {
+        race: { id: ev.id, name: ev.name, circuit: ev.circuit, state: ev.state, sessions: ev.sessions.map((x) => ({ session: x.label, startPT: x.date ? ptDayTime(x.date) : null, state: x.state })) },
+        status: page.status,
+        order: page.rows.slice(0, 20).map((r) => ({ pos: r.pos, driver: r.name, team: r.team, start: r.start, gap: gapText(r), laps: r.laps, pits: r.pits, lapsLed: r.lapsLed })),
+        reads: page.reads,
+        drivers: pickDrivers.map((d) => ({ name: d.name, team: d.team, start: d.start, form: d.form, trackHistory: d.track, teammate: d.mate })),
+        standings: page.standings,
+        odds: page.odds.length ? page.odds : "ESPN has no DraftKings racing lines for this race.",
+        page: raceHref(league, ev.id),
       };
     },
   }),

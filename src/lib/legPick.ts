@@ -6,6 +6,7 @@ import type { Pick, Sport } from "@/lib/types";
 const SPORT: Record<string, Sport> = { nfl: "NFL", ncaaf: "NFL", nba: "NBA", wnba: "NBA", ncaam: "NBA", ncaaw: "NBA", mlb: "MLB", nhl: "NHL", atp: "TENNIS", wta: "TENNIS" };
 
 export function sportOf(league: string): Sport {
+  if (league.startsWith("racing.")) return "RACING";
   return SPORT[league] ?? "SOCCER";
 }
 

@@ -171,12 +171,12 @@ export function liveFromBoard(l: SportLeague, data: unknown): AllLiveGame[] {
       label,
       group: l.group,
       id: b.id,
-      href: "/games",
+      href: b.race?.href ?? "/games",
       detail: b.detail,
       event: b.name,
       away: { name: b.name, short: b.name, score: null, logo: null, color: null },
       home: { name: "", short: "", score: null, logo: null, color: null },
-      leaders: b.rows.slice(0, 3).map((r) => ({ name: r.name, score: r.score, thru: r.thru })),
+      leaders: b.rows.slice(0, 3).map((r) => ({ name: r.name, score: b.race ? `P${r.pos}` : r.score, thru: r.thru })),
     });
   }
   return out;

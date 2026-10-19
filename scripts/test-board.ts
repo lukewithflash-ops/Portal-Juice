@@ -88,6 +88,7 @@ import { clockAt, clockSecs, footballClockRuns, nextClock } from "../src/lib/liv
 import { vizFor, namedPlayer } from "../src/lib/playViz";
 import { GAMES as TR_GAMES, NOW as TR_NOW, TEAM_CASES, NO_GAME_CASE, PROP_CASES } from "./fixtures/team-resolve.fixture";
 import { leaguesForMarket, leaguesForSpread, teamScoreLeague } from "../src/lib/teamResolve";
+import { parseRaceSeason, driverForm, trackHistory, gradeRacePick, parseRunRow, gapText, intervalText, secondsOf, raceReads, focusSession, headToHead } from "../src/lib/racing";
 
 let n = 0;
 const t = (name: string, fn: () => void) => {
@@ -1399,12 +1400,12 @@ t("game feel: overtime labels past regulation, clutch, runs, heat checks", () =>
 
 
 t("game links: every listed league resolves to a route that exists", () => {
-  const routes: Record<string, string> = { games: "src/app/games/[league]/[id]/page.tsx", sports: "src/app/sports/[league]/[id]/page.tsx" };
+  const routes: Record<string, string> = { games: "src/app/games/[league]/[id]/page.tsx", sports: "src/app/sports/[league]/[id]/page.tsx", racing: "src/app/racing/[league]/[id]/page.tsx" };
   const all = [...LEAGUES.map((l) => l.id), ...SPORT_LEAGUES.map((l) => l.id)];
   assert.ok(all.includes("wnba") && all.includes("epl") && all.includes("atp") && all.includes("ufc") && all.includes("pga"));
   for (const id of all) {
     const url = gameRoute(id, "401918300");
-    const m = url.match(/^\/(games|sports)\/([a-z0-9]+)\/401918300$/);
+    const m = url.match(/^\/(games|sports|racing)\/([a-z0-9.-]+)\/401918300$/);
     assert.ok(m, `${id} → ${url}`);
     assert.ok(existsSync(routes[m![1]]), url);
     assert.equal(gameOf(url), `${id}/401918300`);
@@ -2158,6 +2159,63 @@ t("t178: plays become field pictures from ESPN data only", () => {
   assert.equal(hit?.sport === "diamond" && hit.kind, "double");
   assert.equal(hit?.sport === "diamond" && hit.angle, -22);
   assert.equal(namedPlayer("T.Zuhn reported in as eligible.  A.Jeanty up the middle to BUF 4"), "A.Jeanty");
+});
+
+t("t180: racing season, form, track history, running order and grading come only from ESPN data", () => {
+  const comp = (type: string, state: string, order: [string, string][]) => ({ id: type + "1", type: { abbreviation: type }, date: "2026-10-25T20:00Z", status: { type: { state, shortDetail: state === "post" ? "Final" : "" } }, competitors: order.map(([id, name], i) => ({ id, order: i + 1, winner: i === 0, athlete: { displayName: name, shortName: name } })) });
+  const ev = (id: string, date: string, name: string, cid: string, state: string, order: [string, string][]) => ({ id, name, shortName: name, date, circuit: { id: cid, fullName: "Track " + cid }, competitions: [comp("Qual", state, order), { ...comp("Race", state, order), date }] });
+  const A: [string, string] = ["1", "Max Verstappen"], B: [string, string] = ["2", "Lando Norris"], C: [string, string] = ["3", "Kimi Antonelli"];
+  const data = { events: [
+    ev("10", "2026-03-01T05:00Z", "Australian GP", "601", "post", [A, B, C]),
+    ev("11", "2026-04-01T05:00Z", "Japanese GP", "602", "post", [B, A, C]),
+    ev("12", "2026-05-01T05:00Z", "Miami GP", "603", "post", [A, C, B]),
+    ev("13", "2026-10-25T20:00Z", "United States GP", "609", "pre", []),
+  ] };
+  const evs = parseRaceSeason("racing.f1", data);
+  assert.equal(evs.length, 4);
+  assert.equal(evs[3].state, "pre");
+  assert.equal(evs[3].track, "c609");
+  const f = driverForm(evs, "1");
+  assert.deepEqual([f.starts, f.avg, f.wins, f.top3], [3, 1.3, 2, 3]);
+  assert.equal(f.last[0].pos, 1);
+  assert.deepEqual(headToHead(evs, "1", "2"), { races: 3, aAhead: 2 });
+  const past = parseRaceSeason("racing.f1", { events: [ev("9", "2025-10-19T20:00Z", "United States GP", "609", "post", [C, A, B])] });
+  assert.deepEqual(trackHistory([...past, ...evs], "c609", "1", evs[3].date), [{ year: "2025", pos: 2 }]);
+  assert.equal(parseRaceSeason("racing.nascar-premier", { events: [{ id: "5", name: "NASCAR Cup Series at Talladega", date: "2026-10-25T18:00Z", competitions: [] }] })[0].track, "talladega");
+  assert.equal(parseRaceSeason("racing.nascar-premier", { events: [{ id: "6", name: "Clash at Bowman Gray", date: "2026-02-01T18:00Z", competitions: [] }] })[0].points, false);
+  // Running order: F1 gaps come as display text "+7.335"; NASCAR posts ".000" (no gap) and is left blank.
+  const names = new Map([["1", { id: "1", name: "Max Verstappen", short: "M. Verstappen", flag: null, pos: 1, winner: true }], ["2", { id: "2", name: "Lando Norris", short: "L. Norris", flag: null, pos: 2, winner: false }]]);
+  const stat = (o: Record<string, [number, string]>) => ({ splits: { categories: [{ stats: Object.entries(o).map(([name, [value, displayValue]]) => ({ name, value, displayValue })) }] } });
+  const r1 = parseRunRow({ id: "1", order: 1, startOrder: 1, vehicle: { number: "3", manufacturer: "Red Bull", teamColor: "00327D" } }, stat({ totalTime: [6120785, "1:42:00.785"], lapsCompleted: [62, "62"], pitsTaken: [1, "1"] }), names)!;
+  const r2 = parseRunRow({ id: "2", order: 2, startOrder: 5 }, stat({ behindTime: [7335, "+7.335"], lapsCompleted: [62, "62"], fastestLap: [95202, "1:35.202"] }), names)!;
+  assert.equal(gapText(r1), "1:42:00.785");
+  assert.equal(gapText(r2), "+7.335");
+  assert.equal(intervalText([r1, r2], 1), "+7.335");
+  assert.equal(r2.fastestLapText, "1:35.202");
+  assert.equal(r1.team, "Red Bull");
+  assert.equal(secondsOf(".000"), null);
+  const nas = parseRunRow({ id: "2", order: 2 }, stat({ behindTime: [0, ".000"], behindLaps: [0, "0"] }), names)!;
+  assert.equal(gapText(nas), null);
+  assert.equal(parseRunRow({ id: "99", order: 3 }, null, names), null);
+  // Picks graded from ESPN's final race order.
+  const race = focusSession(evs[0])!;
+  const pk = (subject: string, market: string) => ({ id: "p", sport: "RACING" as const, subject, line: 1, odds: 0, stake: 0, book: "", date: "", status: "open" as const, createdAt: "", league: "racing.f1", gameId: "10", market });
+  assert.equal(gradeRacePick(pk("Max Verstappen", "Race Winner"), race), "win");
+  assert.equal(gradeRacePick(pk("Norris", "Race Winner"), race), "loss");
+  assert.equal(gradeRacePick(pk("Kimi Antonelli", "Top 3"), race), "win");
+  assert.equal(gradeRacePick(pk("Lando Norris", "H2H vs Kimi Antonelli"), race), "win");
+  assert.equal(gradeRacePick(pk("Oscar Piastri", "Top 10"), race), "push");
+  assert.equal(gradeRacePick(pk("Max Verstappen", "Race Winner"), focusSession(evs[3])), null);
+  const reads = raceReads({ field: [{ id: "1", name: "Max Verstappen", team: null, start: 1 }], form: { "1": f }, track: { "1": [{ year: "2025", pos: 2 }, { year: "2024", pos: 1 }] } });
+  assert.ok(reads.some((r) => r.kind === "grid") && reads.some((r) => r.kind === "track") && reads.some((r) => r.kind === "form"));
+  assert.ok(reads.every((r) => !/[+-]\d{3}|odds|edge/i.test(r.text)));
+  // Wired: race page, API, Games tile, grading, Ask tool; no horse racing UI without a licensed source.
+  assert.ok(existsSync("src/app/racing/[league]/[id]/page.tsx") && existsSync("src/app/api/racing/[league]/[id]/route.ts") && existsSync("src/app/racing/[league]/page.tsx"));
+  assert.ok(readFileSync("src/app/api/grade/route.ts", "utf8").includes("gradeRacePick"));
+  assert.ok(readFileSync("src/lib/askTools.ts", "utf8").includes("racing: tool("));
+  assert.ok(SPORT_LEAGUES.some((l) => l.id === "racing.f1" && l.kind === "racing"));
+  assert.equal(gameRoute("racing.irl", "7"), "/racing/racing.irl/7");
+  assert.ok(!existsSync("src/app/horse") && !existsSync("src/app/racing/horse"));
 });
 
 t("t178/t179: visualizer, your-player ring and tap-to-replay are wired on the game page", () => {

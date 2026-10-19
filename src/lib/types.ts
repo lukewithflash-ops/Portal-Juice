@@ -1,5 +1,5 @@
 /** Sports in launch order. A sport renders only when it has rows. */
-export const SPORT_ORDER = ["NFL", "NBA", "MLB", "NHL", "SOCCER", "TENNIS"] as const;
+export const SPORT_ORDER = ["NFL", "NBA", "MLB", "NHL", "SOCCER", "TENNIS", "RACING"] as const;
 export type Sport = (typeof SPORT_ORDER)[number];
 
 export const SPORT_LABEL: Record<Sport, string> = {
@@ -9,6 +9,7 @@ export const SPORT_LABEL: Record<Sport, string> = {
   NHL: "NHL",
   SOCCER: "Soccer",
   TENNIS: "Tennis",
+  RACING: "Racing",
 };
 
 /**

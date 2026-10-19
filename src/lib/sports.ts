@@ -3,8 +3,9 @@ import { pickDk } from "@/lib/book";
 import { american, finiteNumber, parsePrice, spreadText, type GameState } from "@/lib/slate";
 import { winPct, type WinPct } from "@/lib/winPct";
 import { ESPN_CATALOG } from "@/lib/espnCatalog";
+import { focusSession, parseRaceSeason, raceHref, type RaceEvent } from "@/lib/racing";
 
-export type SportKind = "team" | "soccer" | "tennis" | "fight" | "golf";
+export type SportKind = "team" | "soccer" | "tennis" | "fight" | "golf" | "racing";
 export type SportLeague = { id: string; label: string; name: string; group: string; path: string; kind: SportKind };
 
 export const SPORT_LEAGUES: SportLeague[] = [
@@ -21,6 +22,9 @@ export const SPORT_LEAGUES: SportLeague[] = [
   { id: "wta", label: "WTA", name: "WTA Tennis", group: "Tennis", path: "tennis/wta", kind: "tennis" },
   { id: "pga", label: "PGA", name: "PGA Tour", group: "Golf", path: "golf/pga", kind: "golf" },
   { id: "ufc", label: "UFC", name: "UFC", group: "MMA", path: "mma/ufc", kind: "fight" },
+  { id: "racing.f1", label: "F1", name: "Formula 1", group: "Racing", path: "racing/f1", kind: "racing" },
+  { id: "racing.nascar-premier", label: "NASCAR", name: "NASCAR Cup Series", group: "Racing", path: "racing/nascar-premier", kind: "racing" },
+  { id: "racing.irl", label: "IndyCar", name: "IndyCar", group: "Racing", path: "racing/irl", kind: "racing" },
 ];
 
 const CATALOG_GROUP: Record<string, string> = {
@@ -28,7 +32,7 @@ const CATALOG_GROUP: Record<string, string> = {
   mma: "MMA", racing: "Racing", volleyball: "Volleyball", lacrosse: "Lacrosse", "field-hockey": "Field Hockey", rugby: "Rugby",
   "australian-football": "Aussie Rules", "rugby-league": "Rugby League", "water-polo": "Water Polo", softball: "Softball", boxing: "Boxing", cricket: "Cricket",
 };
-const CATALOG_KIND = (sport: string): SportKind => (sport === "soccer" ? "soccer" : sport === "tennis" ? "tennis" : sport === "golf" || sport === "racing" ? "golf" : sport === "mma" || sport === "boxing" ? "fight" : "team");
+const CATALOG_KIND = (sport: string): SportKind => (sport === "soccer" ? "soccer" : sport === "tennis" ? "tennis" : sport === "golf" ? "golf" : sport === "racing" ? "racing" : sport === "mma" || sport === "boxing" ? "fight" : "team");
 /** Short labels for leagues ESPN names only by slug. */
 const CATALOG_LABEL: Record<string, string> = {
   "soccer.arg.1": "Argentina", "soccer.bra.1": "Brasileirão", "soccer.mex.1": "Liga MX", "soccer.fra.1": "Ligue 1", "soccer.ned.1": "Eredivisie", "soccer.por.1": "Liga Portugal",
@@ -100,7 +104,15 @@ export type Match = {
 };
 
 export type GolfRow = { pos: string; name: string; flag: string | null; score: string; today: string | null; thru: string | null };
-export type GolfBoard = { id: string; name: string; state: GameState; detail: string; rows: GolfRow[] };
+export type GolfBoard = {
+  id: string;
+  name: string;
+  state: GameState;
+  detail: string;
+  rows: GolfRow[];
+  /** Racing weekends: race page link, circuit and session times. */
+  race?: { href: string; league: string; circuit: string | null; sessions: { label: string; date: string; state: GameState }[] };
+};
 
 export type SportSlate = { league: SportLeague; matches: Match[]; golf: GolfBoard[]; fetchedAt: string };
 
@@ -293,12 +305,27 @@ function golfBoard(ev: Dict): GolfBoard | null {
   return { id: str(ev.id) ?? "", name: str(ev.name) ?? "Tournament", state, detail, rows };
 }
 
+/** A race weekend as a board: the focus session's order (top 10) plus session times. */
+function raceBoard(ev: RaceEvent): GolfBoard {
+  const s = focusSession(ev);
+  const rows: GolfRow[] = (s?.finishers ?? []).slice(0, 10).map((f) => ({ pos: String(f.pos), name: f.name, flag: f.flag, score: "", today: null, thru: null }));
+  return {
+    id: ev.id,
+    name: ev.name,
+    state: ev.state,
+    detail: ev.detail,
+    rows,
+    race: { href: raceHref(ev.league, ev.id), league: ev.league, circuit: [ev.circuit, ev.city].filter(Boolean).join(", ") || null, sessions: ev.sessions.map((x) => ({ label: x.label, date: x.date, state: x.state })) },
+  };
+}
+
 const RANK: Record<GameState, number> = { in: 0, pre: 1, post: 2 };
 
 /** Turns one ESPN scoreboard into matches (or a leaderboard for golf). */
 export function parseSportScoreboard(league: SportLeague, data: unknown, now = Date.now(), opts: { all?: boolean; doubles?: boolean } = {}): { matches: Match[]; golf: GolfBoard[] } {
   const events = asList(asDict(data).events).map(asDict);
   if (league.kind === "golf") return { matches: [], golf: events.map(golfBoard).filter((b): b is GolfBoard => !!b) };
+  if (league.kind === "racing") return { matches: [], golf: parseRaceSeason(league.id, data).map(raceBoard) };
   const matches: Match[] = [];
   for (const ev of events) {
     const name = str(ev.name) ?? "";

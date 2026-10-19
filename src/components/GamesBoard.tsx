@@ -240,6 +240,12 @@ export default function GamesBoard({
   );
 }
 
+/** A race weekend counts as "today" when one of its sessions starts within 36 hours. */
+function soonRace(b: SportSlate["golf"][number]): boolean {
+  const now = Date.now();
+  return (b.race?.sessions ?? []).some((s) => s.state === "pre" && Date.parse(s.date) - now < 36 * 3600e3 && Date.parse(s.date) > now - 6 * 3600e3);
+}
+
 function sportCount(sl: SportSlate | undefined): number {
   return sl ? sl.matches.length + sl.golf.length : 0;
 }
@@ -275,7 +281,7 @@ function MoreToday({ sports }: { sports: Record<string, SportSlate> }) {
       rows: SPORT_LEAGUES.filter((l) => l.group === g)
         .map((l) => sports[l.id])
         .filter((sl): sl is SportSlate => !!sl)
-        .map((sl) => ({ sl, matches: todayOnly(sl.matches), golf: sl.golf.filter((b) => b.state !== "post") }))
+        .map((sl) => ({ sl, matches: todayOnly(sl.matches), golf: sl.golf.filter((b) => b.state !== "post" && (!b.race || b.state === "in" || soonRace(b))) }))
         .filter((x) => x.matches.length || x.golf.length),
     }))
     .filter((b) => b.rows.length);

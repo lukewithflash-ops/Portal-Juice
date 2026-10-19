@@ -8,6 +8,7 @@ import GameLive from "@/components/GameLive";
 import AutoRefresh from "@/components/AutoRefresh";
 import { sportLeague } from "@/lib/sports";
 import { getMatch } from "@/lib/sportsFetch";
+import { isRacing, raceHref } from "@/lib/racing";
 
 export const revalidate = 2;
 
@@ -21,6 +22,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 
 export default async function MatchPage({ params }: { params: Promise<Params> }) {
   const { league, id } = await params;
+  if (isRacing(league)) redirect(raceHref(league, id));
   const l = sportLeague(league);
   if (!l) redirect(gameRoute(league, id));
   const page = await getMatch(league, id);

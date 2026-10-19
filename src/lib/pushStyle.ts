@@ -48,7 +48,7 @@ const hex = (c: string | null | undefined) => (c ?? "").replace("#", "").match(/
 
 /** The game an alert belongs to, from its url ("/games/nfl/401..."). */
 export function gameOf(url: string): string | null {
-  const m = url.match(/^\/(?:games|sports)\/([a-z0-9]+)\/(\d+)/);
+  const m = url.match(/^\/(?:games|sports|racing)\/([a-z0-9.-]+)\/(\d+)/);
   return m ? `${m[1]}/${m[2]}` : null;
 }
 
