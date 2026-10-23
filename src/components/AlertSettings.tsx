@@ -58,7 +58,7 @@ export default function AlertSettings() {
         {ALERT_KINDS.map((k) => {
           const locked = !!k.vip && !vip.vip;
           return (
-            <label key={k.kind} className={"flex items-start gap-2 rounded-lg border px-2.5 py-2 " + (k.vip ? "border-[color:var(--gold)]/30" : "border-white/10") + (locked ? "" : " cursor-pointer")}>
+            <label key={k.kind} className={(locked ? "web-only " : "") + "flex items-start gap-2 rounded-lg border px-2.5 py-2 " + (k.vip ? "border-[color:var(--gold)]/30" : "border-white/10") + (locked ? "" : " cursor-pointer")}>
               <input
                 type="checkbox"
                 className="mt-0.5 accent-[color:var(--gold)]"

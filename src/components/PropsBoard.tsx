@@ -74,7 +74,7 @@ export default function PropsBoard({ groups }: { groups: PropsGroup[] }) {
           open ? (
             <HitChip req={{ league: g.game.league, athleteId: p.athleteId, stat: k, line: chosen }} onRate={(r) => onRate(key, r)} />
           ) : (
-            <Link href="/vip" className="shrink-0 rounded-md border border-[color:var(--gold)]/40 px-1.5 py-0.5 text-[10px] font-black text-[color:var(--gold)]" aria-label="Heat for VIP" data-testid="heat-locked">
+            <Link href="/vip" className="web-only shrink-0 rounded-md border border-[color:var(--gold)]/40 px-1.5 py-0.5 text-[10px] font-black text-[color:var(--gold)]" aria-label="Heat for VIP" data-testid="heat-locked">
               🔒 VIP
             </Link>
           )
@@ -126,7 +126,7 @@ export default function PropsBoard({ groups }: { groups: PropsGroup[] }) {
               🔥 Hottest first
             </button>
           ) : (
-            <Link href="/vip" className="chip" data-testid="heat-sort-locked">
+            <Link href="/vip" className="web-only chip" data-testid="heat-sort-locked">
               🔥 Hottest first · 🔒 VIP
             </Link>
           )}
