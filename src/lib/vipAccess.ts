@@ -8,7 +8,8 @@ import { stripe, stripeReady } from "@/lib/stripe";
  * Sources: Stripe (web), Apple (App Store, wired after approval), owner (env allowlist, for testing).
  * There is no public way to grant it.
  */
-export type VipSource = "stripe" | "apple" | "owner";
+/** comp: lifetime VIP granted by the owner (no period end, no billing, never overwritten by Stripe/Apple). */
+export type VipSource = "stripe" | "apple" | "owner" | "comp";
 export type VipSub = {
   source: VipSource;
   status: string;
@@ -78,11 +79,17 @@ export async function isVipUid(uid: string): Promise<boolean> {
 
 export async function saveVipSub(uid: string, s: Omit<VipSub, "since" | "updatedAt">): Promise<void> {
   const prev = await getVipSub(uid);
+  if (prev?.source === "comp" && s.source !== "comp" && subActive(prev)) return;
   const row: VipSub = { ...s, since: prev?.since ?? new Date().toISOString(), updatedAt: new Date().toISOString() };
   await redis(["SET", K.sub(uid), JSON.stringify(row)]);
   if (s.customerId) await redis(["SET", K.cust(s.customerId), uid]);
   if (subActive(row)) await redis(["SADD", K.members, uid]);
   else await redis(["SREM", K.members, uid]);
+}
+
+/** Owner-only: lifetime VIP for one account. Reached only via the secret-guarded admin route. */
+export async function grantComp(uid: string): Promise<void> {
+  await saveVipSub(uid, { source: "comp", status: "active", plan: null, periodEnd: null, customerId: null, subscriptionId: null });
 }
 
 export async function uidForCustomer(customerId: string): Promise<string | null> {
