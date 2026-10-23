@@ -20,6 +20,7 @@ import SiteFooter from "@/components/SiteFooter";
 import SectionTabs from "@/components/SectionTabs";
 import BottomTabs from "@/components/BottomTabs";
 import NativeOffline from "@/components/NativeOffline";
+import ThemeApply from "@/components/ThemeApply";
 import PageEnter from "@/components/PageEnter";
 import { SITE_NAME, SITE_URL, TAGLINE } from "@/lib/site";
 import "./globals.css";
@@ -96,6 +97,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             </div>
             <BottomTabs />
             <NativeOffline />
+            {process.env.PJ_COINS === "1" ? <ThemeApply /> : null}
           </LiveHubProvider>
         </PrefsProvider>
       </body>

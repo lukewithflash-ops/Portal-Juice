@@ -50,7 +50,8 @@ function Chevron() {
 }
 
 /** Profile tab: who you are up top, then grouped rows like an iOS settings screen. */
-export default function MoreClient() {
+export default function MoreClient({ coins = false }: { coins?: boolean }) {
+  const groups = coins ? GROUPS.map((g) => (g.title === "You" ? { ...g, rows: [{ href: "/coins", label: "Coins & Style", sub: "Challenges, home themes, jerseys, emotes" }, ...g.rows] } : g)) : GROUPS;
   const a = useSyncExternalStore(subscribeAccount, getAccount, getServerAccount);
   const { team, setTeam } = usePrefs();
   const [pick, setPick] = useState(false);
@@ -111,7 +112,7 @@ export default function MoreClient() {
         </div>
       </section>
 
-      {GROUPS.map((g) => (
+      {groups.map((g) => (
         <section key={g.title}>
           <h2 className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-zinc-500">{g.title}</h2>
           <ul className="divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">

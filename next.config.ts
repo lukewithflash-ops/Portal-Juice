@@ -5,7 +5,7 @@ const BUILD_ID = process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYM
 
 const nextConfig: NextConfig = {
   turbopack: { root: process.cwd() },
-  env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
+  env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID, NEXT_PUBLIC_PJ_COINS: process.env.PJ_COINS === "1" ? "1" : "" },
   async headers() {
     return [
       // The service worker and manifest are always re-checked, so an installed app never holds an old one.

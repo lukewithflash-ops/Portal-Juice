@@ -1061,3 +1061,45 @@ html.pj-native .web-only {
 html:not(.pj-native) .native-only {
   display: none !important;
 }
+
+/* ---- Portal Coins cosmetics (flagged; only rendered when PJ_COINS=1) ---- */
+.rar-common { --rar: #a1a1aa; } .rar-rare { --rar: #38bdf8; } .rar-epic { --rar: #c026ff; } .rar-legendary { --rar: #f5c542; }
+.rar-chip { color: var(--rar); border: 1px solid color-mix(in srgb, var(--rar) 55%, transparent); background: color-mix(in srgb, var(--rar) 12%, transparent); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; border-radius: 999px; padding: 1px 7px; }
+.cos-tile { position: relative; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--rar) 40%, rgba(255,255,255,.06)); background: linear-gradient(180deg, color-mix(in srgb, var(--rar) 9%, #0e0a16), #0b0812); }
+.rar-legendary.cos-tile { box-shadow: 0 0 0 1px rgba(245,197,66,.25), 0 8px 30px -12px rgba(245,197,66,.45); }
+.cos-av { position: relative; display: inline-grid; place-items: center; border-radius: 999px; flex: none; }
+.cos-av > svg { border-radius: 999px; }
+.frame-ring { box-shadow: 0 0 0 2px var(--f1); }
+.frame-duo { box-shadow: 0 0 0 2px var(--f1), 0 0 0 4px var(--f2); }
+.frame-orbit { box-shadow: 0 0 0 2px var(--f1); }
+.frame-orbit::after { content: ""; position: absolute; inset: -5px; border-radius: 999px; border: 2px dashed var(--f2); opacity: .8; }
+.frame-halo { box-shadow: 0 0 0 2px var(--f1), 0 0 14px 2px var(--f2); }
+.anim-glow { animation: cos-glow 2.6s ease-in-out infinite; }
+.anim-pulse { animation: cos-pulse 1.8s ease-in-out infinite; }
+.anim-shimmer { background-size: 220% 100% !important; animation: cos-shimmer 3.2s linear infinite; }
+.anim-particles { animation: cos-glow 2.2s ease-in-out infinite; }
+.anim-particles::before { content: ""; position: absolute; inset: -6px; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(circle at 20% 10%, #fff8 0 1.2px, transparent 2px), radial-gradient(circle at 85% 30%, #f5c542cc 0 1.4px, transparent 2.4px), radial-gradient(circle at 60% 95%, #e879f9cc 0 1.2px, transparent 2px), radial-gradient(circle at 5% 70%, #ffffffaa 0 1px, transparent 1.8px);
+  animation: cos-spark 2.4s ease-in-out infinite; will-change: transform, opacity; }
+@keyframes cos-glow { 50% { filter: drop-shadow(0 0 6px var(--glow, rgba(192,38,255,.6))); } }
+@keyframes cos-pulse { 50% { transform: scale(1.06); } }
+@keyframes cos-shimmer { to { background-position: -220% 0; } }
+@keyframes cos-spark { 0%,100% { opacity: .35; transform: rotate(0deg) scale(.96); } 50% { opacity: 1; transform: rotate(12deg) scale(1.04); } }
+.cos-tag { position: relative; display: inline-flex; align-items: center; border-radius: 6px; padding: 0 5px; height: 16px; font-size: 9.5px; font-weight: 900; letter-spacing: .1em; color: var(--t1); background: var(--t2); border: 1px solid color-mix(in srgb, var(--t1) 50%, transparent); }
+.cos-tag.anim-shimmer, .cos-tag.anim-particles { background: linear-gradient(100deg, var(--t2) 30%, color-mix(in srgb, var(--t1) 45%, var(--t2)) 50%, var(--t2) 70%); background-size: 220% 100%; animation: cos-shimmer 3.2s linear infinite; }
+.font-mono-chat { font-family: var(--font-geist-mono), ui-monospace, monospace; }
+.font-wide-chat { font-family: var(--font-display), system-ui; letter-spacing: .04em; }
+.font-neon-chat { color: #f5d0fe; text-shadow: 0 0 6px rgba(232,121,249,.7); }
+.font-chrome-chat { background: linear-gradient(100deg, #e5e7eb 20%, #ffffff 40%, #a1a1aa 55%, #f5c542 70%, #e5e7eb 90%); -webkit-background-clip: text; background-clip: text; color: transparent; background-size: 220% 100%; animation: cos-shimmer 4s linear infinite; }
+.coin-dot { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 999px; background: radial-gradient(circle at 35% 30%, #fff3 0 30%, transparent 31%), linear-gradient(135deg, #f5c542, #c026ff); box-shadow: 0 0 8px rgba(245,197,66,.45); }
+.chat-input { font-size: 16px !important; }
+.sqchat { display: flex; flex-direction: column; height: min(78dvh, 640px); }
+.sqchat-list { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.sqchat-compose { position: sticky; bottom: 0; padding-bottom: max(8px, env(safe-area-inset-bottom)); background: linear-gradient(180deg, transparent, #0b0716 30%); }
+.unread-dot { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #ff3b5c; color: #fff; font-size: 11px; font-weight: 900; display: inline-grid; place-items: center; }
+html[data-pj-theme] body { background: radial-gradient(120% 60% at 50% -10%, var(--th-glow), transparent 60%), var(--void-bg); }
+html[data-pj-head="outline"] .wordmark { -webkit-text-stroke: 1px var(--neon-purple); color: transparent; }
+html[data-pj-head="chrome"] .wordmark { background: linear-gradient(100deg, #fff, var(--neon-purple) 45%, var(--portal-green)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+@media (prefers-reduced-motion: reduce) {
+  .anim-glow, .anim-pulse, .anim-shimmer, .anim-particles, .anim-particles::before, .cos-tag, .font-chrome-chat { animation: none !important; }
+}
