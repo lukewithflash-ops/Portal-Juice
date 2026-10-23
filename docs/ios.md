@@ -7,6 +7,16 @@ Capacitor loads the live site. It does not rebuild the board.
 - Team ID: A9V5Q6UVFT
 - URL: https://portaljuice.app
 
+## TestFlight from GitHub Actions (no Mac needed)
+
+Run the "iOS TestFlight" workflow (Actions tab, or `gh workflow run ios-testflight.yml`),
+or push a tag like `ios-v1.0.1`. It archives on a macOS runner, signs with the
+"Portal Juice App Store" profile, and uploads to TestFlight. Build number = run number.
+
+Secrets used: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8, APPLE_TEAM_ID,
+IOS_DIST_P12_B64, IOS_DIST_P12_PASSWORD, IOS_PROFILE_B64.
+The distribution certificate and profile expire 2027-10-23.
+
 ## On the Mac
 
 ```bash
