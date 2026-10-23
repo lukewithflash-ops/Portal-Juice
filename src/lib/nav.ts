@@ -44,7 +44,7 @@ export const SECTIONS: Section[] = [
     ],
     owns: ["/friends", "/leaders"],
   },
-  { id: "more", label: "More", href: "/more", subs: [], owns: ["/more", "/account", "/quests", "/wrapped", "/widget", "/ask", "/app"] },
+  { id: "more", label: "More", href: "/more", subs: [], owns: ["/more", "/account", "/quests", "/wrapped", "/widget", "/ask", "/app", "/support", "/privacy", "/terms"] },
 ];
 
 const under = (path: string, base: string) => path === base || path.startsWith(base + "/");
