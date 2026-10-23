@@ -295,7 +295,7 @@ export async function state(uid: string) {
     myListings: mine.filter((l): l is Listing => !!l && l.seller === uid).map((l) => ({ ...l, seller: "" })),
     supply: sup,
     boxes: BOXES,
-    packs: COIN_PACKS,
+    packs: process.env.IAP_ENABLED === "1" ? COIN_PACKS : [],
   };
 }
 

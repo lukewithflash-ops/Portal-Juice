@@ -199,7 +199,7 @@ export default function CoinsClient() {
 
       <section className="panel rounded-2xl p-4" data-testid="coins-packs">
         <h2 className="text-xs font-black uppercase tracking-[0.18em] text-purple-200">Get coins</h2>
-        {native ? (
+        {native && s.packs.length ? (
           <div className="mt-2 grid grid-cols-3 gap-2">
             {s.packs.map((p) => (
               <button key={p.id} type="button" disabled={busy} onClick={async () => {
@@ -220,7 +220,7 @@ export default function CoinsClient() {
               </button>
             ))}
           </div>
-        ) : <p className="mt-1 text-[13px] text-zinc-400">Earn coins free with challenges. Coin bundles are available in the iPhone app.</p>}
+        ) : <p className="mt-1 text-[13px] text-zinc-400">Earn coins free with challenges.</p>}
       </section>
 
       {s.log.length ? (
