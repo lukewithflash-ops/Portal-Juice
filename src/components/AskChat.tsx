@@ -127,11 +127,14 @@ export default function AskChat({ storeKey, context, suggestions, compact = fals
           <p className="text-xs text-[color:var(--minus)]">
             {/VIP is unlimited/.test(error.message) ? (
               <>
-                Free accounts get 10 questions a day.{" "}
-                <a href="/vip" className="font-bold text-[color:var(--gold)] underline">
-                  VIP is unlimited
-                </a>
-                .
+                Free accounts get 10 questions a day.
+                <span className="web-only">
+                  {" "}
+                  <a href="/vip" className="font-bold text-[color:var(--gold)] underline">
+                    VIP is unlimited
+                  </a>
+                  .
+                </span>
               </>
             ) : /429/.test(error.message) || /20 questions/.test(error.message) ? (
               "You've hit 20 questions this hour. Try again in a bit."

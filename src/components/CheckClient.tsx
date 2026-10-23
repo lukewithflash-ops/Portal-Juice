@@ -592,7 +592,7 @@ function LegPanel({ r, flag }: { r: LegReport; flag: "weakest" | "strongest" | n
           <PointList title="Cons" tone="minus" start={r.pros.length + 1} items={r.cons.map((p) => p.text)} empty="No cons from the numbers." />
         </div>
         {r.hidden && r.hidden.pros + r.hidden.cons > 0 ? (
-          <a href="/vip" className="block rounded-xl border border-[color:var(--gold)]/40 px-3 py-2 text-[12px] font-bold text-[color:var(--gold)]" data-testid="breakdown-more">
+          <a href="/vip" className="web-only block rounded-xl border border-[color:var(--gold)]/40 px-3 py-2 text-[12px] font-bold text-[color:var(--gold)]" data-testid="breakdown-more">
             🔒 {r.hidden.pros + r.hidden.cons} more reason{r.hidden.pros + r.hidden.cons === 1 ? "" : "s"} ({r.hidden.pros} for, {r.hidden.cons} against). VIP sees every one →
           </a>
         ) : null}

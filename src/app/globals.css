@@ -1039,3 +1039,11 @@ body { padding-bottom: var(--tabbar); -webkit-tap-highlight-color: transparent; 
 @media (prefers-reduced-motion: reduce) {
   .race-row, .race-car { transition: none; }
 }
+
+/* iOS app shell (see lib/native.ts): no web purchase paths or install prompts inside the app. */
+html.pj-native .web-only {
+  display: none !important;
+}
+html:not(.pj-native) .native-only {
+  display: none !important;
+}

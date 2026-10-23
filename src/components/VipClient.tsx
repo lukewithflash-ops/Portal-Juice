@@ -185,7 +185,7 @@ function Join({ d, onDone }: { d: Data; onDone: () => void }) {
         <span className="rounded-full bg-[color:var(--gold)] px-3 py-1 text-[12px] font-black text-black">💎 You’re VIP</span>
         {a.earlyAccess ? <span className="rounded-full border border-white/15 px-2 py-1 text-[11px] font-bold text-zinc-300">Early access on</span> : null}
         {a.manage ? (
-          <button type="button" disabled={busy} onClick={() => post("/api/vip/portal", {})} className="press rounded-full border border-white/15 px-3 py-1 text-[12px] font-bold text-zinc-200">
+          <button type="button" disabled={busy} onClick={() => post("/api/vip/portal", {})} className="web-only press rounded-full border border-white/15 px-3 py-1 text-[12px] font-bold text-zinc-200">
             Manage plan
           </button>
         ) : null}
@@ -194,7 +194,7 @@ function Join({ d, onDone }: { d: Data; onDone: () => void }) {
     );
   if (!a.stripeReady)
     return (
-      <div className="mt-3" data-testid="vip-waitlist">
+      <div className="web-only mt-3" data-testid="vip-waitlist">
         <div className="text-[15px] font-black text-[color:var(--gold)]">VIP opens soon</div>
         {a.waiting ? (
           <p className="mt-1 text-[13px] text-zinc-300" data-testid="vip-waiting">
@@ -229,7 +229,7 @@ function Join({ d, onDone }: { d: Data; onDone: () => void }) {
       </div>
     );
   return (
-    <div className="mt-3" data-testid="vip-join">
+    <div className="web-only mt-3" data-testid="vip-join">
       <div className="seg grid grid-cols-2 rounded-xl border border-white/10 p-1 text-[13px] font-bold">
         {(["yearly", "monthly"] as const).map((p) => (
           <button key={p} type="button" aria-pressed={plan === p} onClick={() => setPlan(p)} className={"press rounded-lg px-2 py-2 " + (plan === p ? "bg-[color:var(--gold)] text-black" : "text-zinc-300")}>
@@ -300,10 +300,11 @@ export default function VipClient() {
           <h2 className="mt-1 text-[20px] font-black leading-6 text-[color:var(--flat)]">The day’s strongest picks, with the numbers behind each one.</h2>
           <p className="mt-1 text-[13px] text-zinc-400">Built only from ESPN stats, game logs, injuries and DraftKings lines. {VIP_NOTE}</p>
           <Join d={d} onDone={load} />
+          {!d.access.vip ? <p className="native-only mt-2 text-[13px] text-zinc-300" data-testid="vip-native-note">Every VIP pick is public once it’s graded. See the full record below.</p> : null}
         </div>
       </section>
 
-      <section>
+      <section className={d.access.vip ? undefined : "web-only"}>
         <h2 className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-zinc-500">VIP picks</h2>
         {d.picks.length ? (
           <ul className="space-y-3">{d.picks.map((p) => (isFull(p) ? <FullPick key={p.id} p={p} /> : <LockedPick key={p.id} p={p} />))}</ul>
@@ -318,7 +319,7 @@ export default function VipClient() {
       <RecordStrip rec={d.record} />
 
       {!d.access.vip ? (
-        <section>
+        <section className="web-only">
           <h2 className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-zinc-500">What VIP gets</h2>
           <ul className="divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
             {PERKS.map(([i, t, s]) => (

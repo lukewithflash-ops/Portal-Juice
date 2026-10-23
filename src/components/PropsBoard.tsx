@@ -133,7 +133,7 @@ export default function PropsBoard({ groups }: { groups: PropsGroup[] }) {
         </div>
         <p className="text-[11px] text-zinc-500">Chips: times over the line in each player’s last 10 games, from ESPN game logs. Green cleared often, red rarely. Past games, not a promise.</p>
         {vip.loaded && !full ? (
-          <p className="text-[11px] text-zinc-400" data-testid="heat-free-note">
+          <p className="web-only text-[11px] text-zinc-400" data-testid="heat-free-note">
             Free shows the heat on the first {FREE_HEAT_ROWS} players.{" "}
             <Link href="/vip" className="font-bold text-[color:var(--gold)]">
               VIP unlocks the full heat map →

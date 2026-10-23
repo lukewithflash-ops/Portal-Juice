@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Orbitron } from "next/font/google";
 import InstallCapture from "@/components/InstallCapture";
+import { NATIVE_BOOT } from "@/lib/native";
 import DeployWatch from "@/components/DeployWatch";
 import SyncAgent from "@/components/SyncAgent";
 import { PrefsProvider } from "@/components/Prefs";
@@ -57,7 +58,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: NATIVE_BOOT }} />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${display.variable} portal-bg antialiased`}>
         <PrefsProvider>
           <LiveHubProvider>

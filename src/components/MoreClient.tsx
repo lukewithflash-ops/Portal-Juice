@@ -6,12 +6,12 @@ import { getAccount, getServerAccount, subscribeAccount } from "@/lib/syncClient
 import { usePrefs } from "@/components/Prefs";
 import { TeamPicker } from "@/components/SiteHeader";
 
-type Row = { href: string; label: string; sub: string };
+type Row = { href: string; label: string; sub: string; web?: boolean };
 const GROUPS: { title: string; rows: Row[] }[] = [
   {
     title: "VIP",
     rows: [
-      { href: "/vip", label: "💎 Portal VIP", sub: "Data-backed daily picks and pro tools" },
+      { href: "/vip", label: "💎 Portal VIP", sub: "Daily data-backed picks and the public record" },
       { href: "/vip/record", label: "VIP record", sub: "Every VIP pick, wins and losses" },
     ],
   },
@@ -28,7 +28,15 @@ const GROUPS: { title: string; rows: Row[] }[] = [
     rows: [
       { href: "/ask", label: "Ask Portal AI", sub: "Questions about lines, games and your log" },
       { href: "/widget", label: "Widget", sub: "Your live picks on the home screen" },
-      { href: "/app", label: "Install the app", sub: "Add Portal Juice to your home screen" },
+      { href: "/app", label: "Install the app", sub: "Add Portal Juice to your home screen", web: true },
+    ],
+  },
+  {
+    title: "Help",
+    rows: [
+      { href: "/support", label: "Support", sub: "Contact and answers" },
+      { href: "/privacy", label: "Privacy Policy", sub: "What we collect and how to delete it" },
+      { href: "/terms", label: "Terms of Use", sub: "Information only. No wagering." },
     ],
   },
 ];
@@ -108,7 +116,7 @@ export default function MoreClient() {
           <h2 className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-zinc-500">{g.title}</h2>
           <ul className="divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
             {g.rows.map((r) => (
-              <li key={r.href}>
+              <li key={r.href} className={r.web ? "web-only" : undefined}>
                 <Link href={r.href} className="press flex items-center gap-3 px-4 py-3 active:bg-white/5">
                   <span className="min-w-0 flex-1">
                     <span className="block text-[15px] text-white">{r.label}</span>

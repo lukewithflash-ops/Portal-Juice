@@ -12,7 +12,7 @@ export default function VipBadge() {
       </Link>
     );
   return (
-    <Link href="/vip" aria-label="Portal VIP" className="press hidden shrink-0 rounded-lg border border-[color:var(--gold)]/50 px-1.5 py-1 text-[11px] font-black text-[color:var(--gold)] min-[400px]:block" data-testid="vip-badge">
+    <Link href="/vip" aria-label="Portal VIP" className="web-only press hidden shrink-0 rounded-lg border border-[color:var(--gold)]/50 px-1.5 py-1 text-[11px] font-black text-[color:var(--gold)] min-[400px]:block" data-testid="vip-badge">
       VIP
     </Link>
   );

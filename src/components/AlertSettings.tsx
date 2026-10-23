@@ -76,7 +76,7 @@ export default function AlertSettings() {
                 </span>
                 <span className="block text-[10px] text-zinc-500">{k.hint}</span>
                 {locked ? (
-                  <a href="/vip" className="mt-0.5 block text-[10px] font-bold text-[color:var(--gold)]">
+                  <a href="/vip" className="web-only mt-0.5 block text-[10px] font-bold text-[color:var(--gold)]">
                     Part of VIP →
                   </a>
                 ) : null}

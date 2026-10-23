@@ -64,7 +64,7 @@ export default function NotifyBanner() {
   const needsHome = st.ios && !st.standalone;
 
   return (
-    <section aria-label="Notifications" data-layer data-testid="notify-banner" className="fixed inset-x-3 bottom-[calc(var(--tabbar)+0.75rem)] z-40 mx-auto max-w-md rounded-xl border border-[color:var(--plus)]/40 bg-[#07130a]/95 p-3 text-sm shadow-2xl backdrop-blur">
+    <section aria-label="Notifications" data-layer data-testid="notify-banner" className="web-only fixed inset-x-3 bottom-[calc(var(--tabbar)+0.75rem)] z-40 mx-auto max-w-md rounded-xl border border-[color:var(--plus)]/40 bg-[#07130a]/95 p-3 text-sm shadow-2xl backdrop-blur">
       <div className="flex items-start gap-2">
         <span aria-hidden className="text-lg leading-none">🔔</span>
         <div className="min-w-0 flex-1">
