@@ -7,6 +7,7 @@ import type { TrackRow } from "@/lib/tracker";
 import { groupSlips, legFromPick, PACE_NOTE, type Leg } from "@/lib/motivation";
 import { LegMeter, SlipCount } from "@/components/LegMeter";
 import { alertsOn, enablePush } from "@/lib/pushClient";
+import { getAlertPrefs, getServerAlertPrefs, subscribeAlertPrefs } from "@/lib/alertPrefsStore";
 
 type Toast = { id: string; text: string; tone: TrackRow["tone"] };
 
@@ -14,9 +15,11 @@ export default function MyProps({ gameId, snap }: { league: string; gameId: stri
   const picks = useSyncExternalStore(subscribe, getPicks, getServerPicks);
   const mine = picks.filter((p) => p.status === "open" && p.gameId === gameId && p.market);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const prefs = useSyncExternalStore(subscribeAlertPrefs, getAlertPrefs, getServerAlertPrefs);
   const [alerts, setAlerts] = useState(false);
   const [pushNote, setPushNote] = useState("");
   const prev = useRef<Record<string, string>>({});
+  const told = useRef<Set<string>>(new Set());
 
   // Previous snapshot, kept so "+2 just now" reads off a real change between pulls.
   const [pair, setPair] = useState<{ cur: LiveSnap | null; prev: LiveSnap | null }>({ cur: snap, prev: null });
@@ -44,6 +47,9 @@ export default function MyProps({ gameId, snap }: { league: string; gameId: stri
       const before = prev.current[r.pickId];
       prev.current[r.pickId] = r.tone;
       if (!before || before === r.tone || r.tone === "flat" || r.tone === "gold") continue;
+      // "Your player" toggle off: no pace toasts. Each pick + tone fires once.
+      if (!prefs.player || told.current.has(r.pickId + r.tone)) continue;
+      told.current.add(r.pickId + r.tone);
       const text =
         r.tone === "green"
             ? `🔥 ${r.name} is on pace for ${r.line} ${r.market}.`
@@ -64,7 +70,7 @@ export default function MyProps({ gameId, snap }: { league: string; gameId: stri
       cancelAnimationFrame(id);
       clearTimeout(clear);
     };
-  }, [rows, alerts]);
+  }, [rows, alerts, prefs.player]);
 
   async function turnOn() {
     setPushNote(await enablePush());

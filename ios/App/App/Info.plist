@@ -51,6 +51,8 @@
 	<string>Portal Juice saves your Wrapped, night recap and final-score images to Photos when you choose Save Image.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>UIUserInterfaceStyle</key>
+	<string>Dark</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>

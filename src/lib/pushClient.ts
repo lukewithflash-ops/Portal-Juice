@@ -45,12 +45,16 @@ function payload() {
   } catch {
     /* no team */
   }
-  return { props, games, team, prefs: getAlertPrefs() };
+  // Master switch off: tell the server every kind is off, so nothing is sent to this device.
+  const on = getAlertPrefs();
+  const prefs = alertsOn() ? on : (Object.fromEntries(Object.keys(on).map((k) => [k, false])) as typeof on);
+  return { props, games, team, prefs };
 }
 
 /** Send the current props, follows, team, and alert types to the push store. Quiet no-op without a subscription. */
 export async function syncPush(): Promise<"ok" | "off" | "no-store"> {
-  if (!alertsOn() || !("serviceWorker" in navigator) || !("Notification" in window)) return "off";
+  // Syncs even with the master switch off, so a saved subscription never keeps old toggles.
+  if (!("serviceWorker" in navigator) || !("Notification" in window)) return "off";
   if (Notification.permission !== "granted") return "off";
   const reg = await navigator.serviceWorker.getRegistration();
   const sub = await reg?.pushManager.getSubscription();
@@ -152,6 +156,15 @@ export async function sendTestPush(): Promise<string> {
   return r.error ? `Test did not send: ${r.error}` : "Test did not send.";
 }
 
-export function disablePush() {
+/** Master switch off: push all-off toggles to the server, then drop the browser subscription. */
+export async function disablePush() {
   localStorage.setItem("pj-alerts", "off");
+  try {
+    await syncPush();
+    const reg = await navigator.serviceWorker?.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    await sub?.unsubscribe();
+  } catch {
+    /* best effort */
+  }
 }

@@ -27,9 +27,23 @@
   --font-mono: var(--font-geist-mono);
 }
 
-html { background: var(--void-bg); }
+html {
+  background: var(--void-bg);
+  color-scheme: dark;
+  /* No rubber-band reveal of a light canvas; no pinch/double-tap zoom. */
+  overscroll-behavior-y: none;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+/* iOS zooms into any field under 16px on focus. */
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea { font-size: max(16px, 1em) !important; }
+}
 body {
   background: var(--void-bg);
+  overscroll-behavior-y: none;
+  touch-action: manipulation;
   color: #efe8ff;
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   min-height: 100vh;

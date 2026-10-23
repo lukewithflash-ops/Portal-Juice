@@ -72,7 +72,7 @@ function plan(s: VizSpec): { steps: Step[]; end: Pt; burst: Pt | null; tag: stri
         return { steps: [{ el: "b", pts: arc(hold, posts, 14, 16), ms: 1200, at: 0 }], end: posts, burst: s.good ? posts : null, tag: s.good ? "GOOD" : s.good === false ? "NO GOOD" : null, tagAt: posts, size: 2.4, ballOnly: true };
       }
       case "penalty":
-        return { steps: [{ el: "a", pts: line(a, b), ms: 900, at: 350 }], end: b, burst: null, tag: "FLAG", tagAt: a, size: 2.4 };
+        return { steps: [{ el: "a", pts: line(a, b), ms: 1500, at: 400 }], end: b, burst: null, tag: "FLAG", tagAt: a, size: 2.4 };
     }
   }
   if (s.sport === "court") {
@@ -149,7 +149,7 @@ export default function PlayViz({ spec, color, mine, onDone }: { spec: VizSpec; 
       if (reduce || typeof f.animate !== "function") f.style.opacity = "1";
       else anims.push(f.animate([{ opacity: 0, transform: "scale(0.4)" }, { opacity: 1, transform: "scale(1.15)", offset: 0.5 }, { opacity: 1, transform: "scale(1)" }], { duration: 420, delay: total, fill: "both", easing: "ease-out" }));
     }
-    const t = setTimeout(() => onDone?.(), reduce ? 1200 : Math.max(1100, total + 650));
+    const t = setTimeout(() => onDone?.(), reduce ? 1200 : spec.sport === "football" && spec.kind === "penalty" ? Math.max(2800, total + 900) : Math.max(1100, total + 650));
     return () => {
       clearTimeout(t);
       anims.forEach((x) => x.cancel());

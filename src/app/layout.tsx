@@ -54,6 +54,9 @@ export const viewport: Viewport = {
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
+  // App feel: no pinch or double-tap zoom, so nobody gets stuck zoomed in.
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
 };
 

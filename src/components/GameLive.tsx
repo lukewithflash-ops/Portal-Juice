@@ -350,7 +350,6 @@ export default function GameLive({
           ) : null}
           {edge ? <div key={edge.n} className="edge-lights" style={{ ["--edge" as string]: edge.color } as React.CSSProperties} aria-hidden /> : null}
           </div>
-          <BetsDock variant="bar" />
           <SweatPill league={league} id={id} />
           <Spotlight league={league} gameId={id} snap={snap} />
           <LiveNotes league={league} gameId={id} snap={snap} />

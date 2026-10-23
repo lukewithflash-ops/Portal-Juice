@@ -47,3 +47,27 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
 }
+
+/// Portal Juice shell: dark behind the web view (no white bar on pull-down) and no pinch or double-tap zoom.
+class PJBridgeViewController: CAPBridgeViewController {
+    private let dark = UIColor(red: 3 / 255, green: 3 / 255, blue: 6 / 255, alpha: 1)
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        overrideUserInterfaceStyle = .dark
+        view.backgroundColor = dark
+        guard let web = webView else { return }
+        web.isOpaque = true
+        web.backgroundColor = dark
+        let scroll = web.scrollView
+        scroll.backgroundColor = dark
+        scroll.bounces = false
+        scroll.alwaysBounceVertical = false
+        scroll.minimumZoomScale = 1
+        scroll.maximumZoomScale = 1
+        scroll.bouncesZoom = false
+        scroll.pinchGestureRecognizer?.isEnabled = false
+    }
+
+    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+}

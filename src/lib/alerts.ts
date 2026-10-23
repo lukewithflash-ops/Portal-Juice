@@ -14,7 +14,7 @@ export const ALERT_KINDS: { kind: AlertKind; label: string; hint: string; vip?: 
   { kind: "tile", label: "Live game on lock screen", hint: "One quiet notification per game you follow that updates in place: score, clock, your props. Buzzes only for big moments." },
   { kind: "cleared", label: "Prop cleared", hint: "A logged leg hits its line." },
   { kind: "sweat", label: "Last leg alive", hint: "Every other leg of a parlay hit and one is still live. Once per parlay; opens Sweat mode." },
-  { kind: "player", label: "Your player", hint: "A player on your slips moves toward the line. One per player every 90 seconds." },
+  { kind: "player", label: "Your player", hint: "A player on your slips moves toward the line. At most one per player every 5 minutes." },
   { kind: "sub", label: "Your player subbed out", hint: "A player on your picks goes to the bench or is subbed off." },
   { kind: "almost", label: "Almost there", hint: "Late in the game (4th quarter, final period, 8th inning on), a logged leg is one stat from its line." },
   { kind: "close", label: "Prop close", hint: "1 or 2 away from the line." },

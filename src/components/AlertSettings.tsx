@@ -28,7 +28,7 @@ export default function AlertSettings() {
           <button
             type="button"
             onClick={() => {
-              disablePush();
+              void disablePush();
               setPush(false);
               setNote("Push is off. In-app updates stay on.");
             }}

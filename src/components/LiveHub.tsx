@@ -28,7 +28,7 @@ const MYLIVE_MAX = 16;
 export const MY_LIVE_PATH = "/live";
 /** Basketball scores move every few seconds. One score update a minute per game. */
 const SCORE_GAP_MS = 60_000;
-const PLAYER_GAP_MS = 90_000;
+const PLAYER_GAP_MS = 300_000;
 const TICK_MS = 60_000;
 
 export type HubReason = "props" | "follow" | "team";
@@ -282,7 +282,7 @@ export function LiveHubProvider({ children }: { children: React.ReactNode }) {
       }
       if (alerts.length) push.current(alerts.filter((a) => a.kind !== "cleared"));
       for (const a of alerts)
-        if (a.kind === "cleared" && !fired.current.has(a.key)) {
+        if (a.kind === "cleared" && on.cleared && !fired.current.has(a.key)) {
           fired.current.add(a.key);
           addToInbox([{ key: a.key, kind: a.kind, title: a.title, body: a.body, url: a.url, at: Date.now() }]);
         }

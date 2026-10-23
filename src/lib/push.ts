@@ -31,7 +31,7 @@ const LAST = "pj:push:last";
 const TILES = "pj:push:tiles";
 const INBOX = "pj:push:inbox:";
 const INBOX_MAX = 50;
-const PLAYER_GAP_S = 90;
+const PLAYER_GAP_S = 300;
 
 /** Short, stable id for one device's subscription. Never the endpoint itself. */
 export async function deviceId(endpoint: string): Promise<string> {
@@ -181,7 +181,8 @@ export async function tryCheck(source: string, windowS = 50): Promise<{ ran: boo
   if (!chatEnabled()) return { ran: false };
   const lock = await redis(["SET", "pj:push:lock", source, "EX", windowS, "NX"]);
   if (lock !== "OK") return { ran: false };
-  await themedOnce().catch(() => {});
+  // The one-time themed test blast is retired: it re-fired when its 30-day key expired.
+  void themedOnce;
   return { ran: true, result: await checkPush(source) };
 }
 
