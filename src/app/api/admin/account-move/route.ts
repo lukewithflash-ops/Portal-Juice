@@ -21,7 +21,8 @@ async function summary(uid: string) {
   const picks = Object.values(doc.cols.picks?.items ?? {}) as Record<string, unknown>[];
   const tally: Record<string, number> = {};
   for (const p of picks) {
-    const r = String(p.result ?? p.status ?? p.outcome ?? "open");
+    const v = (p.v ?? p) as Record<string, unknown>;
+    const r = String(v.status ?? "open");
     tally[r] = (tally[r] ?? 0) + 1;
   }
   const prof = (await redis(["GET", `pj:prof:${uid}`])) as string | null;
