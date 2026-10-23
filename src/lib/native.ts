@@ -208,3 +208,23 @@ export async function iapRestore(): Promise<boolean> {
   for (const p of r?.purchases ?? []) if (p.productIdentifier && Object.values(cfg.products).includes(p.productIdentifier)) any = (await sendJws(p.jwsRepresentation)) || any;
   return any;
 }
+
+/* ---------- Device restore key: survives WKWebView losing its cookies when the app is killed. ---------- */
+const DKEY = "pj-dkey";
+export async function getDeviceKey(): Promise<string | null> {
+  const n = await call<{ value: string | null }>("Preferences", "get", { key: DKEY });
+  if (n?.value) return n.value;
+  try {
+    return localStorage.getItem(DKEY);
+  } catch {
+    return null;
+  }
+}
+export async function setDeviceKey(k: string | null): Promise<void> {
+  if (k) await call("Preferences", "set", { key: DKEY, value: k });
+  else await call("Preferences", "remove", { key: DKEY });
+  try {
+    if (k) localStorage.setItem(DKEY, k);
+    else localStorage.removeItem(DKEY);
+  } catch {}
+}

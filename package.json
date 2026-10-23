@@ -20,6 +20,7 @@
     "@capacitor/haptics": "^7.0.5",
     "@capacitor/ios": "^7.4.3",
     "@capacitor/network": "^7.0.4",
+    "@capacitor/preferences": "^7.0.4",
     "@capacitor/share": "^7.0.4",
     "@capgo/native-purchases": "^7.19.3",
     "ai": "^7.0.137",

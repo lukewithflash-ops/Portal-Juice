@@ -28,6 +28,8 @@ const K = {
   oauth: (p: string, sub: string) => `pj:auth:oauth:${p}:${sub}`,
   sess: (h: string) => `pj:auth:sess:${h}`,
   userSess: (id: string) => `pj:auth:usess:${id}`,
+  dkey: (h: string) => `pj:auth:dkey:${h}`,
+  userDkey: (id: string) => `pj:auth:udkey:${id}`,
   otp: (e: string) => `pj:auth:otp:${e}`,
   link: (code: string) => `pj:auth:link:${code}`,
   rate: (k: string) => `pj:auth:rate:${k}`,
@@ -155,6 +157,50 @@ export async function currentUser(): Promise<User | null> {
   return id ? getUser(id) : null;
 }
 
+/** Rolling refresh: re-sends the cookie with a fresh Max-Age and extends the Redis session. */
+export async function refreshSession(): Promise<void> {
+  const jar = await cookies();
+  const t = jar.get(SESSION_COOKIE)?.value;
+  if (!t || t.length > 100) return;
+  const ok = await redis(["EXPIRE", K.sess(sha(t)), SESSION_DAYS * 86400]);
+  if (Number(ok) !== 1) return;
+  jar.set(SESSION_COOKIE, t, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: SESSION_DAYS * 86400 });
+}
+
+/*
+ * Device keys: a long-lived restore key the iOS app keeps in native storage (UserDefaults via @capacitor/preferences)
+ * and localStorage. WKWebView can lose its cookie store when the app is killed right after a Set-Cookie; on launch the
+ * app trades the key for a fresh session instead of falling back to a new account. Redis keeps only the hash.
+ */
+const DKEY_DAYS = 365;
+export async function mintDeviceKey(userId: string): Promise<string> {
+  const k = token();
+  const h = sha(k);
+  await redis(["SET", K.dkey(h), userId, "EX", DKEY_DAYS * 86400]);
+  await redis(["SADD", K.userDkey(userId), h]);
+  return k;
+}
+/** Trades a device key for a session (rotating the key). Returns the new key, or null if it's unknown. */
+export async function restoreWithDeviceKey(k: string): Promise<{ user: User; key: string } | null> {
+  if (!k || k.length > 100) return null;
+  const h = sha(k);
+  const id = (await redis(["GET", K.dkey(h)])) as string | null;
+  if (!id) return null;
+  const user = await getUser(id);
+  if (!user) return null;
+  await redis(["DEL", K.dkey(h)]);
+  await redis(["SREM", K.userDkey(id), h]);
+  await startSession(id);
+  return { user, key: await mintDeviceKey(id) };
+}
+export async function dropDeviceKey(k: string | null | undefined): Promise<void> {
+  if (!k || k.length > 100) return;
+  const h = sha(k);
+  const id = (await redis(["GET", K.dkey(h)])) as string | null;
+  await redis(["DEL", K.dkey(h)]);
+  if (id) await redis(["SREM", K.userDkey(id), h]);
+}
+
 export async function endSession(): Promise<void> {
   const jar = await cookies();
   const t = jar.get(SESSION_COOKIE)?.value;
@@ -171,6 +217,9 @@ export async function endSession(): Promise<void> {
 export async function deleteAccount(u: User): Promise<void> {
   const sess = ((await redis(["SMEMBERS", K.userSess(u.id)])) as string[] | null) ?? [];
   for (const h of sess) await redis(["DEL", K.sess(h)]);
+  const dks = ((await redis(["SMEMBERS", K.userDkey(u.id)])) as string[] | null) ?? [];
+  for (const h of dks) await redis(["DEL", K.dkey(h)]);
+  await redis(["DEL", K.userDkey(u.id)]);
   if (u.email) await redis(["DEL", K.email(u.email)]);
   for (const p of ["google", "apple"]) {
     // Index is by provider subject; scan this user's links stored on the record.

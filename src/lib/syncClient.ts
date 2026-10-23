@@ -213,6 +213,24 @@ export async function refreshAccount(): Promise<void> {
   try {
     const r = await fetch("/api/auth/session", { cache: "no-store" });
     const j = (await r.json()) as { user: AccountUser | null; providers: Providers };
+    const { getDeviceKey, setDeviceKey } = await import("@/lib/native");
+    const dk = await getDeviceKey();
+    if (!j.user && dk) {
+      // Cookie lost (e.g. iOS app killed before WKWebView saved it): restore the same account, never a new one.
+      const rr = await fetch("/api/auth/restore", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: dk }), cache: "no-store" }).catch(() => null);
+      if (rr?.ok) {
+        const rj = (await rr.json()) as { user: AccountUser | null; key?: string };
+        if (rj.key) await setDeviceKey(rj.key);
+        if (rj.user) j.user = rj.user;
+      } else if (rr?.status === 404) await setDeviceKey(null);
+    } else if (j.user && (!dk || state.user?.id !== j.user.id)) {
+      // Signed in: make sure this device holds a restore key for this account.
+      const kr = await fetch("/api/auth/devicekey", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ old: dk ?? undefined }), cache: "no-store" }).catch(() => null);
+      if (kr?.ok) {
+        const kj = (await kr.json()) as { key?: string };
+        if (kj.key) await setDeviceKey(kj.key);
+      }
+    }
     const was = state.user?.id;
     set({ ready: true, user: j.user, providers: j.providers });
     // First sign-in on this device: save everything here to the account (merges with what's there).
@@ -228,6 +246,10 @@ export async function refreshAccount(): Promise<void> {
 
 /** Signed out: this device keeps its data; sync just stops. */
 export async function signOut() {
+  const { getDeviceKey, setDeviceKey } = await import("@/lib/native");
+  const dk = await getDeviceKey();
+  if (dk) await fetch("/api/auth/devicekey", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: dk }) }).catch(() => {});
+  await setDeviceKey(null);
   await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
   forget();
 }
