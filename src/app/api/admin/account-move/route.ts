@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { redis } from "@/lib/chat";
-import { getUser } from "@/lib/auth";
+import { getUser, startLink } from "@/lib/auth";
 import { pushChanges, readDoc } from "@/lib/cloud";
 import { LIST_COLS, type SyncPush } from "@/lib/syncCore";
 import { getVipSub } from "@/lib/vipAccess";
@@ -88,6 +88,10 @@ export async function POST(req: Request) {
       moved++;
     }
     return NextResponse.json({ items, sessionsMoved: moved, from: await summary(b.from), into: await summary(b.into) });
+  }
+  if (b.op === "link" && b.into && (await getUser(b.into))) {
+    const code = await startLink(b.into);
+    return NextResponse.json({ code, expiresAt: new Date(Date.now() + 600_000).toISOString() });
   }
   return NextResponse.json({ error: "bad op" }, { status: 400 });
 }
