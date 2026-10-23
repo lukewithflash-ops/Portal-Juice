@@ -3,9 +3,9 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'app.portaljuice',
   appName: 'Portal Juice',
-  webDir: 'public',
+  webDir: 'ios-shell',
   server: {
-    url: 'https://portal-juice.vercel.app',
+    url: 'https://portaljuice.app',
     cleartext: false,
   },
   ios: {

@@ -5,7 +5,7 @@ Capacitor loads the live site. It does not rebuild the board.
 - App name: Portal Juice
 - Bundle ID: app.portaljuice
 - Team ID: A9V5Q6UVFT
-- URL: https://portal-juice.vercel.app
+- URL: https://portaljuice.app
 
 ## On the Mac
 
