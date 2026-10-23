@@ -1,5 +1,6 @@
 import "server-only";
 import { dropSocial } from "@/lib/social";
+import { dropCoins } from "@/lib/coins";
 import { revokeWidgetToken } from "@/lib/widget";
 import { dropVip } from "@/lib/vipAccess";
 import { createHash, createSign, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
@@ -179,6 +180,7 @@ export async function deleteAccount(u: User): Promise<void> {
   }
   await unlinkAllPush(u.id);
   await dropSocial(u.id).catch(() => {});
+  await dropCoins(u.id).catch(() => {});
   await revokeWidgetToken(u.id).catch(() => {});
   await dropVip(u.id).catch(() => {});
   await redis(["DEL", K.userSess(u.id), K.user(u.id), `pj:sync:${u.id}`]);

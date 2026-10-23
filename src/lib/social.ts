@@ -192,7 +192,7 @@ export async function peekInvite(c: string): Promise<{ kind: "squad"; name: stri
   return h ? { kind: "friend", handle: h } : null;
 }
 
-async function getSquad(id: string): Promise<Squad | null> {
+export async function getSquad(id: string): Promise<Squad | null> {
   const raw = (await redis(["GET", K.sq(id)])) as string | null;
   try {
     return raw ? (JSON.parse(raw) as Squad) : null;
