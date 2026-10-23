@@ -10,6 +10,7 @@ import FriendFeed from "@/components/FriendFeed";
 import { FriendName, PosFor } from "@/components/LivePosition";
 import { usePositions } from "@/lib/positionsClient";
 import { haptic, shareLink as shareSheet } from "@/lib/native";
+import { ChatButton, SquadChatSheet, useSquadChats } from "@/components/SquadChat";
 
 type Overview = {
   signedIn: boolean;
@@ -41,6 +42,8 @@ export default function FriendsClient() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [qr, setQr] = useState<string | null>(null);
+  const chats = useSquadChats();
+  const [chat, setChat] = useState<{ id: string; name: string } | null>(null);
   const load = useCallback(async () => {
     const j = (await fetch("/api/friends", { cache: "no-store" }).then((r) => r.json()).catch(() => ({ signedIn: false }))) as Overview;
     setO(j);
@@ -236,6 +239,7 @@ export default function FriendsClient() {
                 <li key={s.id} className="rounded-xl border border-white/10 p-3">
                   <div className="flex items-center gap-2">
                     <b className="flex-1 text-white">{s.name}</b>
+                    {chats.rows ? <ChatButton row={chats.rows.find((r) => r.id === s.id) ?? { ...s, unread: 0, mentions: 0 }} onOpen={() => setChat({ id: s.id, name: s.name })} /> : null}
                     <button type="button" onClick={() => shareLink(s.code, `Join my squad ${s.name} on Portal Juice`)} className="text-[12px] font-black text-purple-200">Invite</button>
                     <button type="button" onClick={() => setQr(qr === s.id ? null : s.id)} className="text-[12px] font-black text-white">QR</button>
                     <button type="button" onClick={() => act({ action: "squad-leave", id: s.id }, "Left the squad.")} className="text-[12px] font-bold text-zinc-400">Leave</button>
@@ -260,6 +264,7 @@ export default function FriendsClient() {
       {err ? <p className="text-sm font-bold text-[color:var(--minus)]" role="alert" data-testid="friends-err">{err}</p> : null}
       {o.me ? <FriendFeed /> : null}
       {sheet}
+      {chat ? <SquadChatSheet squad={chat} onClose={() => { setChat(null); chats.reload(); }} /> : null}
     </div>
   );
 }

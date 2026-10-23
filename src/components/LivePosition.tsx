@@ -1,4 +1,7 @@
 "use client";
+import { COINS_ON, ChatButton, SquadChatSheet, useSquadChats } from "@/components/SquadChat";
+import { Avatar, StyledName } from "@/components/Cosmetics";
+import type { Look } from "@/lib/coinsCore";
 
 import Link from "next/link";
 import { createPortal } from "react-dom";
@@ -193,8 +196,29 @@ export function Sheet({ label, onClose, children, testid }: { label: string; onC
   return typeof document === "undefined" ? null : createPortal(body, document.body);
 }
 
+/** Equipped cosmetics for a handle; null when coins are off. */
+export function useLook(handle: string): Look | null {
+  const [l, setL] = useState<Look | null>(null);
+  useEffect(() => {
+    if (!COINS_ON) return;
+    let stop = false;
+    fetch(`/api/coins?looks=${encodeURIComponent(handle)}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => !stop && j.enabled && setL(j.looks?.[handle] ?? {}))
+      .catch(() => {});
+    return () => {
+      stop = true;
+    };
+  }, [handle]);
+  return l;
+}
+
 export function PositionSheet({ pos, onClose }: { pos: LivePosition; onClose: () => void }) {
   const snaps = useSnaps(pos.legs);
+  const { rows } = useSquadChats();
+  const [chat, setChat] = useState<{ id: string; name: string } | null>(null);
+  const shared = rows?.find((r) => r.members.some((m) => m.toLowerCase() === pos.handle.toLowerCase()));
+  const look = useLook(pos.handle);
   const picks = pos.legs.map((l) => asPick(l, pos.handle));
   const legs = legViews(picks, snaps, [], slipKeyOf);
   const states: Record<string, "pre" | "in" | "post" | undefined> = {};
@@ -203,9 +227,13 @@ export function PositionSheet({ pos, onClose }: { pos: LivePosition; onClose: ()
   return (
     <Sheet label={`@${pos.handle} live position`} onClose={onClose} testid="pos-sheet">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-[17px] font-bold text-white">@{pos.handle}</h2>
-        <button type="button" onClick={onClose} className="press text-[13px] font-semibold text-zinc-400">Done</button>
+        {look ? <span className="flex items-center gap-2"><Avatar handle={pos.handle} look={look} size={30} /><StyledName handle={pos.handle} look={look} className="text-[17px]" /></span> : <h2 className="text-[17px] font-bold text-white">@{pos.handle}</h2>}
+        <span className="flex items-center gap-3">
+          {shared ? <ChatButton row={shared} onOpen={() => setChat(shared)} /> : null}
+          <button type="button" onClick={onClose} className="press text-[13px] font-semibold text-zinc-400">Done</button>
+        </span>
       </div>
+      {chat ? <SquadChatSheet squad={chat} onClose={() => setChat(null)} /> : null}
       <p className="mb-3 mt-0.5 text-[13px] text-zinc-400">
         Live position · {pos.legs.length > 1 ? `${pos.legs.length}-leg parlay` : "single"}
         {slip ? <span className="tabular"> · {slip.hit}/{slip.legs.length} hit</span> : null}
