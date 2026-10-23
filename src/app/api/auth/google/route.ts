@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
-import { oauthState, providersReady, safeNext, SITE } from "@/lib/auth";
+import { oauthState, takeNativeTicket, providersReady, safeNext, SITE } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   if (!providersReady().google) return NextResponse.redirect(`${SITE}/account?error=google-off`);
-  const next = safeNext(new URL(req.url).searchParams.get("next"));
-  const { state, challenge } = await oauthState("google", { next });
+  const sp = new URL(req.url).searchParams;
+  const ticket = sp.get("ticket");
+  const native = ticket ? await takeNativeTicket("google", ticket) : null;
+  if (ticket && !native) return NextResponse.redirect(`${SITE}/account?error=google-state`);
+  const next = safeNext(native ? native.next : sp.get("next"));
+  const extra: Record<string, string> = native ? { next, native: "1", linkUid: native.uid } : { next };
+  const { state, challenge } = await oauthState("google", extra);
   const q = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
     redirect_uri: `${SITE}/api/auth/google/callback`,

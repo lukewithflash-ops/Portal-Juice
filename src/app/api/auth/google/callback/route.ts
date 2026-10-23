@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentUser, jwtClaims, providersReady, resolveIdentity, SITE, startSession, takeOauthState } from "@/lib/auth";
+import { getUser, nativeHandoff, currentUser, jwtClaims, providersReady, resolveIdentity, SITE, startSession, takeOauthState } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -28,9 +28,10 @@ export async function GET(req: Request) {
   if (!c || c.aud !== process.env.GOOGLE_CLIENT_ID || !["https://accounts.google.com", "accounts.google.com"].includes(String(c.iss)) || typeof c.sub !== "string") return fail("google-token");
   const r = await resolveIdentity(
     { provider: "google", sub: c.sub, email: typeof c.email === "string" ? c.email : null, emailVerified: c.email_verified === true, name: typeof c.name === "string" ? c.name : null, image: typeof c.picture === "string" ? c.picture : null },
-    await currentUser()
+    saved.native ? (saved.linkUid ? await getUser(saved.linkUid) : null) : await currentUser()
   );
   if ("error" in r) return fail("taken");
+  if (saved.native) return NextResponse.redirect(await nativeHandoff(r.user.id, saved.next ?? "/account"));
   await startSession(r.user.id);
   return NextResponse.redirect(`${SITE}${saved.next ?? "/account"}${(saved.next ?? "/account").includes("?") ? "&" : "?"}signed=1`);
 }

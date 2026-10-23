@@ -4,12 +4,14 @@ import HandleEditor from "@/components/HandleEditor";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { isNativeApp, listenNativeAuth, nativeSignIn } from "@/lib/native";
 import { forget, getAccount, getServerAccount, refreshAccount, signOut, subscribeAccount, syncNow } from "@/lib/syncClient";
 import { getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
 import { getNotes, getServerNotes, subscribeNotes } from "@/lib/noteStore";
 
 const ERRORS: Record<string, string> = {
   "google-off": "Google sign-in isn't switched on yet.",
+  handoff: "Sign-in didn't finish. Try again.",
   "apple-off": "Sign in with Apple isn't switched on yet.",
   "google-state": "Google sign-in timed out. Try again.",
   "apple-state": "Apple sign-in timed out. Try again.",
@@ -33,6 +35,23 @@ export default function AccountClient() {
   const a = useSyncExternalStore(subscribeAccount, getAccount, getServerAccount);
   const sp = useSearchParams();
   const err = sp.get("error");
+  // iOS app: Google refuses sign-in inside an app webview, so Google / Apple open in the system browser.
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    listenNativeAuth();
+    const onClick = (e: MouseEvent) => {
+      const el = (e.target as HTMLElement | null)?.closest?.("a[href^='/api/auth/google'], a[href^='/api/auth/apple']") as HTMLAnchorElement | null;
+      if (!el) return;
+      e.preventDefault();
+      const u = new URL(el.href, location.origin);
+      const provider = u.pathname.endsWith("/apple") ? "apple" : "google";
+      void nativeSignIn(provider, u.searchParams.get("next") ?? "/account").then((ok) => {
+        if (!ok) location.href = `/account?error=${provider}-state`;
+      });
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, []);
   if (!a.ready) return <div className="mt-6 h-48 animate-pulse rounded-2xl border border-white/10 bg-white/[0.03]" aria-hidden />;
   return (
     <div className="mx-auto max-w-md" data-testid="account-page">

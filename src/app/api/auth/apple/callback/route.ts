@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { appleClientSecret, currentUser, jwtClaims, providersReady, resolveIdentity, SITE, startSession, takeOauthState } from "@/lib/auth";
+import { getUser, nativeHandoff, appleClientSecret, currentUser, jwtClaims, providersReady, resolveIdentity, SITE, startSession, takeOauthState } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +35,10 @@ export async function POST(req: Request) {
   }
   const r = await resolveIdentity(
     { provider: "apple", sub: c.sub, email: typeof c.email === "string" ? c.email : null, emailVerified: c.email_verified === true || c.email_verified === "true", name },
-    await currentUser()
+    saved.native ? (saved.linkUid ? await getUser(saved.linkUid) : null) : await currentUser()
   );
   if ("error" in r) return fail("taken");
+  if (saved.native) return NextResponse.redirect(await nativeHandoff(r.user.id, saved.next ?? "/account"), 303);
   await startSession(r.user.id);
   const next = saved.next ?? "/account";
   return NextResponse.redirect(`${SITE}${next}${next.includes("?") ? "&" : "?"}signed=1`, 303);

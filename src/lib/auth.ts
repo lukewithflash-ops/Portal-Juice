@@ -267,7 +267,7 @@ export async function oauthState(provider: string, extra: Record<string, string>
   const challenge = createHash("sha256").update(verifier).digest("base64url");
   return { state, challenge };
 }
-export async function takeOauthState(provider: string): Promise<{ state: string; verifier: string; next?: string } | null> {
+export async function takeOauthState(provider: string): Promise<{ state: string; verifier: string; next?: string; native?: string; linkUid?: string } | null> {
   const jar = await cookies();
   const raw = jar.get(`pj_oauth_${provider}`)?.value;
   jar.set(`pj_oauth_${provider}`, "", { path: "/api/auth", maxAge: 0, secure: true, httpOnly: true });
@@ -335,4 +335,39 @@ async function unlinkAllPush(userId: string) {
 
 export function publicUser(u: User | null) {
   return u ? { id: u.id, email: u.email, name: u.name, image: u.image, providers: u.providers, createdAt: u.createdAt } : null;
+}
+
+/* iOS app sign-in. Google blocks OAuth inside webviews, so the app opens the flow in the system browser
+ * (SFSafariViewController via @capacitor/browser). The browser has no app cookies, so:
+ * 1) the app asks for a one-time ticket (remembers who is signed in, to link accounts),
+ * 2) the browser runs the normal OAuth flow with that ticket,
+ * 3) the callback hands back a one-time code via app.portaljuice://auth?code=...,
+ * 4) the app's webview opens /api/auth/handoff?code=... which starts the session in the app. */
+export const APP_SCHEME = "app.portaljuice";
+export async function nativeTicket(provider: string, uid: string | null, next: string): Promise<string> {
+  const t = token(24);
+  await redis(["SET", `pj:auth:nticket:${sha(t)}`, JSON.stringify({ provider, uid: uid ?? "", next }), "EX", 600]);
+  return t;
+}
+export async function takeNativeTicket(provider: string, raw: string): Promise<{ uid: string; next: string } | null> {
+  const v = (await redis(["GETDEL", `pj:auth:nticket:${sha(raw)}`])) as string | null;
+  try {
+    const j = v ? (JSON.parse(v) as { provider: string; uid: string; next: string }) : null;
+    return j && j.provider === provider ? { uid: j.uid, next: j.next } : null;
+  } catch {
+    return null;
+  }
+}
+export async function nativeHandoff(userId: string, next: string): Promise<string> {
+  const c = token(24);
+  await redis(["SET", `pj:auth:handoff:${sha(c)}`, JSON.stringify({ userId, next }), "EX", 180]);
+  return `${APP_SCHEME}://auth?code=${encodeURIComponent(c)}`;
+}
+export async function takeHandoff(raw: string): Promise<{ userId: string; next: string } | null> {
+  const v = (await redis(["GETDEL", `pj:auth:handoff:${sha(raw)}`])) as string | null;
+  try {
+    return v ? (JSON.parse(v) as { userId: string; next: string }) : null;
+  } catch {
+    return null;
+  }
 }
