@@ -5,6 +5,7 @@ import { usePrefs } from "@/components/Prefs";
 import { gameRoute } from "@/lib/gameRoute";
 import { formatPrice } from "@/lib/odds";
 import { refreshVip, useVip } from "@/lib/vipClient";
+import { iapBuy, iapConfig, iapProducts, iapRestore, isNativeApp } from "@/lib/native";
 import { CHANCE_LABEL, VIP_NOTE, type VipPick, type VipRecord, type VipTeaser } from "@/lib/vipCore";
 
 type Row = VipPick | VipTeaser;
@@ -189,6 +190,11 @@ function Join({ d, onDone }: { d: Data; onDone: () => void }) {
             Manage plan
           </button>
         ) : null}
+        {a.source === "apple" ? (
+          <a href="https://apps.apple.com/account/subscriptions" className="press rounded-full border border-white/15 px-3 py-1 text-[12px] font-bold text-zinc-200">
+            Manage in Apple ID
+          </a>
+        ) : null}
         {msg ? <p className="w-full text-[12px] text-[color:var(--minus)]">{msg}</p> : null}
       </div>
     );
@@ -252,6 +258,78 @@ function Join({ d, onDone }: { d: Data; onDone: () => void }) {
   );
 }
 
+/** iOS app only, and only when the server flag IAP_ENABLED is on: Apple in-app subscription. Renders nothing otherwise. */
+function NativeJoin({ d, onDone }: { d: Data; onDone: () => void }) {
+  const [cfg, setCfg] = useState<Awaited<ReturnType<typeof iapConfig>>>(null);
+  const [prices, setPrices] = useState<Record<string, string>>({});
+  const [plan, setPlan] = useState<"yearly" | "monthly">("yearly");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    void iapConfig().then((c) => {
+      setCfg(c);
+      if (c?.enabled && c.products) void iapProducts(Object.values(c.products)).then((ps) => setPrices(Object.fromEntries(ps.map((p) => [p.identifier, p.priceString]))));
+    });
+  }, [d.access.signedIn]);
+  if (!cfg?.enabled || !cfg.products || d.access.vip) return null;
+  const price = (p: "yearly" | "monthly") => (prices[cfg.products![p]] ? `${prices[cfg.products![p]]} / ${p === "yearly" ? "year" : "month"}` : d.price[p]);
+  const run = async (f: () => Promise<boolean>) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      if (await f()) {
+        refreshVip();
+        onDone();
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="native-only mt-3" data-testid="vip-iap">
+      <div className="seg grid grid-cols-2 rounded-xl border border-white/10 p-1 text-[13px] font-bold">
+        {(["yearly", "monthly"] as const).map((p) => (
+          <button key={p} type="button" aria-pressed={plan === p} onClick={() => setPlan(p)} className={"press rounded-lg px-2 py-2 " + (plan === p ? "bg-[color:var(--gold)] text-black" : "text-zinc-300")}>
+            {price(p)}
+          </button>
+        ))}
+      </div>
+      {cfg.signedIn ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() =>
+            run(async () => {
+              const r = await iapBuy(plan);
+              if (r === "error") setMsg("The purchase didn’t go through. You weren’t charged twice. Try Restore.");
+              return r === "ok";
+            })
+          }
+          className="press mt-2 w-full rounded-xl bg-[color:var(--gold)] px-4 py-3 text-[16px] font-black text-black disabled:opacity-60"
+          data-testid="vip-iap-buy"
+        >
+          {busy ? "Working…" : "Join VIP"}
+        </button>
+      ) : (
+        <Link href="/account?next=/vip" className="press mt-2 block w-full rounded-xl bg-[color:var(--gold)] px-4 py-3 text-center text-[16px] font-black text-black">
+          Sign in to join VIP
+        </Link>
+      )}
+      {cfg.signedIn ? (
+        <button type="button" disabled={busy} onClick={() => run(async () => { const ok = await iapRestore(); if (!ok) setMsg("No VIP purchase found on this Apple ID."); return ok; })} className="press mt-2 w-full text-center text-[13px] font-bold text-zinc-300" data-testid="vip-iap-restore">
+          Restore purchase
+        </button>
+      ) : null}
+      <p className="mt-1.5 text-center text-[11px] leading-snug text-zinc-500">
+        Renews automatically until canceled. Payment is charged to your Apple ID; cancel any time in Settings &gt; Apple ID &gt; Subscriptions at least 24 hours before renewal.{" "}
+        <Link href="/terms" className="underline">Terms</Link> · <Link href="/privacy" className="underline">Privacy</Link>
+      </p>
+      {msg ? <p className="mt-1 text-[12px] text-[color:var(--minus)]">{msg}</p> : null}
+    </div>
+  );
+}
+
 const PERKS = [
   ["💎", "Daily VIP picks", "2 to 5 a day, only when the numbers line up. Zero on days nothing clears the bar."],
   ["🔥", "Full prop heat map", "Every player, every line, colored by how often it hit."],
@@ -300,6 +378,7 @@ export default function VipClient() {
           <h2 className="mt-1 text-[20px] font-black leading-6 text-[color:var(--flat)]">The day’s strongest picks, with the numbers behind each one.</h2>
           <p className="mt-1 text-[13px] text-zinc-400">Built only from ESPN stats, game logs, injuries and DraftKings lines. {VIP_NOTE}</p>
           <Join d={d} onDone={load} />
+          <NativeJoin d={d} onDone={load} />
           {!d.access.vip ? <p className="native-only mt-2 text-[13px] text-zinc-300" data-testid="vip-native-note">Every VIP pick is public once it’s graded. See the full record below.</p> : null}
         </div>
       </section>

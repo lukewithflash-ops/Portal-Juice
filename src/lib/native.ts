@@ -127,3 +127,79 @@ export function onNativeNetwork(cb: (connected: boolean) => void): () => void {
     if (id) void call("Network", "removeListener", { eventName: "networkStatusChange", callbackId: id });
   };
 }
+
+/* ---------- iOS sign-in via the system browser (Google blocks webview OAuth) ---------- */
+
+let authListening = false;
+/** iOS app: listen for app.portaljuice://auth?code=... and finish sign-in in the webview. Call once on mount. */
+export function listenNativeAuth() {
+  const c = cap();
+  if (!c || authListening || typeof c.nativeCallback !== "function") return;
+  authListening = true;
+  try {
+    c.nativeCallback("App", "addListener", { eventName: "appUrlOpen" }, (d) => {
+      const url = (d as { url?: string } | null)?.url ?? "";
+      if (!url.startsWith("app.portaljuice://auth")) return;
+      const code = new URL(url.replace("app.portaljuice://", "https://x/")).searchParams.get("code");
+      void call("Browser", "close");
+      if (code) window.location.href = `/api/auth/handoff?code=${encodeURIComponent(code)}`;
+    });
+  } catch {}
+}
+
+/** iOS app: run Google / Apple sign-in in the system browser. Returns false when not in the app (use the normal link). */
+export async function nativeSignIn(provider: "google" | "apple", next = "/account"): Promise<boolean> {
+  if (!cap()) return false;
+  listenNativeAuth();
+  const r = await fetch("/api/auth/native", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, next }) }).catch(() => null);
+  const j = r?.ok ? ((await r.json()) as { url?: string }) : null;
+  if (!j?.url) return false;
+  await call("Browser", "open", { url: j.url, presentationStyle: "popover" });
+  return true;
+}
+
+/* ---------- In-app VIP (StoreKit 2 via @capgo/native-purchases). Server flag IAP_ENABLED gates it. ---------- */
+
+type IapConfig = { enabled: boolean; signedIn?: boolean; products?: { monthly: string; yearly: string }; appAccountToken?: string };
+export async function iapConfig(): Promise<IapConfig | null> {
+  if (!cap()) return null;
+  const r = await fetch("/api/vip/apple", { cache: "no-store" }).catch(() => null);
+  return r?.ok ? ((await r.json()) as IapConfig) : null;
+}
+
+/** Localized App Store prices for the VIP plans (real prices from StoreKit). */
+export async function iapProducts(ids: string[]): Promise<{ identifier: string; priceString: string; title: string }[]> {
+  const r = await call<{ products?: { identifier: string; priceString: string; title: string }[] }>("NativePurchases", "getProducts", { productIdentifiers: ids, productType: "subs" });
+  return r?.products ?? [];
+}
+
+async function sendJws(jws: string | undefined): Promise<boolean> {
+  if (!jws) return false;
+  const r = await fetch("/api/vip/apple", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jws }) }).catch(() => null);
+  return !!r?.ok;
+}
+
+/** Buy a VIP plan with Apple. Resolves "ok" once the server verified the signed transaction. */
+export async function iapBuy(plan: "monthly" | "yearly"): Promise<"ok" | "cancelled" | "error"> {
+  const cfg = await iapConfig();
+  if (!cfg?.enabled || !cfg.products || !cfg.appAccountToken) return "error";
+  const c = cap();
+  if (!c) return "error";
+  try {
+    const t = (await c.nativePromise!("NativePurchases", "purchaseProduct", { productIdentifier: cfg.products[plan], productType: "subs", appAccountToken: cfg.appAccountToken })) as { jwsRepresentation?: string };
+    return (await sendJws(t?.jwsRepresentation)) ? "ok" : "error";
+  } catch (e) {
+    return /cancel/i.test(String(e)) ? "cancelled" : "error";
+  }
+}
+
+/** Restore: re-send every current Apple VIP transaction to the server for this account. */
+export async function iapRestore(): Promise<boolean> {
+  const cfg = await iapConfig();
+  if (!cfg?.enabled || !cfg.products) return false;
+  await call("NativePurchases", "restorePurchases");
+  const r = await call<{ purchases?: { productIdentifier?: string; jwsRepresentation?: string }[] }>("NativePurchases", "getPurchases", { productType: "subs" });
+  let any = false;
+  for (const p of r?.purchases ?? []) if (p.productIdentifier && Object.values(cfg.products).includes(p.productIdentifier)) any = (await sendJws(p.jwsRepresentation)) || any;
+  return any;
+}
