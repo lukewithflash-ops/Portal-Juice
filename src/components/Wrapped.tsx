@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { getNotes, subscribeNotes } from "@/lib/noteStore";
 import { getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
 import { wrapWeek, type Wrapped } from "@/lib/wrapped";
+import { shareImageNative } from "@/lib/native";
 
 const fmt = (d: string) => new Date(d + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
 const rec = (t: { w: number; l: number; p: number }) => `${t.w}-${t.l}${t.p ? `-${t.p}` : ""}`;
@@ -136,6 +137,7 @@ export default function WrappedStory() {
     try {
       const blob = await wrappedPng(w);
       const file = new File([blob], `portal-wrapped-${w.to}.png`, { type: "image/png" });
+      if (await shareImageNative(blob, file.name, "Portal Wrapped")) return;
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: "Portal Wrapped" });
         return;

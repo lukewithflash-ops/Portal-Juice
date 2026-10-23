@@ -9,6 +9,7 @@ import QRCode from "qrcode";
 import FriendFeed from "@/components/FriendFeed";
 import { FriendName, PosFor } from "@/components/LivePosition";
 import { usePositions } from "@/lib/positionsClient";
+import { haptic, shareLink as shareSheet } from "@/lib/native";
 
 type Overview = {
   signedIn: boolean;
@@ -79,9 +80,7 @@ export default function FriendsClient() {
     setJoining(false);
     setDismissed(true);
     if (ok) setCode("");
-    try {
-      navigator.vibrate?.(ok ? 12 : [8, 40, 8]);
-    } catch {}
+    haptic(ok ? "success" : "error", ok ? 12 : [8, 40, 8]);
     // Drop ?join so a reload doesn't ask again.
     window.history.replaceState(null, "", "/friends");
   }, [join]);
@@ -147,11 +146,7 @@ export default function FriendsClient() {
   async function shareLink(c: string, what: string) {
     const url = linkFor(c);
     try {
-      if (navigator.share) await navigator.share({ title: "Portal Juice", text: what, url });
-      else {
-        await navigator.clipboard.writeText(url);
-        setMsg("Link copied.");
-      }
+      if ((await shareSheet({ title: "Portal Juice", text: what, url })) === "copied") setMsg("Link copied.");
     } catch {
       /* closed */
     }

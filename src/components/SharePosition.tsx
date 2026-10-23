@@ -5,6 +5,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { getAccount, getServerAccount, subscribeAccount, syncNow } from "@/lib/syncClient";
 import { invalidatePosition, type LivePosition } from "@/lib/positionsClient";
 import type { Pick } from "@/lib/types";
+import { haptic } from "@/lib/native";
 
 /** Your own shared position, read once and kept in step across every Share button on the page. */
 let mine: LivePosition | null | undefined;
@@ -65,9 +66,7 @@ export default function SharePosition({ picks, small = false }: { picks: Pick[];
         setMine(j.position ?? null);
         const h = j.position?.handle ?? prev;
         if (h) invalidatePosition(h);
-        try {
-          navigator.vibrate?.(10);
-        } catch {}
+        haptic("medium", 10);
       }
     } finally {
       setBusy(false);

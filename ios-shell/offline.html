@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Portal Juice</title>
+<style>
+html,body{margin:0;height:100%;background:#07040f;color:#e9e3ff;font-family:-apple-system,system-ui,sans-serif;-webkit-user-select:none;user-select:none}
+body{background:radial-gradient(120% 60% at 50% 0%,rgba(192,38,255,.22),transparent 60%),#07040f}
+main{min-height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:calc(env(safe-area-inset-top) + 24px) 28px calc(env(safe-area-inset-bottom) + 24px)}
+img{width:88px;height:88px;border-radius:22px;box-shadow:0 0 34px rgba(192,38,255,.55)}
+h1{margin:6px 0 0;font-size:26px;font-weight:900;letter-spacing:-.01em;color:#fff;text-shadow:0 0 18px rgba(232,121,249,.65)}
+p{margin:0;max-width:300px;font-size:15px;line-height:1.45;color:#b9aed6}
+#st{font-size:13px;color:#8d81ad;min-height:18px}
+button{margin-top:8px;border:1px solid rgba(57,255,20,.55);background:rgba(57,255,20,.08);color:#fff;font:800 16px -apple-system,system-ui,sans-serif;padding:13px 30px;border-radius:14px;box-shadow:0 0 22px rgba(57,255,20,.25)}
+button:active{transform:scale(.97)}
+</style>
+</head>
+<body>
+<main>
+<img src="icon.png" alt="">
+<h1>Portal Juice</h1>
+<p>No connection right now. Live scores, lines and your log come back as soon as you're online.</p>
+<button id="retry" type="button">Try again</button>
+<div id="st" role="status"></div>
+</main>
+<script>
+(function(){
+  var HOME="https://portaljuice.app/";
+  var st=document.getElementById("st"), busy=false;
+  function cap(){var c=window.Capacitor;return c&&c.nativePromise?c:null}
+  function buzz(t){var c=cap();if(c){c.nativePromise("Haptics","impact",{style:t||"LIGHT"}).catch(function(){})}}
+  function go(){
+    // Back to where you were if the app had a page open; otherwise the home tab.
+    if(history.length>1){history.back();setTimeout(function(){location.replace(HOME)},1200)}else{location.replace(HOME)}
+  }
+  function reachable(){
+    return Promise.race([
+      fetch(HOME+"api/version",{mode:"no-cors",cache:"no-store"}).then(function(){return true},function(){return false}),
+      new Promise(function(r){setTimeout(function(){r(false)},6000)})
+    ]);
+  }
+  function check(manual){
+    if(busy)return;busy=true;
+    if(manual){st.textContent="Checking\u2026";buzz("LIGHT")}
+    reachable().then(function(ok){
+      busy=false;
+      if(ok){st.textContent="Back online.";go()}
+      else if(manual){st.textContent="Still offline. We'll reconnect on our own.";buzz("MEDIUM")}
+    });
+  }
+  document.getElementById("retry").addEventListener("click",function(){check(true)});
+  window.addEventListener("online",function(){check(false)});
+  // Native network status (iOS app): reload the moment the connection returns.
+  var c=cap();
+  if(c&&c.nativeCallback){
+    try{c.nativeCallback("Network","addListener",{eventName:"networkStatusChange"},function(s){if(s&&s.connected)check(false)})}catch(e){}
+  }
+  setInterval(function(){check(false)},8000);
+  check(false);
+})();
+</script>
+</body>
+</html>

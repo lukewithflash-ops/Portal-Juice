@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useLiveHub } from "@/components/LiveHub";
+import { haptic } from "@/lib/native";
 import { SECTIONS, sectionOf, type SectionId } from "@/lib/nav";
 
 const ICON: Record<SectionId, React.ReactNode> = {
@@ -51,9 +52,7 @@ export default function BottomTabs() {
             data-testid={"tab-" + s.id}
             onClick={() => {
               if (s.id !== cur) setTap({ id: s.id, from: path });
-              try {
-                navigator.vibrate?.(8);
-              } catch {}
+              haptic("light", 8);
             }}
           >
             <span className="relative">

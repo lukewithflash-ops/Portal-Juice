@@ -10,3 +10,120 @@ export function isNativeApp(): boolean {
   if (typeof document === "undefined") return false;
   return document.documentElement.classList.contains("pj-native");
 }
+
+/* ---------- Native bridge (iOS app only). Web keeps its old behavior. ---------- */
+
+type Cap = {
+  isNativePlatform?: () => boolean;
+  nativePromise?: (plugin: string, method: string, opts?: unknown) => Promise<unknown>;
+  nativeCallback?: (plugin: string, method: string, opts: unknown, cb: (data: unknown) => void) => string;
+};
+
+function cap(): Cap | null {
+  if (typeof window === "undefined") return null;
+  const c = (window as unknown as { Capacitor?: Cap }).Capacitor;
+  return c && c.isNativePlatform?.() && typeof c.nativePromise === "function" ? c : null;
+}
+
+/** Calls a native plugin method. Resolves undefined if the plugin is missing or fails. */
+function call<T = unknown>(plugin: string, method: string, opts?: unknown): Promise<T | undefined> {
+  const c = cap();
+  if (!c) return Promise.resolve(undefined);
+  try {
+    return (c.nativePromise!(plugin, method, opts) as Promise<T>).catch(() => undefined);
+  } catch {
+    return Promise.resolve(undefined);
+  }
+}
+
+export type HapticKind = "light" | "medium" | "success" | "warning" | "error";
+let lastBuzz = 0;
+
+/**
+ * Haptic tap. In the iOS app this uses the Taptic Engine; in a browser it falls back to
+ * navigator.vibrate(fallback) only when a fallback pattern is given (so web stays as it was).
+ */
+export function haptic(kind: HapticKind = "light", fallback?: number | number[]) {
+  const now = Date.now();
+  if (now - lastBuzz < 90) return;
+  lastBuzz = now;
+  if (cap()) {
+    if (kind === "success" || kind === "warning" || kind === "error") void call("Haptics", "notification", { type: kind.toUpperCase() });
+    else void call("Haptics", "impact", { style: kind === "medium" ? "MEDIUM" : "LIGHT" });
+    return;
+  }
+  if (fallback == null) return;
+  try {
+    navigator.vibrate?.(fallback);
+  } catch {}
+}
+
+/**
+ * Share a link or text. iOS app: native share sheet. Browser: Web Share, else copy the link.
+ * Returns "shared" | "copied" | "cancelled".
+ */
+export async function shareLink(d: { title?: string; text?: string; url?: string }): Promise<"shared" | "copied" | "cancelled"> {
+  const c = cap();
+  if (c) {
+    try {
+      await c.nativePromise!("Share", "share", { title: d.title, text: d.text, url: d.url, dialogTitle: d.title });
+      return "shared";
+    } catch {
+      return "cancelled";
+    }
+  }
+  try {
+    if (navigator.share) {
+      await navigator.share(d);
+      return "shared";
+    }
+    if (d.url) {
+      await navigator.clipboard.writeText(d.url);
+      return "copied";
+    }
+  } catch {}
+  return "cancelled";
+}
+
+/**
+ * iOS app only: write a PNG to the app's cache and open the native share sheet
+ * (Save Image, Messages, Instagram...). Returns false when not in the app or it failed,
+ * so the caller can fall back to its web path.
+ */
+export async function shareImageNative(blob: Blob, name: string, title?: string): Promise<boolean> {
+  const c = cap();
+  if (!c) return false;
+  try {
+    const data = await new Promise<string>((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result).split(",")[1] ?? "");
+      r.onerror = () => rej(r.error);
+      r.readAsDataURL(blob);
+    });
+    const w = (await c.nativePromise!("Filesystem", "writeFile", { path: name, data, directory: "CACHE", recursive: true })) as { uri?: string };
+    if (!w?.uri) return false;
+    await c.nativePromise!("Share", "share", { title, files: [w.uri] }).catch(() => undefined);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** iOS app only: listen for the device going offline/online. Returns an unsubscribe. */
+export function onNativeNetwork(cb: (connected: boolean) => void): () => void {
+  const c = cap();
+  if (!c || typeof c.nativeCallback !== "function") return () => {};
+  void call<{ connected?: boolean }>("Network", "getStatus").then((s) => {
+    if (s && typeof s.connected === "boolean") cb(s.connected);
+  });
+  let id: string | undefined;
+  try {
+    id = c.nativeCallback("Network", "addListener", { eventName: "networkStatusChange" }, (s) => {
+      const v = s as { connected?: boolean } | null;
+      if (v && typeof v.connected === "boolean") cb(v.connected);
+    });
+  } catch {}
+  return () => {
+    if (id) void call("Network", "removeListener", { eventName: "networkStatusChange", callbackId: id });
+  };
+}

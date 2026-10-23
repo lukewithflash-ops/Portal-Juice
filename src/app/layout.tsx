@@ -19,6 +19,7 @@ import { LiveHubProvider } from "@/components/LiveHub";
 import SiteFooter from "@/components/SiteFooter";
 import SectionTabs from "@/components/SectionTabs";
 import BottomTabs from "@/components/BottomTabs";
+import NativeOffline from "@/components/NativeOffline";
 import PageEnter from "@/components/PageEnter";
 import { SITE_NAME, SITE_URL, TAGLINE } from "@/lib/site";
 import "./globals.css";
@@ -91,6 +92,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <SiteFooter />
             </div>
             <BottomTabs />
+            <NativeOffline />
           </LiveHubProvider>
         </PrefsProvider>
       </body>

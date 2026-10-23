@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
 import { nightName, nightQuery, nights, nightTally } from "@/lib/nightly";
+import { shareImageNative } from "@/lib/native";
 
 function today() {
   const d = new Date();
@@ -56,6 +57,7 @@ export default function NightRecap() {
       const file = new File([blob], `portal-juice-${date}.png`, { type: "image/png" });
       const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
       const label = `${name}: ${night.w}-${night.l}${night.p ? `-${night.p}` : ""}`;
+      if (await shareImageNative(blob, file.name, label)) return;
       if (nav.share && nav.canShare?.({ files: [file] })) {
         await nav.share({ files: [file], title: label, text: `${label} via Portal Juice` });
       } else {

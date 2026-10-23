@@ -43,6 +43,12 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Portal Juice uses the camera when you snap a photo of a slip, so it can fill in the legs for your log.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Portal Juice opens your photos when you pick a slip screenshot to fill in the legs for your log.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Portal Juice saves your Wrapped, night recap and final-score images to Photos when you choose Save Image.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>UIViewControllerBasedStatusBarAppearance</key>

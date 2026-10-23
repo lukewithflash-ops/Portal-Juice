@@ -7,6 +7,18 @@ Capacitor loads the live site. It does not rebuild the board.
 - Team ID: A9V5Q6UVFT
 - URL: https://portaljuice.app
 
+## Native features in the app (1.0.1+)
+
+- Haptics (@capacitor/haptics): tab taps, logging a pick, a pick grading as a win, tailing, sharing a position, joining a squad.
+  The site calls `haptic()` in `src/lib/native.ts`; browsers keep their old `navigator.vibrate` behavior.
+- Native share sheet (@capacitor/share, @capacitor/filesystem): squad invites, Wrapped, night recap and final-score images
+  (written to the app cache, then shared, so Save Image works).
+- Offline: `server.errorPath` shows the bundled `ios-shell/offline.html` when portaljuice.app can't load; it reconnects on its
+  own via @capacitor/network. Inside the app a thin offline bar shows when the connection drops.
+- User agent ends with `PortalJuiceApp`; with `window.Capacitor` this flags `<html class="pj-native">`.
+- Info.plist: camera, photo library and add-to-photos usage strings (slip photos, Save Image).
+- Next: native push (needs an APNs .p8 key from the Apple developer account, then @capacitor/push-notifications).
+
 ## TestFlight from GitHub Actions (no Mac needed)
 
 Run the "iOS TestFlight" workflow (Actions tab, or `gh workflow run ios-testflight.yml`),

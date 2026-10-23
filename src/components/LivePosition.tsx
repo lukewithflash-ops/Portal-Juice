@@ -10,6 +10,7 @@ import { sideLine } from "@/lib/plusLegs";
 import { isVipHandle, usePositions, type LivePosition, type PosLeg } from "@/lib/positionsClient";
 import type { LiveSnap } from "@/lib/live";
 import type { Pick, Sport } from "@/lib/types";
+import { haptic } from "@/lib/native";
 
 const asPick = (s: PosLeg, owner: string): Pick => ({
   id: `${owner}:${s.id}`,
@@ -133,9 +134,7 @@ export function PositionGroup({ handle, legs: raw, snaps, onLeave, testid = "pos
     const today = new Date().toLocaleDateString("en-CA");
     restorePicks(rows.map((s) => ({ ...asPick(s, handle), id: crypto.randomUUID(), book: `Tailed from @${handle}`, tailFrom: handle, status: "open", date: s.date || today, createdAt: now, slipId: sid })));
     setMsg(`${rows.length > 1 ? `${rows.length}-leg parlay` : rows[0].subject} is in your Log.`);
-    try {
-      navigator.vibrate?.(10);
-    } catch {}
+    haptic("success", 10);
   }
   return (
     <div data-testid={testid}>

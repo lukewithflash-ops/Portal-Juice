@@ -7,6 +7,7 @@ import type { LiveAtBat, LivePlay, LiveShot, LiveSnap } from "@/lib/live";
 import { legFromPick, TONE_COLOR, type Leg } from "@/lib/motivation";
 import { getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
 import { playKind, playerFromText } from "@/lib/tracker";
+import { shareImageNative } from "@/lib/native";
 
 /* ------------------------------------------------------------------ */
 /* Play pop: the newest play pops over the stage (non-football sports). */
@@ -474,6 +475,7 @@ export function ShareFinal({ league, id, label }: { league: string; id: string; 
       if (!res.ok) throw new Error("image");
       const blob = await res.blob();
       const file = new File([blob], `portal-juice-final-${league}-${id}.png`, { type: "image/png" });
+      if (await shareImageNative(blob, file.name, `${label} · Final`)) return;
       const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
       if (nav.share && nav.canShare?.({ files: [file] })) {
         await nav.share({ files: [file], title: `${label} · Final`, text: `${label} · Final via Portal Juice` });

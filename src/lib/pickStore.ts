@@ -1,6 +1,7 @@
 "use client";
 
 import { SPORT_ORDER, type Pick, type PickStatus } from "./types";
+import { haptic } from "./native";
 
 /** Device-only log. Nothing leaves the browser. */
 export const STORAGE_KEY = "portal-juice:log:v1";
@@ -62,6 +63,7 @@ function write(next: Pick[]) {
 
 export function addPick(p: Pick) {
   write([p, ...getPicks()]);
+  haptic("success");
 }
 export function setStatus(id: string, status: PickStatus) {
   write(getPicks().map((p) => (p.id === id ? { ...p, status } : p)));
@@ -73,6 +75,8 @@ export function removePick(id: string) {
 export function applyGrades(grades: Record<string, PickStatus>) {
   const ids = Object.keys(grades);
   if (!ids.length) return;
+  const before = getPicks();
+  if (before.some((p) => p.status === "open" && grades[p.id] === "win")) haptic("success");
   write(getPicks().map((p) => (p.status === "open" && grades[p.id] && STATUSES.includes(grades[p.id]) ? { ...p, status: grades[p.id] } : p)));
 }
 
