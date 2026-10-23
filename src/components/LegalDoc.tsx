@@ -12,5 +12,5 @@ export function Sec({ title, children }: { title: string; children: React.ReactN
   );
 }
 
-export const CONTACT_EMAIL = "juice@portaljuice.app";
+export const CONTACT_EMAIL = "lukewithflash@gmail.com";
 export const UPDATED = "October 23, 2026";
