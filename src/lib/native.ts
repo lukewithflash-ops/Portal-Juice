@@ -139,6 +139,11 @@ export function listenNativeAuth() {
   try {
     c.nativeCallback("App", "addListener", { eventName: "appUrlOpen" }, (d) => {
       const url = (d as { url?: string } | null)?.url ?? "";
+      if (url.startsWith("app.portaljuice://link")) {
+        const j = new URL(url.replace("app.portaljuice://", "https://x/")).searchParams.get("code") ?? "";
+        window.location.href = `/account?join=${encodeURIComponent(j.replace(/[^A-Za-z0-9]/g, "").slice(0, 8))}`;
+        return;
+      }
       if (!url.startsWith("app.portaljuice://auth")) return;
       const code = new URL(url.replace("app.portaljuice://", "https://x/")).searchParams.get("code");
       void call("Browser", "close");

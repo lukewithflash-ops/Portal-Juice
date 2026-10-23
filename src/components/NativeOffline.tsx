@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { onNativeNetwork } from "@/lib/native";
+import { listenNativeAuth, onNativeNetwork } from "@/lib/native";
 
 /** iOS app only: a thin bar when the phone loses its connection. Browsers never see it. */
 export default function NativeOffline() {
   const [off, setOff] = useState(false);
+  useEffect(() => listenNativeAuth(), []);
   useEffect(() => onNativeNetwork((connected) => setOff(!connected)), []);
   if (!off) return null;
   return (

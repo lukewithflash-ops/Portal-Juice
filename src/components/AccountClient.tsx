@@ -73,7 +73,7 @@ function SignIn() {
   const [code, setCode] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [devCode, setDevCode] = useState("");
+  const [devCode, setDevCode] = useState(() => (sp.get("join") ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8));
   const p = a.providers;
   const nextQ = next ? `?next=${encodeURIComponent(next)}` : "";
 
@@ -104,6 +104,20 @@ function SignIn() {
     setBusy(false);
     if (r.ok) await done();
     else setMsg(String(r.j.error ?? "Couldn't make the account."));
+  }
+  /** Web, signed out: make a private account holding this browser's data, then show a code for the app. */
+  async function moveToApp() {
+    setBusy(true);
+    const r = await post("/api/auth/device");
+    if (!r.ok) {
+      setBusy(false);
+      return setMsg(String(r.j.error ?? "Couldn't make the account."));
+    }
+    try {
+      sessionStorage.setItem("pj-move", "1");
+    } catch {}
+    await refreshAccount();
+    setBusy(false);
   }
   async function claim(e: React.FormEvent) {
     e.preventDefault();
@@ -171,6 +185,13 @@ function SignIn() {
       <div className="my-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">
         <span className="h-px flex-1 bg-white/10" /> no email <span className="h-px flex-1 bg-white/10" />
       </div>
+      {!isNativeApp() ? (
+        <button type="button" onClick={moveToApp} disabled={busy || !p.store} className="mb-2 w-full rounded-xl border border-[color:var(--plus)]/60 px-4 py-2.5 text-sm font-black text-white" data-testid="move-to-app-signedout">
+          📱 Move to the app
+        </button>
+      ) : (
+        <p className="mb-1 text-[12px] text-zinc-400">Have an account on the web? Enter the code from Account → Move to the app.</p>
+      )}
       <form onSubmit={claim} className="flex gap-2">
         <input value={devCode} onChange={(e) => setDevCode(e.target.value.toUpperCase())} maxLength={9} placeholder="Code from your other device" className="field min-w-0 flex-1 uppercase tracking-widest" aria-label="Device code" data-testid="signin-devcode" />
         <button type="submit" disabled={busy || devCode.replace(/\W/g, "").length !== 8} className="shrink-0 rounded-xl border border-[color:var(--plus)]/60 px-3 text-sm font-black text-white" data-testid="signin-devcode-go">
@@ -195,8 +216,37 @@ function SignedIn() {
   const [code, setCode] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [del, setDel] = useState(false);
+  const sp = useSearchParams();
+  const [join, setJoin] = useState(() => (sp.get("join") ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8));
+  const [joining, setJoining] = useState(false);
+  const native = isNativeApp();
   const u = a.user!;
   const p = a.providers;
+  useEffect(() => {
+    let go = false;
+    try {
+      go = sessionStorage.getItem("pj-move") === "1";
+      sessionStorage.removeItem("pj-move");
+    } catch {}
+    if (go) void addDevice();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  /** App: join the web account with its code. This device's account and data merge into it. */
+  async function joinWeb(e: React.FormEvent) {
+    e.preventDefault();
+    setJoining(true);
+    await syncNow({ full: true });
+    const r = await post("/api/auth/link/claim", { code: join });
+    if (!r.ok) {
+      setJoining(false);
+      return setToast(String(r.j.error ?? "That code didn't work."));
+    }
+    forget();
+    await refreshAccount();
+    setJoining(false);
+    setJoin("");
+    setToast("Signed in to your web account. Everything is merged.");
+  }
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 2600);
@@ -207,6 +257,8 @@ function SignedIn() {
     setToast(getAccount().status === "ok" ? "Saved to your account" : getAccount().error ?? "Couldn't save. Trying again soon.");
   }
   async function addDevice() {
+    // Save everything on this device to the account first, so nothing stays behind.
+    await syncNow({ full: true });
     const r = await post("/api/auth/link/start");
     setCode(r.ok ? String(r.j.code) : null);
     if (!r.ok) setToast(String(r.j.error ?? "Couldn't make a code."));
@@ -239,8 +291,20 @@ function SignedIn() {
       <HandleEditor />
 
       <div className="auth-panel p-4">
-        <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-200">Add another device</h2>
-        <p className="mt-1 text-[12px] text-zinc-400">On the other device, open Account → “Code from your other device”.</p>
+        {native ? (
+          <form onSubmit={joinWeb} className="mb-4" data-testid="join-web">
+            <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-200">Have an account on the web?</h2>
+            <p className="mt-1 text-[12px] text-zinc-400">On portaljuice.app open More → Account → Move to the app, then enter the code. What&apos;s on this phone is merged in.</p>
+            <div className="mt-2 flex gap-2">
+              <input value={join} onChange={(e) => setJoin(e.target.value.toUpperCase())} maxLength={9} placeholder="Enter code" className="field min-w-0 flex-1 uppercase tracking-widest" aria-label="Code from the web" data-testid="join-web-code" />
+              <button type="submit" disabled={joining || join.replace(/\W/g, "").length !== 8} className="shrink-0 rounded-xl border border-[color:var(--plus)]/60 px-3 text-sm font-black text-white" data-testid="join-web-go">
+                {joining ? "…" : "Join"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+        <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-200">{native ? "Add another device" : "Move to the app"}</h2>
+        <p className="mt-1 text-[12px] text-zinc-400">{native ? "On the other device, open Account and enter the code." : "In the Portal Juice app, open Account → “Have an account on the web?” and enter this code. Your picks, stats, handle, squads and VIP come along."}</p>
         {code ? (
           <p className="mt-2 text-center font-mono text-3xl font-black tracking-[0.3em] text-[color:var(--plus)]" data-testid="device-code">{code.slice(0, 4)}-{code.slice(4)}</p>
         ) : null}
@@ -248,6 +312,11 @@ function SignedIn() {
           {code ? "New code" : "Show a one-time code"}
         </button>
         {code ? <p className="mt-1 text-center text-[11px] text-zinc-500">Works once, for 10 minutes.</p> : null}
+        {code && !native ? (
+          <a href={`app.portaljuice://link?code=${code}`} className="mt-2 block text-center text-[12px] font-bold text-[color:var(--plus)] underline" data-testid="open-in-app">
+            On this iPhone? Open in the app
+          </a>
+        ) : null}
         {(p.apple && !u.providers.includes("apple")) || (p.google && !u.providers.includes("google")) ? (
           <div className="mt-3 space-y-2">
             {p.apple && !u.providers.includes("apple") ? <a href="/api/auth/apple" className="auth-btn auth-apple"><AppleMark /> Add Sign in with Apple</a> : null}
