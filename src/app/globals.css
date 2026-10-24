@@ -1116,3 +1116,19 @@ html[data-pj-head="chrome"] .wordmark { background: linear-gradient(100deg, #fff
 .gc-pick { background: rgba(57,255,136,.08); border: 1px solid rgba(57,255,136,.35); }
 .gc-live-dot { width: 8px; height: 8px; border-radius: 9999px; background: #39ff88; box-shadow: 0 0 10px #39ff88; animation: gc-pulse 1.6s infinite; }
 @keyframes gc-pulse { 50% { opacity: .35; } }
+
+/* Big update: coin pill + animated emotes */
+.coin-pill{background:linear-gradient(135deg,rgba(245,197,66,.16),rgba(192,38,255,.16));border:1px solid rgba(245,197,66,.35);box-shadow:0 0 10px rgba(245,197,66,.18)}
+.emo-glow{animation:emoGlow 1.8s ease-in-out infinite;display:inline-block}
+.emo-pulse{animation:emoPulse 1.2s ease-in-out infinite;display:inline-block}
+.emo-shimmer{animation:emoShim 2.4s linear infinite;display:inline-block}
+.emo-particles{animation:emoGlow 1.6s ease-in-out infinite,emoPulse 1.6s ease-in-out infinite;display:inline-block;filter:drop-shadow(0 0 6px #f5c542)}
+@keyframes emoGlow{0%,100%{filter:drop-shadow(0 0 2px #c026ff)}50%{filter:drop-shadow(0 0 9px #39ff14)}}
+@keyframes emoPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+@keyframes emoShim{0%{filter:hue-rotate(0) drop-shadow(0 0 4px #e879f9)}100%{filter:hue-rotate(360deg) drop-shadow(0 0 4px #e879f9)}}
+@media (prefers-reduced-motion:reduce){.emo-glow,.emo-pulse,.emo-shimmer,.emo-particles{animation:none}}
+.shop-entry{background:linear-gradient(120deg,rgba(192,38,255,.28),rgba(57,255,20,.12) 60%,rgba(245,197,66,.2));border:1px solid rgba(192,38,255,.45);box-shadow:0 0 18px rgba(192,38,255,.22)}
+.shop-entry::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.12) 50%,transparent 70%);transform:translateX(-100%);animation:shopSheen 4s ease-in-out infinite}
+.shop-entry-orb{display:grid;place-items:center;width:40px;height:40px;border-radius:999px;background:radial-gradient(circle,#c026ff55,transparent 70%);font-size:22px}
+@keyframes shopSheen{0%,60%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+@media (prefers-reduced-motion:reduce){.shop-entry::after{animation:none}}

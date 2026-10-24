@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { Avatar, StyledName, fontClass } from "@/components/Cosmetics";
-import { FREE_EMOTES, emoteGlyph, itemOf, type Look } from "@/lib/coinsCore";
+import { FREE_EMOTES, emoteAnim, emoteGlyph, itemOf, type Look } from "@/lib/coinsCore";
 import { getPicks, getServerPicks, restorePicks, subscribe } from "@/lib/pickStore";
 import { haptic } from "@/lib/native";
 import type { Pick, Sport } from "@/lib/types";
@@ -293,7 +293,7 @@ export default function GameChatDock({ league, id, label }: { league: string; id
                     {menu === m.id ? (
                       <div className="mt-1 rounded-xl border border-white/10 bg-black/70 p-1" data-testid="gamechat-menu">
                         <div className="flex flex-wrap gap-1">
-                          {emotes.map((e) => <button key={e} type="button" onClick={() => react(m, e)} className="press h-9 w-9 rounded-lg text-[20px]" aria-label={`React ${e}`}>{emoteGlyph(e)}</button>)}
+                          {emotes.map((e) => <button key={e} type="button" onClick={() => react(m, e)} className="press h-9 w-9 rounded-lg text-[20px]" aria-label={`React ${e}`}><span className={emoteAnim(e) ? `emo-${emoteAnim(e)}` : ""}>{emoteGlyph(e)}</span></button>)}
                         </div>
                         {!m.mine ? (
                           <div className="mt-1 flex gap-1 text-[12px] font-bold">
@@ -328,7 +328,8 @@ export default function GameChatDock({ league, id, label }: { league: string; id
               ) : null}
               <div className="mb-1.5 flex gap-1 overflow-x-auto">
                 {myLegs.length ? <button type="button" onClick={() => setSharing(!sharing)} className="press shrink-0 rounded-full border border-[color:var(--portal-green)]/60 px-2.5 text-[12px] font-black text-[color:var(--portal-green)]" data-testid="gamechat-share">Share my pick</button> : null}
-                {emotes.map((e) => <button key={e} type="button" onClick={() => setText((t) => `${t}${emoteGlyph(e)}`)} className="press h-8 w-8 shrink-0 rounded-lg bg-white/[0.04] text-[17px]" aria-label={`Insert ${e}`}>{emoteGlyph(e)}</button>)}
+                {emotes.map((e) => <button key={e} type="button" onClick={() => setText((t) => `${t}${emoteGlyph(e)}`)} className="press h-8 w-8 shrink-0 rounded-lg bg-white/[0.04] text-[17px]" aria-label={`Insert ${e}`}><span className={emoteAnim(e) ? `emo-${emoteAnim(e)}` : ""}>{emoteGlyph(e)}</span></button>)}
+                <a href="/coins" className="press shrink-0 rounded-full border border-[color:var(--gold)]/50 px-2.5 text-[12px] font-black leading-8 text-[color:var(--gold)]" data-testid="gamechat-shop">+ Emotes</a>
               </div>
               <div className="flex items-end gap-2">
                 <textarea

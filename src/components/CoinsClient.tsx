@@ -10,7 +10,7 @@ import { haptic, isNativeApp } from "@/lib/native";
 
 type Inst = { id: string; item: string; serial: number | null; history: { ev: string; to: string; from?: string; price?: number; ts: number }[] };
 type Listing = { id: string; item: string; name: string; serial: number | null; sellerHandle: string; price: number; fee: number };
-type Ch = { id: string; period: "day" | "week"; label: string; hint: string; reward: number; href: string; done: boolean; claimed: boolean };
+type Ch = { id: string; period: "day" | "week" | "month"; vip?: boolean; label: string; hint: string; reward: number; href: string; done: boolean; claimed: boolean };
 type State = { enabled: boolean; signedIn?: boolean; balance: number; inventory: Inst[]; look: Look; challenges: Ch[]; log: { ts: number; delta: number; why: string }[]; market: Listing[]; myListings: Listing[]; supply: Record<string, { minted: number; cap: number }>; boxes: Box[]; packs: { id: string; coins: number; price: string; name: string }[] };
 
 const Coin = ({ n, big }: { n: number; big?: boolean }) => (
@@ -84,7 +84,7 @@ export default function CoinsClient() {
           {s.challenges.map((c) => (
             <li key={c.id} className="flex items-center gap-3 py-2.5">
               <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-bold text-white">{c.label} <span className="ml-1 text-[11px] font-semibold uppercase text-zinc-500">{c.period === "day" ? "today" : "this week"}</span></p>
+                <p className="text-[15px] font-bold text-white">{c.label} <span className="ml-1 text-[11px] font-semibold uppercase text-zinc-500">{c.vip ? "VIP · this month" : c.period === "day" ? "today" : c.period === "week" ? "this week" : "this month"}</span></p>
                 <p className="text-[12px] text-zinc-500">{c.hint}</p>
               </div>
               {c.claimed ? <span className="text-[12px] font-bold text-zinc-500">Claimed</span> : c.done ? (

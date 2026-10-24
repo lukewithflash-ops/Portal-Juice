@@ -3,8 +3,9 @@ import { redis } from "@/lib/chat";
 import { readDoc } from "@/lib/cloud";
 import { listOf } from "@/lib/syncCore";
 import { getProfile, positionOf } from "@/lib/social";
+import { isVipUid } from "@/lib/vipAccess";
 import {
-  BOXES, CHALLENGES, COIN_PACKS, DEFAULT_EQUIP, ITEMS, MAX_LIST, MIN_LIST, SLOTS, boxItems, boxOf, itemOf, laDay, laWeek, marketFee, weekDays,
+  BOXES, CHALLENGES, COIN_PACKS, DEFAULT_EQUIP, ITEMS, MAX_LIST, MIN_LIST, SLOTS, boxItems, boxOf, itemOf, LAUNCH_ENDS, laDay, laMonth, laWeek, marketFee, weekDays,
   type Item, type Look, type Rarity, type Slot,
 } from "@/lib/coinsCore";
 
@@ -27,6 +28,7 @@ const K = {
   sold: (item: string) => `pj:coin:sold:${item}`,
   mkt: (id: string) => `pj:coin:mkt:${id}`,
   mktAll: "pj:coin:mkt:all",
+  loginDays: (u: string, w: string) => `pj:login:${u}:${w}`,
   act: (u: string, day: string, what: string) => `pj:act:${u}:${day}:${what}`,
   claimDays: (u: string, week: string) => `pj:coin:cdays:${u}:${week}`,
 };
@@ -121,8 +123,8 @@ export async function emotesOf(uid: string): Promise<string[]> {
 }
 
 /** Server-side activity marks (set by squad chat; picks and positions are read from their stores). */
-export async function markActivity(uid: string, what: "chat" | "react") {
-  const k = K.act(uid, laDay(), what);
+export async function markActivity(uid: string, what: "chat" | "react" | "gchat" | "call" | "callhit" | "pickem", period: "day" | "week" = "day") {
+  const k = K.act(uid, period === "day" ? laDay() : laWeek(), what);
   await redis(["SET", k, "1", "EX", 9 * 86400]);
 }
 
@@ -140,6 +142,24 @@ async function challengeDone(uid: string, id: string): Promise<boolean> {
     case "d-chat":
     case "d-react":
       return Number(await redis(["EXISTS", K.act(uid, day, id === "d-chat" ? "chat" : "react")])) === 1;
+    case "d-login":
+      return true;
+    case "d-gamechat":
+    case "d-call":
+    case "d-callhit":
+      return Number(await redis(["EXISTS", K.act(uid, day, id === "d-gamechat" ? "gchat" : id === "d-call" ? "call" : "callhit")])) === 1;
+    case "d-picks3": {
+      const picks = listOf("picks", await readDoc(uid)) as { createdAt?: string }[];
+      return picks.filter((p) => p?.createdAt && laDay(new Date(p.createdAt)) === day).length >= 3;
+    }
+    case "w-login":
+      return (((await redis(["SMEMBERS", K.loginDays(uid, laWeek())])) as string[] | null) ?? []).length >= 5;
+    case "w-pickem":
+      return Number(await redis(["EXISTS", K.act(uid, laWeek(), "pickem")])) === 1;
+    case "x-launch":
+      return Date.now() < LAUNCH_ENDS;
+    case "m-vip":
+      return isVipUid(uid).catch(() => false);
     case "w-streak":
       return (((await redis(["SMEMBERS", K.claimDays(uid, laWeek())])) as string[] | null) ?? []).length >= 5;
     case "w-squad": {
@@ -151,7 +171,7 @@ async function challengeDone(uid: string, id: string): Promise<boolean> {
   return false;
 }
 
-const periodKey = (c: { period: "day" | "week" }) => (c.period === "day" ? laDay() : laWeek());
+const periodKey = (c: { period: "day" | "week" | "month" }) => (c.period === "day" ? laDay() : c.period === "week" ? laWeek() : laMonth());
 
 export async function challenges(uid: string) {
   return Promise.all(
@@ -166,8 +186,20 @@ export async function claim(uid: string, id: string): Promise<{ ok: true; balanc
   const c = CHALLENGES.find((x) => x.id === id);
   if (!c) return { ok: false, error: "Unknown challenge." };
   if (!(await challengeDone(uid, id))) return { ok: false, error: "Not done yet." };
-  const r = await move(uid, c.reward, `Challenge: ${c.label}`, `ch:${uid}:${c.id}:${periodKey(c)}`, 20 * 86400);
+  const r = await move(uid, c.reward, `Challenge: ${c.label}`, `ch:${uid}:${c.id}:${periodKey(c)}`, 40 * 86400);
   if (r === -2) return { ok: false, error: "Already claimed." };
+  if (c.id === "m-vip" && !(await inventory(uid)).some((i) => i.item === "g-vip")) {
+    const tag = itemOf("g-vip");
+    if (tag) await grant(uid, tag, "vip").catch(() => null);
+  }
+  if (c.id === "x-launch") {
+    const tag = itemOf("g-launch");
+    if (tag) await grant(uid, tag, "launch-week").catch(() => null);
+  }
+  if (c.id === "d-login") {
+    await redis(["SADD", K.loginDays(uid, laWeek()), laDay()]);
+    await redis(["EXPIRE", K.loginDays(uid, laWeek()), 10 * 86400]);
+  }
   if (c.period === "day") {
     await redis(["SADD", K.claimDays(uid, laWeek()), laDay()]);
     await redis(["EXPIRE", K.claimDays(uid, laWeek()), 10 * 86400]);

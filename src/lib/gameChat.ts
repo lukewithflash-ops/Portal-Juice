@@ -156,7 +156,7 @@ export async function post(room: string, uid: string, body: { text?: unknown; pi
   await redis(["LPUSH", K.list(room), JSON.stringify(m)]);
   await redis(["LTRIM", K.list(room), 0, KEEP - 1]);
   await touch(room);
-  if (coinsOn()) await markActivity(uid, "chat").catch(() => {});
+  if (coinsOn()) { await markActivity(uid, "chat").catch(() => {}); await markActivity(uid, "gchat").catch(() => {}); }
   return { ok: true as const, id: m.id };
 }
 
