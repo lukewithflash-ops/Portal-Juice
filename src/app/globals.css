@@ -1148,3 +1148,11 @@ html[data-pj-head="chrome"] .wordmark { background: linear-gradient(100deg, #fff
 .momentum-knob{background:#fff;box-shadow:0 0 10px #39ff14,0 0 4px #c026ff;transition:left .7s}
 .clutch-chip{color:#f5c542;text-shadow:0 0 8px rgba(245,197,66,.7);animation:emoPulse 1.4s ease-in-out infinite;display:inline-block}
 @media (prefers-reduced-motion:reduce){.clutch-chip{animation:none}}
+.pe-on{background:linear-gradient(135deg,#39ff14,#22d3ee);box-shadow:0 0 14px rgba(57,255,20,.45)}
+.pe-win{outline:2px solid #f5c542;outline-offset:1px}
+.welcome-card{background:radial-gradient(120% 80% at 50% 0%,rgba(192,38,255,.35),rgba(5,3,12,.96) 60%);border:1px solid rgba(192,38,255,.5);box-shadow:0 0 40px rgba(192,38,255,.35)}
+.welcome-icon{animation:emoPulse 2s ease-in-out infinite}
+.welcome-burst{position:absolute;left:50%;top:64px;pointer-events:none}
+.welcome-burst span{position:absolute;width:3px;height:22px;border-radius:3px;background:linear-gradient(#39ff14,transparent);transform:rotate(var(--a)) translateY(-60px);opacity:0;animation:wBurst 1.6s ease-out infinite}
+@keyframes wBurst{0%{opacity:0;transform:rotate(var(--a)) translateY(-30px) scaleY(.4)}30%{opacity:1}100%{opacity:0;transform:rotate(var(--a)) translateY(-110px) scaleY(1)}}
+@media (prefers-reduced-motion:reduce){.welcome-burst span,.welcome-icon{animation:none}}

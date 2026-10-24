@@ -190,7 +190,7 @@ export const CHALLENGES: Challenge[] = [
   { id: "d-call", period: "day", label: "Call the next score", hint: "Make a next-score call in a live game.", reward: 10, href: "/games" },
   { id: "d-callhit", period: "day", label: "Called it", hint: "Get a next-score call right.", reward: 15, href: "/games" },
   { id: "w-login", period: "week", label: "Check in 5 days", hint: "Daily check-in on 5 days this week.", reward: 40, href: "/coins" },
-  { id: "w-pickem", period: "week", label: "Squad pick-em", hint: "Make your picks in a squad weekend pick-em.", reward: 30, href: "/friends" },
+  { id: "w-pickem", period: "week", label: "Game Day Pick-em", hint: "Make a pick in Game Day Pick-em this week.", reward: 30, href: "/pickem" },
   { id: "x-launch", period: "month", label: "Launch Week drop", hint: "Limited Launch Week tag + 50 coins. Ends Nov 8.", reward: 50, href: "/coins" },
   { id: "m-vip", period: "month", vip: true, label: "VIP monthly drop", hint: "VIP members get 300 coins every month.", reward: 300, href: "/vip" },
   { id: "w-streak", period: "week", label: "5-day streak", hint: "Finish a daily challenge on 5 days this week.", reward: 50, href: "/coins" },

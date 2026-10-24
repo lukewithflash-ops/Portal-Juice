@@ -51,7 +51,7 @@ function Chevron() {
 
 /** Profile tab: who you are up top, then grouped rows like an iOS settings screen. */
 export default function MoreClient({ coins = false }: { coins?: boolean }) {
-  const groups = coins ? GROUPS.map((g) => (g.title === "You" ? { ...g, rows: [{ href: "/coins", label: "Coins & Style", sub: "Challenges, home themes, jerseys, emotes" }, ...g.rows] } : g)) : GROUPS;
+  const groups = coins ? GROUPS.map((g) => (g.title === "You" ? { ...g, rows: [{ href: "/coins", label: "Coins & Style", sub: "Challenges, home themes, jerseys, emotes" }, { href: "/pickem", label: "Game Day Pick-em", sub: "Pick today\u2019s winners, climb the leaderboard" }, ...g.rows] } : g)) : GROUPS;
   const a = useSyncExternalStore(subscribeAccount, getAccount, getServerAccount);
   const { team, setTeam } = usePrefs();
   const [pick, setPick] = useState(false);
