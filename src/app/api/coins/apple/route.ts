@@ -15,6 +15,10 @@ export async function POST(req: Request) {
   if (!appStoreReady()) return NextResponse.json({ error: "Coin purchases aren't set up yet." }, { status: 501 });
   const b = (await req.json().catch(() => ({}))) as { transactionId?: string };
   const t = await lookupTransaction(String(b.transactionId ?? "")).catch(() => null);
+  // TestFlight/review purchases are Sandbox: only credit them when IAP_ALLOW_SANDBOX=1.
+  if (t && t.environment === "Sandbox" && process.env.IAP_ALLOW_SANDBOX !== "1") {
+    return NextResponse.json({ error: "Test purchases aren't accepted here." }, { status: 400 });
+  }
   if (!t || t.bundleId !== BUNDLE_ID || t.type !== "Consumable" || t.revocationDate || !COIN_PACKS.some((p) => p.id === t.productId)) {
     return NextResponse.json({ error: "Apple couldn't confirm that purchase." }, { status: 400 });
   }
