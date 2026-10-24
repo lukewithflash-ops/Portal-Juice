@@ -1103,3 +1103,15 @@ html[data-pj-head="chrome"] .wordmark { background: linear-gradient(100deg, #fff
 @media (prefers-reduced-motion: reduce) {
   .anim-glow, .anim-pulse, .anim-shimmer, .anim-particles, .anim-particles::before, .cos-tag, .font-chrome-chat { animation: none !important; }
 }
+
+/* Game chat dock */
+.gc-fab { background: linear-gradient(135deg, rgba(168,85,247,.85), rgba(34,211,238,.7)); box-shadow: 0 0 18px rgba(168,85,247,.55), inset 0 0 0 1px rgba(255,255,255,.18); }
+.gc-sheet { height: min(60dvh, 560px); background: linear-gradient(180deg, rgba(20,10,38,.97), #0b0716 40%); border: 1px solid rgba(168,85,247,.35); border-bottom: 0; border-radius: 20px 20px 0 0; box-shadow: 0 -10px 40px rgba(168,85,247,.25); animation: gc-up .22s ease-out; }
+@media (min-width: 1024px) { .gc-sheet { border-bottom: 1px solid rgba(168,85,247,.35); border-radius: 20px; } }
+@keyframes gc-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.gc-list { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.gc-compose { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+.gc-sys { background: rgba(34,211,238,.08); color: #a5f3fc; border: 1px solid rgba(34,211,238,.25); }
+.gc-pick { background: rgba(57,255,136,.08); border: 1px solid rgba(57,255,136,.35); }
+.gc-live-dot { width: 8px; height: 8px; border-radius: 9999px; background: #39ff88; box-shadow: 0 0 10px #39ff88; animation: gc-pulse 1.6s infinite; }
+@keyframes gc-pulse { 50% { opacity: .35; } }

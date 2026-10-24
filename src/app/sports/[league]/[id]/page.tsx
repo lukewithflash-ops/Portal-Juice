@@ -5,6 +5,7 @@ import { gameRoute } from "@/lib/gameRoute";
 import MatchRow from "@/components/MatchRow";
 import MatchFx from "@/components/MatchFx";
 import GameLive from "@/components/GameLive";
+import GameChatDock from "@/components/GameChatDock";
 import AutoRefresh from "@/components/AutoRefresh";
 import { sportLeague } from "@/lib/sports";
 import { getMatch } from "@/lib/sportsFetch";
@@ -30,6 +31,7 @@ export default async function MatchPage({ params }: { params: Promise<Params> })
   const { match: m, feed, stats } = page;
   return (
     <>
+      <GameChatDock league={league} id={id} label={`${m.away.short} ${l.kind === "team" || l.kind === "soccer" ? "@" : "vs"} ${m.home.short}`} />
       <p className="mb-3 text-[11px]">
         <Link href="/games" className="font-bold uppercase tracking-[0.16em] text-purple-200/80 hover:text-white">
           Games · {l.name}

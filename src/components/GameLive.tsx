@@ -16,7 +16,7 @@ import { pickEmote, playSound, replaySnap, type Emote } from "@/lib/emotes";
 import { CrowdToggle, EmoteLayer, SoundToggle } from "@/components/Emotes";
 import DriveFeed from "@/components/DriveFeed";
 import { bigSwing, PitchMap, PlayPop, ShareFinal, ShotMap, Spotlight, SwingBanner, type Swing } from "@/components/GameGraphics";
-import GameChat from "@/components/GameChat";
+import { openGameChat, useGameChatUnread } from "@/components/GameChatDock";
 import { SweatPill } from "@/components/SweatMode";
 import { questDone } from "@/lib/questStore";
 import { LiveNotes } from "@/components/Notes";
@@ -98,6 +98,7 @@ export default function GameLive({
   const [shock, setShock] = useState<Shock | null>(null);
   const shockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [tab, setTab] = useState<"play" | "lines" | "chat">("play");
+  const chatUnread = useGameChatUnread();
   // Play visualizer: every new play in order (a few at most, so it keeps up), or one you tapped to replay.
   const [vizQ, setVizQ] = useState<LivePlay[]>([]);
   const [unseen, setUnseen] = useState(0);
@@ -387,26 +388,26 @@ export default function GameLive({
         <div className="hidden lg:block">
           <BetsDock variant="side" />
         </div>
-        <GameChat league={league} id={id} awayColor={awayColor} homeColor={homeColor} />
       </div>
       <div className="mt-3 flex gap-1 lg:hidden">
         {(
           [
             ["play", "Play"],
             ["lines", "Live vs line"],
-            ["chat", "Thread"],
+            ["chat", "Chat"],
           ] as const
         ).map(([key, label]) => (
           <button
             key={key}
             type="button"
-            onClick={() => setTab(key)}
+            onClick={() => (key === "chat" ? openGameChat() : setTab(key))}
             className={
               "flex-1 rounded-lg px-2 py-2 text-[11px] font-bold uppercase tracking-wider " +
               (tab === key ? "bg-white/10 text-white" : "text-zinc-500")
             }
           >
             {label}
+            {key === "chat" && chatUnread ? <span className="unread-dot ml-1">{chatUnread > 9 ? "9+" : chatUnread}</span> : null}
           </button>
         ))}
       </div>

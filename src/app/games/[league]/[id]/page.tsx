@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { gameRoute } from "@/lib/gameRoute";
 import GameDetailView from "@/components/GameDetailView";
 import GameLive from "@/components/GameLive";
+import GameChatDock from "@/components/GameChatDock";
 import FollowStar from "@/components/FollowStar";
 import TopPicks from "@/components/TopPicks";
 import { getGameDetail } from "@/lib/espn";
@@ -101,6 +102,7 @@ export default async function GamePage({ params }: { params: Promise<Params> }) 
       <div className="mt-6 max-w-xl">
         <GameDetailView bundle={bundle} />
       </div>
+      <GameChatDock league={league} id={id} label={`${game.away.abbr} @ ${game.home.abbr}`} />
       <Link
         href={`/ask?game=${league}/${id}&label=${encodeURIComponent(`${game.away.abbr} @ ${game.home.abbr}`)}`}
         className="ask-panel fixed bottom-[calc(var(--tabbar)+1rem)] right-3 z-40 flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-black text-white"
