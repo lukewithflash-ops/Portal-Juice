@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
-/** Live game: every 1.5s while the tab is visible (the edge shares one copy per second). Before start: 30s. Final: 60s. */
-export const POLL_LIVE_MS = 1_500;
+/** Live game: every 1s while the tab is visible (the edge shares one copy per second). Before start: 30s. Final: 60s. */
+export const POLL_LIVE_MS = 1_000;
 export const POLL_PRE_MS = 30_000;
 export const POLL_FINAL_MS = 60_000;
 export const POLL_ERROR_MS = 10_000;

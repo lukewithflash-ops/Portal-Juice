@@ -123,7 +123,7 @@ export async function emotesOf(uid: string): Promise<string[]> {
 }
 
 /** Server-side activity marks (set by squad chat; picks and positions are read from their stores). */
-export async function markActivity(uid: string, what: "chat" | "react" | "gchat" | "call" | "callhit" | "pickem", period: "day" | "week" = "day") {
+export async function markActivity(uid: string, what: "chat" | "react" | "gchat" | "call" | "callhit" | "pickem" | "watch", period: "day" | "week" = "day") {
   const k = K.act(uid, period === "day" ? laDay() : laWeek(), what);
   await redis(["SET", k, "1", "EX", 9 * 86400]);
 }
@@ -144,6 +144,8 @@ async function challengeDone(uid: string, id: string): Promise<boolean> {
       return Number(await redis(["EXISTS", K.act(uid, day, id === "d-chat" ? "chat" : "react")])) === 1;
     case "d-login":
       return true;
+    case "d-watch":
+      return Number(await redis(["EXISTS", K.act(uid, day, "watch")])) === 1;
     case "d-gamechat":
     case "d-call":
     case "d-callhit":
@@ -350,4 +352,15 @@ export async function dropCoins(uid: string) {
     }
   }
   await redis(["DEL", K.bal(uid), K.log(uid), K.inv(uid), K.eq(uid)]);
+}
+
+/** One-time house award (prizes, head-to-head wins). Never moves coins between users. */
+export async function award(uid: string, coins: number, why: string, onceKey: string, itemId?: string): Promise<{ ok: true; balance: number } | { ok: false; error: string }> {
+  const r = await move(uid, coins, why, onceKey, 60 * 86400);
+  if (r === -2) return { ok: false, error: "Already claimed." };
+  if (itemId) {
+    const it = itemOf(itemId);
+    if (it && !(await inventory(uid)).some((i) => i.item === itemId)) await grant(uid, it, "prize").catch(() => null);
+  }
+  return { ok: true, balance: r };
 }

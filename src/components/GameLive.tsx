@@ -289,6 +289,15 @@ export default function GameLive({
     }, 5000);
     return () => clearInterval(t);
   }, [isLive]);
+  // Coins challenge: one heartbeat a minute while this live game is on screen.
+  useEffect(() => {
+    if (!isLive) return;
+    const t = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      fetch("/api/watch", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ league, id }) }).catch(() => {});
+    }, 60_000);
+    return () => clearInterval(t);
+  }, [isLive, league, id]);
 
   const rows = useMemo(() => trackProps(props, snap, league), [props, snap, league]);
   const top = rows.slice(0, 8);

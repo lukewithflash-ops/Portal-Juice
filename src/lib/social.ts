@@ -450,3 +450,7 @@ export async function dropSocial(uid: string) {
     redis(["DEL", K.pos(uid)]),
   ]);
 }
+
+export async function areFriends(a: string, b: string): Promise<boolean> {
+  return Number(await redis(["SISMEMBER", K.fr(a), b])) === 1;
+}

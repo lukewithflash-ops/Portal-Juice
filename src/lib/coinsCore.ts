@@ -92,6 +92,8 @@ export const ITEMS: Item[] = [
   { id: "g-nerd", kind: "tag", name: "Stat Nerd", rarity: "epic", price: 300, label: "STAT NERD", colors: ["#e879f9", "#3b0764"], anim: "shimmer" },
   { id: "g-portal", kind: "tag", name: "Portal Walker", rarity: "legendary", price: null, cap: 250, label: "PORTAL WALKER", colors: ["#39ff14", "#c026ff"], anim: "particles" },
   { id: "g-launch", kind: "tag", name: "Launch Week", rarity: "legendary", price: null, cap: 2000, label: "LAUNCH WEEK", colors: ["#39ff14", "#c026ff"], anim: "particles" },
+  { id: "g-champ", kind: "tag", name: "Pick-em Champ", rarity: "epic", price: null, label: "PICK-EM CHAMP", colors: ["#f5c542", "#052e16"], anim: "shimmer" },
+  { id: "g-rival", kind: "tag", name: "Rival Slayer", rarity: "rare", price: null, label: "RIVAL SLAYER", colors: ["#fb7185", "#1e1b4b"], anim: "pulse" },
   { id: "g-vip", kind: "tag", name: "VIP", rarity: "legendary", price: null, label: "VIP", colors: ["#f5c542", "#3b0764"], anim: "particles" },
   { id: "t-nebula", kind: "theme", name: "Nebula Drift", rarity: "rare", price: 320, look: { bg: "#05030c", accent: "#a78bfa", accent2: "#39ff14", glow: "rgba(167,139,250,.36)", header: "outline" } },
   { id: "t-plasma", kind: "theme", name: "Plasma Storm", rarity: "legendary", price: null, cap: 250, look: { bg: "#020004", accent: "#39ff14", accent2: "#e879f9", glow: "rgba(57,255,20,.40)", header: "chrome" } },
@@ -168,7 +170,7 @@ export const BOXES: Box[] = [
 ];
 export const boxOf = (id: string) => BOXES.find((b) => b.id === id) ?? null;
 /** Items a box can give (the free default theme is never in a box). */
-export const boxItems = (b: Box) => ITEMS.filter((i) => i.kind === b.kind && i.price !== 0 && i.id !== "g-vip" && i.id !== "g-launch");
+export const boxItems = (b: Box) => ITEMS.filter((i) => i.kind === b.kind && i.price !== 0 && !["g-vip", "g-launch", "g-champ", "g-rival"].includes(i.id));
 /** Per-item odds as shown: tier % split evenly across that tier's items. */
 export function itemOdds(b: Box): { item: Item; pct: number }[] {
   const items = boxItems(b);
@@ -189,6 +191,7 @@ export const CHALLENGES: Challenge[] = [
   { id: "d-picks3", period: "day", label: "Log 3 picks", hint: "Track three picks today.", reward: 15, href: "/lines" },
   { id: "d-call", period: "day", label: "Call the next score", hint: "Make a next-score call in a live game.", reward: 10, href: "/games" },
   { id: "d-callhit", period: "day", label: "Called it", hint: "Get a next-score call right.", reward: 15, href: "/games" },
+  { id: "d-watch", period: "day", label: "Watch a full game", hint: "Keep one live game open for 60+ minutes of play.", reward: 25, href: "/games" },
   { id: "w-login", period: "week", label: "Check in 5 days", hint: "Daily check-in on 5 days this week.", reward: 40, href: "/coins" },
   { id: "w-pickem", period: "week", label: "Game Day Pick-em", hint: "Make a pick in Game Day Pick-em this week.", reward: 30, href: "/pickem" },
   { id: "x-launch", period: "month", label: "Launch Week drop", hint: "Limited Launch Week tag + 50 coins. Ends Nov 8.", reward: 50, href: "/coins" },
