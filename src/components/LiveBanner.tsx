@@ -4,7 +4,6 @@ import { tennisLine } from "@/lib/tennisSnap";
 import { gameRoute } from "@/lib/gameRoute";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { EntrySlip } from "@/components/EntrySlip";
 import { useLiveHub, type HubGame } from "@/components/LiveHub";
 import { usePrefs } from "@/components/Prefs";
 import { usePathname } from "next/navigation";
@@ -75,6 +74,22 @@ export default function LiveBanner() {
     (livePicks > 0 ? nav.setAppBadge(livePicks) : nav.clearAppBadge?.())?.catch(() => {});
   }, [livePicks]);
 
+  // The strip is only as tall as the slide you're on (a taller game next door must not leave a black gap).
+  const [stripH, setStripH] = useState<number | null>(null);
+  useEffect(() => {
+    const el = strip.current;
+    if (!el) return;
+    const measure = () => {
+      const kids = el.querySelectorAll<HTMLElement>("[data-slide]");
+      const k = kids[Math.min(idx, kids.length - 1)];
+      setStripH(k ? k.offsetHeight : null);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    el.querySelectorAll("[data-slide]").forEach((k) => ro.observe(k));
+    return () => ro.disconnect();
+  });
+
   // Rotate every 7s when there is more than one game, unless you just swiped.
   useEffect(() => {
     if (games.length < 2) return;
@@ -105,7 +120,7 @@ export default function LiveBanner() {
   return (
     <div
       ref={box}
-      className="relative bg-[#030306] pb-1.5"
+      className="live-banner relative pb-1.5"
       aria-label="Live now"
     >
       <div className="mx-auto max-w-6xl px-2 pt-1.5">
@@ -115,12 +130,13 @@ export default function LiveBanner() {
             const el = e.currentTarget;
             setIdx(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)));
           }}
+          style={stripH ? { height: stripH, transition: "height .2s ease" } : undefined}
           onTouchStart={() => (touched.current = Date.now())}
           onPointerDown={() => (touched.current = Date.now())}
-          className="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex items-start snap-x snap-mandatory overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {games.map((g) => (
-            <div key={g.key} className="w-full shrink-0 snap-center px-0.5">
+            <div key={g.key} data-slide className="w-full shrink-0 snap-center px-0.5">
               <GameStrip game={g} favAbbr={team?.abbr ?? null} slim={slim.includes(g.key)} onHide={() => hide(g.key)} onToggle={() => toggle(g.key)} />
             </div>
           ))}
@@ -216,8 +232,18 @@ function GameStrip({
         </Link>
       ) : null}
       {!slim && game.legs.length && s ? (
-        <div className="border-t border-white/10 p-1.5">
-          <EntrySlip compact title="Your picks in this game" slip={{ key: `banner-${game.key}`, legs: game.legs, total: game.legs.length, hit, missed: game.legs.filter((l) => l.status === "missed").length }} snaps={{ [`${game.league}/${game.id}`]: s }} />
+        <div className="space-y-1 border-t border-white/10 px-2 pb-1.5 pt-1" data-testid="banner-legs">
+          {game.legs.slice(0, 3).map((l) => (
+            <Link key={l.pickId} href={href} className="lb-leg flex items-center gap-2 rounded-full px-2.5 py-1 text-[11px]" data-testid="banner-leg">
+              <span className="min-w-0 max-w-[38%] truncate font-black text-white">{l.name}</span>
+              <span className="shrink-0 font-bold text-white/75">{l.side === "Under" ? "U" : "O"} {l.lineText ?? l.line} {l.market}</span>
+              <span className="lb-meter relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/15" aria-hidden>
+                <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.max(0, Math.min(100, l.fill))}%`, background: l.status === "cleared" ? "var(--gold)" : "linear-gradient(90deg,#c026ff,#39ff14)" }} />
+              </span>
+              <span className="tabular shrink-0 font-black text-white">{l.value ?? "–"}</span>
+            </Link>
+          ))}
+          {game.legs.length > 3 ? <Link href={href} className="block text-center text-[10px] font-bold text-white/60">+{game.legs.length - 3} more</Link> : null}
         </div>
       ) : null}
     </div>

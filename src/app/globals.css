@@ -1132,3 +1132,9 @@ html[data-pj-head="chrome"] .wordmark { background: linear-gradient(100deg, #fff
 .shop-entry-orb{display:grid;place-items:center;width:40px;height:40px;border-radius:999px;background:radial-gradient(circle,#c026ff55,transparent 70%);font-size:22px}
 @keyframes shopSheen{0%,60%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
 @media (prefers-reduced-motion:reduce){.shop-entry::after{animation:none}}
+/* Live banner: translucent neon, no solid backdrop; each slide only as tall as itself. */
+.top-stack:has(> .live-banner){background:transparent}
+.top-stack:has(> .live-banner) > :not(.live-banner){background:#030306}
+.live-banner{background:transparent}
+.live-banner .banner-in{-webkit-backdrop-filter:blur(14px) saturate(1.4);backdrop-filter:blur(14px) saturate(1.4);box-shadow:0 0 18px -6px rgba(192,38,255,.55)}
+.lb-leg{background:rgba(10,6,20,.45);border:1px solid rgba(192,38,255,.35)}
