@@ -29,6 +29,7 @@ export default function Page() {
           <ul>
             <li>Keep your sign-in secure. You&apos;re responsible for what happens on your account.</li>
             <li>Handles, messages and shared picks you post must not be abusive, hateful, sexual, spammy, impersonating, or illegal, and must not promote or sell betting services. You can report or hide messages in threads.</li>
+            <li>Game chat is public. Keep it about the game: no slurs, hate, threats, harassment, sexual content, spam, scams or betting promos. Messages are filtered; you can report any message and block any account, which hides their messages for you everywhere. We review reports, delete messages and mute or suspend accounts that break these rules.</li>
             <li>We can remove content and suspend accounts that break these rules.</li>
             <li>You can delete your account any time in <Link href="/account">Account</Link>.</li>
           </ul>
