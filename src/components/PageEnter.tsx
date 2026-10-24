@@ -18,6 +18,10 @@ export default function PageEnter({ children }: { children: React.ReactNode }) {
     n.classList.remove("page-enter");
     void n.offsetWidth;
     n.classList.add("page-enter");
+    const done = () => n.classList.remove("page-enter");
+    n.addEventListener("animationend", done, { once: true });
+    const t = setTimeout(done, 400);
+    return () => { clearTimeout(t); n.removeEventListener("animationend", done); };
   }, [path]);
   return <div ref={el}>{children}</div>;
 }

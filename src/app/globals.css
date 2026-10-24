@@ -989,7 +989,8 @@ body { padding-bottom: var(--tabbar); -webkit-tap-highlight-color: transparent; 
 @media (min-width: 1024px) { .seg-wrap { border-bottom: 0; } .seg-row { padding-top: 0; } }
 .press { transition: transform 120ms ease, background-color 120ms ease; }
 .press:active { transform: scale(0.96); }
-.page-enter { animation: pj-page-in 180ms cubic-bezier(.2,.8,.2,1) both; }
+.page-enter { animation: pj-page-in 180ms cubic-bezier(.2,.8,.2,1) backwards; }
+/* A transform on an ancestor traps position:fixed children (chat/AI buttons). Animation ends with no transform and the class is dropped. */
 @keyframes pj-page-in { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
 .skel {
   border-radius: 12px;

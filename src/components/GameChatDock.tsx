@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { Avatar, StyledName, fontClass } from "@/components/Cosmetics";
 import { FREE_EMOTES, emoteGlyph, itemOf, type Look } from "@/lib/coinsCore";
 import { getPicks, getServerPicks, restorePicks, subscribe } from "@/lib/pickStore";
@@ -34,6 +35,8 @@ export default function GameChatDock({ league, id, label }: { league: string; id
   const base = `/api/gamechat/${encodeURIComponent(league)}/${encodeURIComponent(id)}`;
   const seenKey = `pj-gc-seen:${league}:${id}`;
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [msgs, setMsgs] = useState<Msg[] | null>(null);
   const [enabled, setEnabled] = useState(true);
   const [me, setMe] = useState<string | null>(null);
@@ -214,7 +217,8 @@ export default function GameChatDock({ league, id, label }: { league: string; id
 
   const share = (p: Pick) => send(undefined, { subject: p.subject, line: p.line, market: p.market ?? null, selection: p.selection ?? null, sport: p.sport, plus: p.plus });
 
-  return (
+  if (!mounted) return null;
+  return createPortal(
     <>
       {!open ? (
         <button
@@ -357,6 +361,7 @@ export default function GameChatDock({ league, id, label }: { league: string; id
           ) : null}
         </div>
       ) : null}
-    </>
+    </>,
+    document.body
   );
 }
