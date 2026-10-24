@@ -23,7 +23,7 @@ export function bigPlay(league: string, p: LivePlay): string | null {
   return null;
 }
 
-function lineOf(league: string, snap: LiveSnap, p: LivePlay, tag: string): string {
+export function lineOf(league: string, snap: LiveSnap, p: LivePlay, tag: string): string {
   const score = p.awayScore != null && p.homeScore != null ? `${snap.awayAbbr} ${p.awayScore}–${p.homeScore} ${snap.homeAbbr}` : "";
   const when = [p.clock, p.period].filter(Boolean).join(" ");
   const text = p.text.replace(/\s+/g, " ").trim().slice(0, 140);
