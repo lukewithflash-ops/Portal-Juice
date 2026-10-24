@@ -26,7 +26,7 @@ async function settle(uid: string, league: string, id: string, c: Stored | null)
 
 export async function GET(req: Request) {
   const u = await currentUser().catch(() => null);
-  if (!u) return NextResponse.json({ error: "Sign in." }, { status: 401, headers: H });
+  if (!u) return NextResponse.json({ signedIn: false, call: null }, { headers: H });
   const q = new URL(req.url).searchParams;
   const league = q.get("league") ?? "", id = q.get("id") ?? "";
   if (!ok(league, id)) return NextResponse.json({ error: "Bad game." }, { status: 400, headers: H });

@@ -36,7 +36,7 @@ export default function LaunchWelcome() {
     <div className="welcome fixed inset-0 z-[200] flex items-end justify-center bg-black/70 p-4 pb-[calc(env(safe-area-inset-bottom)+20px)] backdrop-blur-md" role="dialog" aria-modal="true" aria-label="Welcome" data-testid="welcome">
       <div className="welcome-card relative w-full max-w-md overflow-hidden rounded-3xl p-6 text-center">
         <div className="welcome-burst" aria-hidden>{Array.from({ length: 16 }, (_, k) => <span key={k} style={{ ["--a" as string]: `${k * 22.5}deg`, animationDelay: `${(k % 4) * 60}ms` } as React.CSSProperties} />)}</div>
-        <div key={i} className="welcome-icon portal-ring mx-auto mb-3 grid h-20 w-20 place-items-center text-[38px]">{s.icon}</div>
+        <div key={i} className="welcome-icon mx-auto mb-3 grid h-20 w-20 place-items-center text-[38px]">{s.icon}</div>
         <h2 className="wordmark text-[24px] font-black">{s.title}</h2>
         <p className="mt-2 text-[15px] leading-snug text-zinc-300">{s.body}</p>
         <div className="mt-4 flex justify-center gap-1.5" aria-hidden>{SLIDES.map((_, k) => <span key={k} className="h-1.5 w-5 rounded-full" style={{ background: k === i ? "var(--portal-green)" : "rgba(255,255,255,.2)" }} />)}</div>

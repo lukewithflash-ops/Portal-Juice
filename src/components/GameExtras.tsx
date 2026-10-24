@@ -5,15 +5,20 @@ import type { LiveSnap } from "@/lib/live";
 import { clockSecs } from "@/lib/liveClock";
 
 /** Points each side scored over the last 10 scoring plays ESPN logged. Real plays only, no model. */
-export function momentumOf(snap: LiveSnap): { away: number; home: number } | null {
-  const sc = snap.plays.filter((p) => p.scoring && p.points > 0 && p.teamId).slice(-10);
-  if (sc.length < 2) return null;
-  let away = 0, home = 0;
-  for (const p of sc) {
-    if (p.teamId === snap.awayId) away += p.points;
-    else if (p.teamId === snap.homeId) home += p.points;
+export function momentumOf(snap: LiveSnap): { away: number; home: number; n: number } | null {
+  // Score changes between consecutive plays, as ESPN logged them (no model). Last 10 scoring changes.
+  const ev: { away: number; home: number }[] = [];
+  let pa: number | null = null, ph: number | null = null;
+  for (const p of snap.plays) {
+    if (p.awayScore == null || p.homeScore == null) continue;
+    if (pa !== null && ph !== null && (p.awayScore > pa || p.homeScore > ph)) ev.push({ away: Math.max(0, p.awayScore - pa), home: Math.max(0, p.homeScore - ph) });
+    pa = p.awayScore;
+    ph = p.homeScore;
   }
-  return away + home ? { away, home } : null;
+  const last = ev.slice(-10);
+  if (last.length < 2) return null;
+  const away = last.reduce((t, e) => t + e.away, 0), home = last.reduce((t, e) => t + e.home, 0);
+  return away + home ? { away, home, n: last.length } : null;
 }
 
 /** Late and close, by the real clock and score. */
@@ -39,7 +44,7 @@ export function MomentumMeter({ league, snap, awayColor, homeColor }: { league: 
     <section className="momentum panel rounded-2xl px-3 py-2.5" data-testid="momentum">
       <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-[0.16em]">
         <span className="text-purple-200">Momentum</span>
-        {clutch ? <span className="clutch-chip" data-testid="clutch">⚡ Clutch time</span> : <span className="text-zinc-500">last 10 scores</span>}
+        {clutch ? <span className="clutch-chip" data-testid="clutch">⚡ Clutch time</span> : <span className="text-zinc-500">{mo ? `last ${mo.n} scores` : ""}</span>}
       </div>
       {mo ? (
         <>
@@ -68,8 +73,12 @@ export function NextScoreCall({ league, id, snap }: { league: string; id: string
   useEffect(() => {
     let stop = false;
     fetch(`/api/calls?league=${league}&id=${id}`, { cache: "no-store" })
-      .then((r) => (r.status === 401 ? (setSignedIn(false), null) : r.json()))
-      .then((j) => !stop && j && setCall(j.call ?? null))
+      .then((r) => r.json())
+      .then((j) => {
+        if (stop || !j) return;
+        if (j.signedIn === false) setSignedIn(false);
+        setCall(j.call ?? null);
+      })
       .catch(() => {});
     return () => { stop = true; };
   }, [league, id, score]);
