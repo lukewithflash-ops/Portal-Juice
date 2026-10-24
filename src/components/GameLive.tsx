@@ -14,6 +14,8 @@ import { vizFor } from "@/lib/playViz";
 import { headshotFor } from "@/lib/faces";
 import { pickEmote, playSound, replaySnap, type Emote } from "@/lib/emotes";
 import { CrowdToggle, EmoteLayer, SoundToggle } from "@/components/Emotes";
+import { charsOn, setChars } from "@/components/PlayViz";
+import { MomentumMeter, NextScoreCall } from "@/components/GameExtras";
 import DriveFeed from "@/components/DriveFeed";
 import { bigSwing, PitchMap, PlayPop, ShareFinal, ShotMap, Spotlight, SwingBanner, type Swing } from "@/components/GameGraphics";
 import { openGameChat, useGameChatUnread } from "@/components/GameChatDock";
@@ -226,9 +228,12 @@ export default function GameLive({
   const vizDone = useCallback(() => setVizQ((q) => q.slice(1)), []);
   const vizApi = useMemo(() => ({ replay: (p: LivePlay) => setVizQ([p]), current: vizNow?.id ?? null }), [vizNow]);
 
+  const etagRef = useRef<string | null>(null);
   usePoll(async (signal) => {
-    const res = await fetch("/api/live/" + league + "/" + id, { cache: "no-store", signal });
+    const res = await fetch("/api/live/" + league + "/" + id, { cache: "no-store", signal, headers: etagRef.current ? { "if-none-match": etagRef.current } : undefined });
+    if (res.status === 304) return pollDelay(lastSnap.current?.state);
     if (!res.ok) return POLL_ERROR_MS;
+    etagRef.current = res.headers.get("etag");
     const data = (await res.json()) as LiveSnap;
     // An older copy can come back from a different edge. Never step the game backwards.
     if (isBehind(data, lastSnap.current)) return pollDelay(lastSnap.current?.state);
@@ -360,6 +365,8 @@ export default function GameLive({
           {shown && shown.win.length > 1 ? <WinStrip snap={shown} flipped={flipped} /> : null}
           {live && live.state !== "post" ? <LineMoveTags snap={live} /> : null}
           {shown ? <PossessionStrip league={league} snap={shown} run={run} /> : null}
+          {shown && shown.state === "in" ? <MomentumMeter league={league} snap={shown} awayColor={awayColor} homeColor={homeColor} /> : null}
+          {live && live.state === "in" ? <NextScoreCall league={league} id={id} snap={live} /> : null}
           {bigChips.length ? <BigChips plays={bigChips} snap={shown} /> : null}
           {top.length > 0 ? (
             <div className="lg:hidden">
@@ -531,6 +538,7 @@ function Hero({
             {live ? "Live" : snap?.state === "post" ? "Final" : "Soon"}
             <SoundToggle />
             <CrowdToggle />
+            <CharsToggle />
           </div>
           <div className="tabular mt-0.5 text-sm font-black text-[color:var(--flat)]">
             {live && otLabel(league, snap?.period ?? null) ? <span className="ot-pill mr-1">{otLabel(league, snap?.period ?? null)}</span> : null}
@@ -655,6 +663,7 @@ function VizCaption({ league, snap, play, awayColor, homeColor }: { league: stri
     <div className="viz-caption" style={{ ["--viz" as string]: color } as React.CSSProperties} data-testid="viz-caption">
       <b>{abbr}</b>
       <span>{spec.caption}</span>
+      <i className="viz-honest">Illustration from the play-by-play · not player tracking</i>
     </div>
   );
 }
@@ -1275,5 +1284,14 @@ function MineChip({ league, play }: { league: string; play: LivePlay | null }) {
         {chip.hit ? <span className="hit-tag">HIT</span> : null}
       </span>
     </div>
+  );
+}
+
+function CharsToggle() {
+  const [on, setOn] = useState(() => (typeof window === "undefined" ? true : charsOn()));
+  return (
+    <button type="button" aria-pressed={on} title={on ? "Neon players on" : "Neon players off"} data-testid="chars-toggle" onClick={() => { setChars(!on); setOn(!on); }} className={"rounded-md bg-black/40 px-1.5 py-0.5 text-[11px] " + (on ? "text-white" : "text-white/50")}>
+      {on ? "🕺" : "⚪"}
+    </button>
   );
 }

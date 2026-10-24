@@ -182,7 +182,7 @@ export default function PlayViz({ spec, color, mine, onDone }: { spec: VizSpec; 
           )}
         </>
       ) : (
-        <circle r={sz * 0.75} fill={color} stroke="#fff" strokeWidth={sz * 0.14} />
+        charsOn() ? <NeonChar sz={sz} color={color} pose={poseOf(spec)} /> : <circle r={sz * 0.75} fill={color} stroke="#fff" strokeWidth={sz * 0.14} />
       )}
       {label ? (
         <text y={-sz * (ringA ? 2.4 : 1.3)} fontSize={sz * (ringA ? 1.1 : 0.95)} fontWeight="900" textAnchor="middle" fill={ringA ? gold : "#fff"} style={{ paintOrder: "stroke", stroke: "rgba(0,0,0,0.75)", strokeWidth: sz * 0.3 }}>
@@ -262,6 +262,54 @@ export default function PlayViz({ spec, color, mine, onDone }: { spec: VizSpec; 
             {p.tag}
           </text>
         ) : null}
+      </g>
+    </g>
+  );
+}
+
+/** Neon figure toggle (saved on this device). The figure is an illustration placed at ESPN's coordinates, not player tracking. */
+export function charsOn(): boolean {
+  try {
+    return localStorage.getItem("pj-chars") !== "0";
+  } catch {
+    return true;
+  }
+}
+export function setChars(on: boolean) {
+  try {
+    localStorage.setItem("pj-chars", on ? "1" : "0");
+  } catch {}
+}
+type Pose = "run" | "shoot" | "dunk" | "throw" | "kick" | "tackle" | "stand";
+function poseOf(s: VizSpec): Pose {
+  const k = (s as { kind: string }).kind;
+  if (s.sport === "court") return k === "shot" ? ((s as { x: number | null; y: number | null }).y != null && (s as { points: number }).points === 2 && /dunk|layup/i.test(s.caption ?? "") ? "dunk" : "shoot") : k === "ft" ? "shoot" : k === "block" ? "dunk" : k === "steal" || k === "turnover" ? "tackle" : "run";
+  if (s.sport === "football") return k === "pass" || k === "incomplete" ? "throw" : k === "fg" || k === "xp" || k === "punt" || k === "kickoff" ? "kick" : k === "sack" ? "tackle" : "run";
+  if (s.sport === "pitch" || s.sport === "rink") return k === "shot" || k === "goal" ? "kick" : "run";
+  return "stand";
+}
+/** Stylized neon player: head, torso, arms and legs posed by play type. Transform/opacity-only CSS motion. */
+function NeonChar({ sz, color, pose }: { sz: number; color: string; pose: Pose }) {
+  const u = sz * 0.9;
+  const arms: Record<Pose, string> = {
+    run: `M${-u * 0.9} ${-u * 1.1} L0 ${-u * 1.5} L${u * 0.9} ${-u * 1.9}`,
+    shoot: `M${-u * 0.3} ${-u * 2.9} L0 ${-u * 1.5} L${u * 0.3} ${-u * 2.9}`,
+    dunk: `M${-u * 0.2} ${-u * 3.2} L0 ${-u * 1.5} L${u * 0.6} ${-u * 3.1}`,
+    throw: `M${-u * 1} ${-u * 1.4} L0 ${-u * 1.5} L${u * 0.8} ${-u * 2.8}`,
+    kick: `M${-u * 1} ${-u * 1.8} L0 ${-u * 1.5} L${u * 1} ${-u * 1.8}`,
+    tackle: `M${-u * 1.2} ${-u * 1.2} L0 ${-u * 1.3} L${u * 1.2} ${-u * 1.2}`,
+    stand: `M${-u * 0.7} ${-u * 0.8} L0 ${-u * 1.5} L${u * 0.7} ${-u * 0.8}`,
+  };
+  const legs = pose === "kick" ? `M${-u * 0.5} ${u * 0.9} L0 0 L${u * 1.2} ${-u * 0.2}` : pose === "dunk" || pose === "shoot" ? `M${-u * 0.4} ${u * 0.8} L0 0 L${u * 0.4} ${u * 0.8}` : `M${-u * 0.8} ${u * 0.8} L0 0 L${u * 0.7} ${u * 0.7}`;
+  return (
+    <g className={`neon-char neon-${pose}`} style={{ filter: `drop-shadow(0 0 ${sz * 0.5}px ${color})` }}>
+      <g className="neon-body">
+        <line x1={0} y1={0} x2={0} y2={-u * 1.9} stroke={color} strokeWidth={u * 0.5} strokeLinecap="round" />
+        <line x1={0} y1={0} x2={0} y2={-u * 1.9} stroke="#fff" strokeWidth={u * 0.16} strokeLinecap="round" />
+        <path d={arms[pose]} fill="none" stroke={color} strokeWidth={u * 0.32} strokeLinecap="round" strokeLinejoin="round" />
+        <path className="neon-legs" d={legs} fill="none" stroke={color} strokeWidth={u * 0.36} strokeLinecap="round" strokeLinejoin="round" />
+        <circle cy={-u * 2.5} r={u * 0.5} fill="#0b0618" stroke={color} strokeWidth={u * 0.22} />
+        <circle cy={-u * 2.5} r={u * 0.18} fill="#fff" />
       </g>
     </g>
   );
