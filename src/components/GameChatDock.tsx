@@ -87,6 +87,16 @@ export default function GameChatDock({ league, id, label }: { league: string; id
     };
   }, [load, open]);
 
+  // Keep the live score in view above the sheet: bring the scoreboard (or the title) up under the header.
+  useEffect(() => {
+    if (!open) return;
+    const el = document.querySelector(".tv-hero, .race-hero, h1");
+    if (!el) return;
+    const chrome = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--chrome-h")) || 100;
+    const y = el.getBoundingClientRect().top + window.scrollY - chrome - 6;
+    if (Math.abs(y - window.scrollY) > 8) window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+  }, [open]);
+
   useEffect(() => {
     const f = () => setOpen(true);
     window.addEventListener("pj:gamechat-open", f);
