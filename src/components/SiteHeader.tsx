@@ -100,8 +100,8 @@ export default function SiteHeader() {
             ) : null}
             <span className="hdr-brand-text flex shrink-0 flex-col leading-none">
               <span className="wordmark whitespace-nowrap text-[17px] font-black tracking-tight sm:text-xl" data-testid="site-name">{SITE_NAME}</span>
-              {showTagline && (
-                <span className="hdr-tagline mt-1 whitespace-nowrap text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-400 sm:text-[10px] sm:tracking-[0.22em]">{TAGLINE}</span>
+              {(
+                <span style={showTagline ? undefined : { visibility: "hidden" }} className="hdr-tagline mt-1 whitespace-nowrap text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-400 sm:text-[10px] sm:tracking-[0.22em]">{TAGLINE}</span>
               )}
             </span>
           </Link>

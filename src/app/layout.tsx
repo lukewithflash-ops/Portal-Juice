@@ -83,6 +83,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 <LiveBanner />
                 <div id="top-stack-slot" />
               </div>
+              {/* The stack is position: fixed (never moves with scroll, momentum or rubber-band); this spacer holds its measured height. */}
+              <div className="top-stack-spacer" aria-hidden />
               <ChromeVars />
               <PortalWipe />
               <LaunchWelcome />

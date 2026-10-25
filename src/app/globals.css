@@ -1227,3 +1227,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto 0; height: env(safe
 .break-leader { animation: play-in 0.45s ease-out both; }
 @keyframes break-bob { 0%, 100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(-5px) rotate(8deg); } }
 @media (prefers-reduced-motion: reduce) { .break-ring, .break-ball, .break-dot { animation: none; } }
+
+/* Header lock: the top stack is position: fixed at a constant spot, so scrolling (incl. iOS momentum and rubber-band) can never move it.
+   Content flows under a spacer that matches its measured height (--chrome-h, set by ChromeVars). */
+.top-stack { position: fixed !important; top: 0; left: 0; right: 0; width: 100%; }
+.top-stack-spacer { height: var(--chrome-h, calc(6.6rem + env(safe-area-inset-top))); flex: none; }
+html, body { overscroll-behavior: none; overscroll-behavior-y: none; }
