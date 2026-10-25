@@ -111,7 +111,7 @@ a.foil-tile:active, a.panel:active { transform: scale(0.985); transition: transf
   will-change: transform;
 }
 /* Page wrappers sit above the swirl. Fixed layers (dialogs, sheets, popovers portaled to <body>) keep their own position. */
-.portal-bg > :not(.fixed):not([data-layer]) { position: relative; z-index: 1; }
+.portal-bg > :not(.fixed):not([data-layer]):not(.sheet):not(.sheet-scrim) { position: relative; z-index: 1; }
 
 .top-stack {
   position: -webkit-sticky;
