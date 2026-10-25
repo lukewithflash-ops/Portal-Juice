@@ -35,7 +35,7 @@ export default function LiveClock({ league, snap }: { league: string; snap: Live
       </span>
       {why ? (
         <span className={"clock-chip" + (why.known ? "" : " clock-chip-dim")} data-testid="clock-why" title={!why.known && last ? `Last play: ${last.text}` : why.label}>
-          ⏸ {why.label}
+          ⏸ {why.label}{!why.known && last ? ` · last: ${last.typeText || last.text}` : ""}
         </span>
       ) : capped ? <span className="clock-chip clock-chip-dim" data-testid="clock-why">Syncing</span> : null}
     </>

@@ -1158,6 +1158,6 @@ html[data-pj-head="chrome"] .wordmark { background: linear-gradient(100deg, #fff
 @media (prefers-reduced-motion:reduce){.welcome-burst span,.welcome-icon{animation:none}}
 
 /* Why the clock is stopped: small neon chip by the clock and on the play that stopped it. */
-.clock-chip { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 900; letter-spacing: 0.02em; line-height: 16px; white-space: nowrap; color: #e9fff4; background: rgba(57, 255, 136, 0.12); border: 1px solid rgba(57, 255, 136, 0.55); box-shadow: 0 0 8px rgba(57, 255, 136, 0.35); vertical-align: middle; max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
+.clock-chip { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 900; letter-spacing: 0.02em; line-height: 16px; white-space: nowrap; color: #e9fff4; background: rgba(57, 255, 136, 0.12); border: 1px solid rgba(57, 255, 136, 0.55); box-shadow: 0 0 8px rgba(57, 255, 136, 0.35); vertical-align: middle; max-width: 210px; overflow: hidden; text-overflow: ellipsis; }
 .clock-chip-dim { color: #d4d4d8; background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.22); box-shadow: none; }
 .clock-chip-inline { margin: 0 6px 0 0; font-size: 9.5px; line-height: 14px; }
