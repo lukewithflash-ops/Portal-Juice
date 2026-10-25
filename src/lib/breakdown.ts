@@ -167,6 +167,14 @@ const EXTRA_LABEL: Record<string, string> = {
   totalRebounds: "Rebounds",
   assists: "Assists",
   threePointFieldGoalsMade: "3-pointers made",
+  threePointFieldGoalsAttempted: "Threes attempted",
+  fieldGoalsMade: "Field goals made",
+  fieldGoalsAttempted: "Field goals attempted",
+  freeThrowsMade: "Free throws made",
+  freeThrowsAttempted: "Free throws attempted",
+  offensiveRebounds: "Offensive rebounds",
+  defensiveRebounds: "Defensive rebounds",
+  fouls: "Personal fouls",
   steals: "Steals",
   blocks: "Blocks",
 };
@@ -246,6 +254,14 @@ export function statFromMarket(league: string, market: string): string | null {
   if (/steal/.test(m)) return "steals";
   if (/block/.test(m)) return "blocks";
   if (/pass.*(td|touchdown)/.test(m)) return "passingTouchdowns";
+  if (/threes attempted|3-?p(oin)?t(er)?s? attempt|three point(er)?s? attempt|\b3pt?a\b/.test(m)) return "threePointFieldGoalsAttempted";
+  if (/field goals? attempt|\bfga\b/.test(m)) return "fieldGoalsAttempted";
+  if (/free throws? attempt|\bfta\b/.test(m)) return "freeThrowsAttempted";
+  if (/free throws?( made)?|\bftm\b/.test(m)) return "freeThrowsMade";
+  if (/field goals? made|\bfgm\b/.test(m) && HOOPS_LEAGUES.has(league)) return "fieldGoalsMade";
+  if (/offensive rebound/.test(m)) return "offensiveRebounds";
+  if (/defensive rebound/.test(m)) return "defensiveRebounds";
+  if (/personal foul/.test(m)) return "fouls";
   if (/three|3-point|3pt/.test(m)) return "threePointFieldGoalsMade";
   if (/pass.*yard/.test(m)) return "passingYards";
   if (/rush.*yard/.test(m)) return "rushingYards";

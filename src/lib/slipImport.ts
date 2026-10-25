@@ -94,6 +94,22 @@ const PROP_MARKETS: [RegExp, string][] = [
   [/longest\s+(?:rush|run)|long(?:est)?\s+rush/i, "longest rush"],
   [/longest\s+(?:reception|catch|rec)/i, "longest reception"],
   [/longest\s+(?:pass(?:ing)?\s+)?(?:completion|pass)/i, "longest completion"],
+  // Basketball shooting and box-score props (ESPN posts FG/3PT/FT as "made-attempted").
+  [/\b3\s*-?\s*pta\b|\b3pa\b|\b3fga\b|3[- ]?(?:pt|point|pointers?)s?\s*(?:fg\s*|field\s*goals?\s*)?att(?:empt(?:ed|s)?)?\b|threes?\s+att(?:empt(?:ed|s)?)?|three[- ]point(?:ers?|\s*field\s*goals?|\s*shots?)?\s+att(?:empt(?:ed|s)?)?/i, "threes attempted"],
+  [/field\s*goals?\s*att(?:empt(?:ed|s)?)?|\bfga\b|\bfg\s*att(?:empt(?:ed|s)?)?\b|shots?\s+attempted/i, "field goals attempted"],
+  [/free\s*throws?\s*att(?:empt(?:ed|s)?)?|\bfta\b|\bft\s*att(?:empt(?:ed|s)?)?\b/i, "free throws attempted"],
+  [/free\s*throws?(?:\s*made)?\b|\bftm\b|\bft\s*made\b/i, "free throws made"],
+  [/offensive\s*rebounds?|\boff\.?\s*rebs?\b|\boreb?s?\b/i, "offensive rebounds"],
+  [/defensive\s*rebounds?|\bdef\.?\s*rebs?\b|\bdrebs?\b/i, "defensive rebounds"],
+  [/personal\s*fouls?|\bpfs?\b/i, "personal fouls"],
+  [/blk?s?\s*\+\s*stl?s?|blocks?\s*\+\s*steals?|stls?\s*\+\s*blks?|\bs\s*\+\s*b\b|\bb\s*\+\s*s\b/i, "steals + blocks"],
+  [/\bp\s*\+\s*r\s*\+\s*a\b/i, "points + rebounds + assists"],
+  [/\bp\s*\+\s*r\b/i, "points + rebounds"],
+  [/\bp\s*\+\s*a\b/i, "points + assists"],
+  [/\br\s*\+\s*a\b/i, "rebounds + assists"],
+  [/\btovs?\b/i, "turnovers"],
+  [/(?:3[- ]?(?:pt|pointers?|point)s?|threes?|three[- ]pointers?)\s*made|\b3pm\b|\b3ptm\b/i, "3-pointers"],
+  [/(?:basketball\s+)?field\s*goals?\s*made\s*\(?(?:hoops|nba|wnba)\)?/i, "field goals made"],
   [/pts\s*\+\s*reb(?:s)?\s*\+\s*ast(?:s)?|points\s*\+\s*rebounds\s*\+\s*assists|\bpra\b/i, "points + rebounds + assists"],
   [/pts\s*\+\s*reb(?:s)?|points\s*\+\s*rebounds/i, "points + rebounds"],
   [/pts\s*\+\s*ast(?:s)?|points\s*\+\s*assists/i, "points + assists"],
@@ -137,7 +153,7 @@ const PROP_MARKETS: [RegExp, string][] = [
 /** Stats you can pick when the slip's market wording is not read. Grouped by sport. */
 export const STAT_CHOICES: Record<string, string[]> = {
   football: ["passing yards", "rushing yards", "receiving yards", "receptions", "targets", "completions", "pass attempts", "rush attempts", "passing touchdowns", "interceptions", "rushing + receiving yards", "passing + rushing yards", "longest rush", "longest reception", "longest completion", "tackles", "solo tackles", "sacks", "field goals made", "extra points made", "kicking points", "fantasy score"],
-  basketball: ["points", "rebounds", "assists", "3-pointers", "points + rebounds + assists", "points + rebounds", "points + assists", "rebounds + assists", "steals", "blocks", "steals + blocks", "turnovers", "free throws made", "field goals made", "fantasy score"],
+  basketball: ["points", "rebounds", "assists", "3-pointers", "threes attempted", "field goals made", "field goals attempted", "free throws made", "free throws attempted", "offensive rebounds", "defensive rebounds", "personal fouls", "points + rebounds + assists", "points + rebounds", "points + assists", "rebounds + assists", "steals", "blocks", "steals + blocks", "turnovers", "fantasy score"],
   baseball: ["hits", "total bases", "home runs", "rbis", "runs", "hits + runs + rbis", "walks", "strikeouts", "earned runs allowed"],
   hockey: ["goals", "assists", "points", "shots on goal", "saves"],
   tennis: ["aces", "double faults", "games won", "total games", "sets won", "total sets", "breaks", "fantasy score"],
@@ -427,7 +443,7 @@ export type FoundPlayer = { id: string; name: string; league: string; teamId: st
 export const TENNIS = new Set(["atp", "wta"]);
 export const BASKETBALL = new Set(["nba", "wnba", "ncaam", "ncaaw"]);
 const TENNIS_MARKETS = new Set(["aces", "double faults", "games won", "total games", "sets won", "total sets", "breaks"]);
-const HOOP_ONLY = /rebounds|3-pointers|points \+|rebounds \+|steals|blocks|free throws|turnovers/;
+const HOOP_ONLY = /rebounds|3-pointers|threes attempted|field goals attempted|personal fouls|points \+|rebounds \+|steals|blocks|free throws|turnovers/;
 
 /** Which sport a row is about, from its league hint and market. Null = can't tell. */
 export function rowSport(row: SlipRow): "tennis" | "basketball" | null {

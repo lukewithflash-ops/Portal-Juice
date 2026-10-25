@@ -322,6 +322,10 @@ export function parseLive(data: unknown): LiveSnap | null {
           if (statMap[key] == null) statMap[key] = cell;
           const first = key.split(/[-/]/)[0];
           if (first && first !== key && statMap[first] == null) statMap[first] = cell;
+          // ...and its second half ("threePointFieldGoalsAttempted") from the attempts number.
+          const halves = key.split(/[-/]/);
+          const att = cell.trim().match(/^\d+\s*[-/]\s*(\d+)$/);
+          if (halves.length === 2 && att && halves[1] && statMap[halves[1]] == null) statMap[halves[1]] = att[1];
         });
         gLabels.forEach((key, i) => {
           if (key && cells[i] != null && cells[i] !== "" && statMap[key] == null) statMap[key] = cells[i];

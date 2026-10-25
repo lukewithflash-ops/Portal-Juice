@@ -112,6 +112,13 @@ export function marketTerms(market: string): Term[] {
   if (/extra points? made/.test(m)) return [T(["extraPointsMade"])];
   if (/field goals? made|\bfgm\b/.test(m)) return [T(["fieldGoalsMade", "FG"])];
   if (/free throws? made|\bftm\b/.test(m)) return [T(["freeThrowsMade", "FT"])];
+  // Basketball box score. ESPN posts "3PT"/"FG"/"FT" as "made-attempted"; "#2" reads the attempts half.
+  if (/threes attempted|3-?p(oin)?t(er)?s? attempt|three point(er)?s? attempt|\b3pa\b|\b3pta\b/.test(m)) return [T(["threePointFieldGoalsAttempted", "3PT#2"])];
+  if (/field goals? attempt|\bfga\b/.test(m)) return [T(["fieldGoalsAttempted", "FG#2"])];
+  if (/free throws? attempt|\bfta\b/.test(m)) return [T(["freeThrowsAttempted", "FT#2"])];
+  if (/offensive rebounds?|\boreb\b/.test(m)) return [T(["offensiveRebounds", "OREB"])];
+  if (/defensive rebounds?|\bdreb\b/.test(m)) return [T(["defensiveRebounds", "DREB"])];
+  if (/personal fouls?/.test(m)) return [T(["fouls", "PF"])];
   if (/hits \+ runs \+ rbis?/.test(m)) return [T(["hits", "H"], 1, true), T(["runs", "R"], 1, true), T(["RBIs", "RBI"], 1, true)];
   if (/earned runs?/.test(m)) return [T(["earnedRuns", "ER"])];
   if (/\brecs?\b/.test(m) && !/yard|yds/.test(m)) return [T(["receptions", "REC"])];
@@ -160,7 +167,16 @@ export function marketGroups(market: string): string[][] {
 }
 
 function readAlias(map: Record<string, string>, aliases: string[]): number | null {
-  for (const key of aliases) {
+  for (const raw of aliases) {
+    // "3PT#2": the second number of a "made-attempted" cell.
+    const part = raw.match(/^(.+)#2$/);
+    if (part) {
+      const cell = Object.prototype.hasOwnProperty.call(map, part[1]) ? map[part[1]] : undefined;
+      const mm = cell?.trim().match(/^\d+\s*[-/]\s*(\d+)$/);
+      if (mm) return Number(mm[1]);
+      continue;
+    }
+    const key = raw;
     if (Object.prototype.hasOwnProperty.call(map, key)) return statNumber(map[key]);
   }
   return null;

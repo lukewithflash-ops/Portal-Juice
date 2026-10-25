@@ -2227,3 +2227,22 @@ t("t178/t179: visualizer, your-player ring and tap-to-replay are wired on the ga
   const css = readFileSync("src/app/globals.css", "utf8");
   assert.ok(/prefers-reduced-motion: reduce\) \{\s*\.play-viz \.viz-trail/.test(css));
 });
+
+// Basketball box-score props from slips: attempts read the second half of ESPN's "made-attempted".
+{
+  const box = { "3PT": "3-9", FG: "7-15", FT: "4-5", OREB: "2", DREB: "5", PF: "3", TO: "2", STL: "1", BLK: "2", PTS: "21", REB: "7", AST: "4" };
+  const cases: [string, string, number][] = [
+    ["3pta", "threes attempted", 9], ["3PA", "threes attempted", 9], ["3-PT Attempts", "threes attempted", 9], ["Threes Attempted", "threes attempted", 9],
+    ["3PM", "3-pointers", 3], ["Threes Made", "3-pointers", 3], ["FGA", "field goals attempted", 15], ["FGM", "field goals made", 7],
+    ["FTA", "free throws attempted", 5], ["FTM", "free throws made", 4], ["OREB", "offensive rebounds", 2], ["DREB", "defensive rebounds", 5],
+    ["PF", "personal fouls", 3], ["Turnovers", "turnovers", 2], ["Blks+Stls", "steals + blocks", 3], ["Pts+Reb", "points + rebounds", 28],
+    ["Pts+Ast", "points + assists", 25], ["Reb+Ast", "rebounds + assists", 11], ["PRA", "points + rebounds + assists", 32],
+  ];
+  for (const [raw, label, want] of cases) {
+    assert.equal(pmOf(raw), label, raw);
+    assert.equal(lsOf(box, label), want, `${raw} live`);
+  }
+  assert.equal(lsOf({ threePointFieldGoalsAttempted: "6" }, "threes attempted"), 6);
+  assert.equal(lsOf({ "3PT": "--" }, "threes attempted"), null);
+  console.log("ok hoops box props");
+}

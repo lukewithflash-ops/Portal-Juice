@@ -401,7 +401,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                             <option value="">Pick the stat…</option>
                             {all.map((c) => (
                               <option key={c} value={c}>
-                                {c === x.row.market && !choices.includes(c) ? `${c} · from your slip` : c}
+                                {c === x.row.market && !choices.includes(c) ? `${c.charAt(0).toUpperCase()}${c.slice(1)} · as written on your slip` : `${c.charAt(0).toUpperCase()}${c.slice(1)}`}
                                 {c === "fantasy score" ? ` · ${FANTASY_NOTE}` : ""}
                               </option>
                             ))}
