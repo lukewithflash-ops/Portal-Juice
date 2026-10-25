@@ -1211,3 +1211,9 @@ header[data-fit="1"] .hdr-tagline, header[data-fit="2"] .hdr-tagline, header[dat
 header[data-fit="1"] .wordmark { font-size: 15px; }
 header[data-fit="2"] .hdr-brand-text, header[data-fit="3"] .hdr-brand-text { display: none; }
 header[data-fit="3"] .hdr-odds { display: none; }
+
+/* Pull-down past the top must never show a gap: the page canvas is the header's own neon top color, overscroll is off,
+   and a fixed strip keeps the status-bar area header-colored. (The iOS shell also turns native bounce off.) */
+html, body { background-color: #06030e; overscroll-behavior: none; }
+html { background-image: linear-gradient(180deg, #06030e 0, #06030e 40vh, var(--void-bg) 100vh); background-attachment: fixed; }
+body::before { content: ""; position: fixed; inset: 0 0 auto 0; height: env(safe-area-inset-top, 0px); background: #06030e; z-index: 55; pointer-events: none; }

@@ -50,7 +50,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 /// Portal Juice shell: dark behind the web view (no white bar on pull-down) and no pinch or double-tap zoom.
 class PJBridgeViewController: CAPBridgeViewController {
-    private let dark = UIColor(red: 3 / 255, green: 3 / 255, blue: 6 / 255, alpha: 1)
+    private let dark = UIColor(red: 6 / 255, green: 3 / 255, blue: 14 / 255, alpha: 1)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -61,12 +61,23 @@ class PJBridgeViewController: CAPBridgeViewController {
         web.backgroundColor = dark
         let scroll = web.scrollView
         scroll.backgroundColor = dark
+        // The page handles the notch itself (viewport-fit=cover + env(safe-area-inset-top)), so the scroll view adds no inset.
+        scroll.contentInsetAdjustmentBehavior = .never
+        scroll.contentInset = .zero
         scroll.bounces = false
         scroll.alwaysBounceVertical = false
+        scroll.alwaysBounceHorizontal = false
         scroll.minimumZoomScale = 1
         scroll.maximumZoomScale = 1
         scroll.bouncesZoom = false
         scroll.pinchGestureRecognizer?.isEnabled = false
+    }
+
+    // WebKit can restore bouncing after the first load; pin it off again whenever the view shows.
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        webView?.scrollView.bounces = false
+        webView?.scrollView.alwaysBounceVertical = false
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }

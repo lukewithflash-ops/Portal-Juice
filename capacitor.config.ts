@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'ios-shell',
   // The site detects the app by this tag (and window.Capacitor) to hide web-only purchase/install UI.
   appendUserAgent: 'PortalJuiceApp',
-  backgroundColor: '#030306',
+  backgroundColor: '#06030e',
   server: {
     url: 'https://portaljuice.app',
     cleartext: false,
@@ -14,8 +14,10 @@ const config: CapacitorConfig = {
     errorPath: 'offline.html',
   },
   ios: {
-    contentInset: 'automatic',
-    backgroundColor: '#030306',
+    contentInset: 'never',
+    // Native shell also turns off scroll bounce (ios/App/App/AppDelegate.swift, PJBridgeViewController).
+    scrollEnabled: true,
+    backgroundColor: '#06030e',
   },
 };
 
