@@ -198,6 +198,7 @@ export function stopReason(league: string, s: ReasonSnap): StopReason | null {
   }
   if (/two[- ]minute/i.test(t)) return r("Two-minute warning");
   if (/injur/i.test(t)) return r("Injury");
+  if (/period start|start of (the )?(\d\w* )?(period|quarter|half)/i.test(t)) return r(league.includes("hockey") || league === "nhl" ? "Waiting on faceoff" : soccer ? "Kickoff" : "Start of period");
   if (/end (of )?(the )?(game|regulation)/i.test(t)) return r("End of regulation");
   if (/end (of )?(the )?(\d\w* )?(period|quarter|half)|end period|end quarter/i.test(t)) return r(`End of ${/half/i.test(t) ? "half" : unit}`);
   if (/halftime/i.test(t)) return r("Halftime");
