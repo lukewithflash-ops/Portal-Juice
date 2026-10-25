@@ -1,3 +1,4 @@
+import ScrollReset from "@/components/ScrollReset";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Orbitron } from "next/font/google";
 import InstallCapture from "@/components/InstallCapture";
@@ -75,7 +76,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <InstallCapture />
             <DeployWatch />
             <SyncAgent />
-            <div className="flex min-h-screen flex-col">
+            <div className="pj-app flex flex-col">
               {/* One sticky stack: nav, live banner, then page bars (league chips). Solid, no gaps. */}
               <div className="top-stack">
                 <SiteHeader />
@@ -84,7 +85,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 <div id="top-stack-slot" />
               </div>
               {/* The stack is position: fixed (never moves with scroll, momentum or rubber-band); this spacer holds its measured height. */}
-              <div className="top-stack-spacer" aria-hidden />
+              <ScrollReset />
+              {/* The page scrolls in here; the top stack above never scrolls. */}
+              <div id="pj-scroll" className="pj-scroll flex flex-col">
               <ChromeVars />
               <PortalWipe />
               <LaunchWelcome />
@@ -100,6 +103,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 <PageEnter>{children}</PageEnter>
               </main>
               <SiteFooter />
+              </div>
             </div>
             <BottomTabs />
             <NativeOffline />

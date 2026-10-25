@@ -80,6 +80,7 @@ class PJBridgeViewController: CAPBridgeViewController {
         scroll.contentInsetAdjustmentBehavior = .never
         scroll.contentInset = .zero
         scroll.bounces = false
+        scroll.isScrollEnabled = false
         scroll.alwaysBounceVertical = false
         scroll.alwaysBounceHorizontal = false
         scroll.minimumZoomScale = 1
@@ -93,6 +94,8 @@ class PJBridgeViewController: CAPBridgeViewController {
         super.viewDidAppear(animated)
         webView?.scrollView.bounces = false
         webView?.scrollView.alwaysBounceVertical = false
+        // The page scrolls inside its own container (#pj-scroll); the web view itself never scrolls, so the header can't move.
+        webView?.scrollView.isScrollEnabled = false
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }

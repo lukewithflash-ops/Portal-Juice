@@ -1,5 +1,6 @@
 "use client";
 
+import { scrollTarget } from "@/lib/scroller";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
@@ -275,7 +276,7 @@ export function NoteTag({ player, matchup, label }: { player?: NotePlayer | null
     if (!at) return;
     const close = (e: KeyboardEvent) => e.key === "Escape" && setAt(null);
     window.addEventListener("keydown", close);
-    window.addEventListener("scroll", () => setAt(null), { once: true, passive: true });
+    scrollTarget().addEventListener("scroll", () => setAt(null), { once: true, passive: true });
     return () => window.removeEventListener("keydown", close);
   }, [at]);
   if (!list.length) return null;

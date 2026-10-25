@@ -1,4 +1,5 @@
 "use client";
+import { scroller, scrollTarget } from "@/lib/scroller";
 import { isCountdown, isSoccerLeague, stopReason } from "@/lib/liveClock";
 import Lineups from "@/components/Lineups";
 import BreakPanel from "@/components/BreakPanel";
@@ -213,7 +214,7 @@ export default function GameLive({
     const el = feedRef.current;
     if (el && feedH.current !== null) {
       const grew = el.offsetHeight - feedH.current;
-      if (grew > 0) window.scrollBy(0, grew);
+      if (grew > 0) scrollTarget().scrollBy(0, grew);
       feedH.current = null;
     }
   }, [newestId]);
@@ -221,10 +222,11 @@ export default function GameLive({
     if (!unseen) return;
     const onScroll = () => {
       const el = feedRef.current;
-      if (el && el.getBoundingClientRect().top >= 0) setUnseen(0);
+      if (el && el.getBoundingClientRect().top >= (scroller()?.getBoundingClientRect().top ?? 0)) setUnseen(0);
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    const t = scrollTarget();
+    t.addEventListener("scroll", onScroll, { passive: true });
+    return () => t.removeEventListener("scroll", onScroll);
   }, [unseen]);
   const vizNow = vizQ[0] ?? null;
   const vizDone = useCallback(() => setVizQ((q) => q.slice(1)), []);
@@ -405,7 +407,7 @@ export default function GameLive({
           <Tracker top={top} rest={rest} state={snap?.state ?? "pre"} />
         </div>
       </div>
-      <div className={(tab !== "chat" ? "max-lg:hidden " : "") + "lg:sticky lg:top-[calc(var(--chrome-h,calc(6.6rem+env(safe-area-inset-top))))] lg:block"}>
+      <div className={(tab !== "chat" ? "max-lg:hidden " : "") + "lg:sticky lg:top-0 lg:block"}>
         <div className="hidden lg:block">
           <BetsDock variant="side" />
         </div>

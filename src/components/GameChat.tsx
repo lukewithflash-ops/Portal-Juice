@@ -112,7 +112,7 @@ export default function GameChat({
     .sort((a, b) => (sort === "top" ? b.likes + Object.values(b.rx ?? {}).reduce((s, v) => s + v, 0) - (a.likes + Object.values(a.rx ?? {}).reduce((s, v) => s + v, 0)) : b.ts - a.ts));
 
   return (
-    <section className="mt-0 lg:sticky lg:top-[calc(var(--chrome-h,calc(6.6rem+env(safe-area-inset-top))))]" aria-label="Game thread" data-testid="game-thread">
+    <section className="mt-0 lg:sticky lg:top-0" aria-label="Game thread" data-testid="game-thread">
       <div className="mb-2 flex items-baseline justify-between">
         <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-purple-200/80">Game thread</h2>
         {enabled ? (

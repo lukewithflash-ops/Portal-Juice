@@ -972,7 +972,7 @@ html[data-quest="3"] .streak-chip { box-shadow: 0 0 12px rgba(168,85,247,0.9); }
 /* ---- Native shell: tab bar, segmented sub-tabs, press states, sheets, skeletons. ---- */
 :root { --tabbar: calc(58px + env(safe-area-inset-bottom)); }
 @media (min-width: 1024px) { :root { --tabbar: 0px; } }
-body { padding-bottom: var(--tabbar); -webkit-tap-highlight-color: transparent; }
+body { -webkit-tap-highlight-color: transparent; }
 .tabular, .tabular-nums { font-variant-numeric: tabular-nums; }
 .tabbar {
   position: fixed; inset-inline: 0; bottom: 0; z-index: 60;
@@ -1202,7 +1202,7 @@ html[data-pj-head="chrome"] .wordmark { background: linear-gradient(100deg, #fff
 .top-stack > *, .top-stack .site-chrome, #top-stack-slot > *, #top-stack-slot [data-testid="league-bar"] { background: transparent !important; margin-top: 0; margin-bottom: 0; }
 .top-stack .site-chrome { box-shadow: none; }
 /* Anchors and focus scroll land below the stack, never under it. */
-html { scroll-padding-top: calc(var(--chrome-h, 0px) + 8px); }
+.pj-scroll { scroll-padding-top: 8px; }
 /* Header fit steps (set by SiteHeader after measuring). */
 header[data-fit="1"] .hdr-tagline, header[data-fit="2"] .hdr-tagline, header[data-fit="3"] .hdr-tagline { display: none; }
 header[data-fit="1"] .wordmark { font-size: 15px; }
@@ -1231,3 +1231,12 @@ body::before { content: ""; position: fixed; inset: 0 0 auto 0; height: env(safe
 .top-stack { position: fixed !important; top: 0; left: 0; right: 0; width: 100%; transform: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: linear-gradient(180deg, #06030e, #0c051a) !important; }
 .top-stack-spacer { height: var(--chrome-h, calc(6.6rem + env(safe-area-inset-top))); flex: none; }
 html, body { overscroll-behavior: none; overscroll-behavior-y: none; }
+
+/* App shell (iOS header lock): the document never scrolls; only #pj-scroll does, under a top stack that is a plain flex child.
+   WKWebView can't slide what never scrolls. Overscroll inside the scroller shows the neon page, never black. */
+html, body { height: 100%; overflow: hidden; }
+body { min-height: 0; }
+.pj-app { height: 100vh; height: 100dvh; overflow: hidden; }
+.top-stack { position: relative !important; flex: none; z-index: 50; }
+.top-stack-spacer { display: none; }
+.pj-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: clip; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-bottom: var(--tabbar); background: transparent; }

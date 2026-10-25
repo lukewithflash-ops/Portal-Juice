@@ -1,5 +1,6 @@
 "use client";
 
+import { scroller, scrollTarget, scrollTop } from "@/lib/scroller";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
@@ -95,9 +96,10 @@ export default function GameChatDock({ league, id, label }: { league: string; id
     if (!open) return;
     const el = document.querySelector(".tv-hero, .race-hero, h1");
     if (!el) return;
-    const chrome = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--chrome-h")) || 100;
-    const y = el.getBoundingClientRect().top + window.scrollY - chrome - 6;
-    if (Math.abs(y - window.scrollY) > 8) window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    const sc = scroller();
+    const base = sc ? sc.getBoundingClientRect().top : parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--chrome-h")) || 100;
+    const y = el.getBoundingClientRect().top + scrollTop() - base - 6;
+    if (Math.abs(y - scrollTop()) > 8) scrollTarget().scrollTo({ top: Math.max(0, y), behavior: "smooth" });
   }, [open]);
 
   useEffect(() => {
