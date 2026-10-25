@@ -5,6 +5,7 @@ import { useState, useSyncExternalStore } from "react";
 import { getAccount, getServerAccount, subscribeAccount } from "@/lib/syncClient";
 import { usePrefs } from "@/components/Prefs";
 import { TeamPicker } from "@/components/SiteHeader";
+import BookSyncSection from "@/components/BookSyncSection";
 
 type Row = { href: string; label: string; sub: string; web?: boolean };
 const GROUPS: { title: string; rows: Row[] }[] = [
@@ -111,6 +112,8 @@ export default function MoreClient({ coins = false }: { coins?: boolean }) {
           ) : null}
         </div>
       </section>
+
+      <BookSyncSection />
 
       {groups.map((g) => (
         <section key={g.title}>

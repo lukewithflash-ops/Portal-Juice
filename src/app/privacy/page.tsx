@@ -34,6 +34,13 @@ export default function Page() {
               Friends can see your open picks unless you turn that off in Account.
             </li>
             <li>
+              <b>Linked books</b> (only if you choose to link one): if you link a sportsbook account, our partner SharpSports connects to it read-only and sends us your bet history from that book, including slips you place
+              later. We save each slip&apos;s legs, lines, odds and result (win, loss, push or open) in your Log, tagged with the book&apos;s name, plus each linked book&apos;s name and link status. We drop stake, winnings, profit
+              and balance amounts and never store them. You sign in to your book on SharpSports&apos; page; we never see or store your book password. Synced slips are private to you: they never appear on Leaders, shares or
+              friends&apos; feeds unless you turn on the separate &quot;Show synced slips&quot; switch, which is off by default. Unlink any time in More to stop syncing, revoke our access with SharpSports and delete every
+              synced slip from your Log. &quot;Take a break&quot; pauses all syncing for the time you pick.
+            </li>
+            <li>
               <b>Notifications</b> (if you turn them on): a push subscription or device token and your alert preferences, so we can send game and pick alerts.
             </li>
             <li>
@@ -70,6 +77,7 @@ export default function Page() {
             <li>Apple and Google push services: delivering notifications. Google and Apple: sign-in, when you choose them.</li>
             <li>Resend: sending sign-in codes by email, when email sign-in is offered.</li>
             <li>Stripe: VIP payments on the web.</li>
+            <li>SharpSports: read-only bet history sync, only for books you choose to link. They receive a random ID for you (not your email or name) and the sportsbook sign-in you enter on their page.</li>
           </ul>
           <p>Scores, stats and lines come from public sports data feeds (ESPN and DraftKings). We send them no personal data about you.</p>
         </Sec>

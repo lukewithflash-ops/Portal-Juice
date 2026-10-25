@@ -39,7 +39,12 @@ export default function SharePanel({ picks }: { picks: Pick[] }) {
     setBusy(true);
     setMsg("");
     try {
-      const legs = picks.map((p) => ({
+      // Synced book slips stay off Leaders unless you turned on "Show synced slips" in More.
+      let showSynced = false;
+      try {
+        showSynced = localStorage.getItem("pj-booksync-public") === "1";
+      } catch {}
+      const legs = picks.filter((p) => showSynced || p.source !== "booksync").map((p) => ({
         sport: p.sport,
         subject: p.subject,
         market: p.market ?? "",

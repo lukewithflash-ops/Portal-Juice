@@ -129,4 +129,8 @@ export type Pick = {
   tailFrom?: string;
   /** "X+" (at least X): line is stored as X - 0.5, so exactly X is a hit. False = you chose a plain over in Edit. */
   plus?: boolean;
+  /** "booksync" = imported read-only from a linked book. Never shown publicly unless you turn that on. */
+  source?: "booksync";
+  /** SharpSports betSlip id (dedupe key). */
+  syncId?: string;
 };

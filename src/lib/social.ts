@@ -260,6 +260,8 @@ export async function friendView(uid: string, handle: string): Promise<{ friend:
 
 export function slim(p: Record<string, unknown>): SlimPick | null {
   if (typeof p.id !== "string" || typeof p.subject !== "string") return null;
+  // Slips synced from a linked book are private: friends, feeds and shared positions never see them.
+  if (p.source === "booksync") return null;
   return {
     id: p.id,
     subject: String(p.subject).slice(0, 60),
