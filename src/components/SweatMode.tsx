@@ -117,7 +117,7 @@ function SweatView({ s, onClose }: { s: Sweat; onClose: () => void }) {
       <p className="mt-1 text-base font-bold text-zinc-300">{s.leg.label}</p>
       <div className="tabular mt-5 text-7xl font-black text-white" data-testid="sweat-value">
         {s.leg.valueText}
-        <span className="text-3xl text-zinc-400">/{s.leg.lineText}</span>
+        {s.leg.lineText ? <span className="text-3xl text-zinc-400">/{s.leg.lineText}</span> : null}
       </div>
       <div className="mt-4 h-4 w-full max-w-sm overflow-hidden rounded-full bg-white/10">
         <div className="sweat-fill h-full rounded-full" style={{ width: `${Math.round(Math.max(3, Math.min(100, s.leg.fill > 1 ? s.leg.fill : s.leg.fill * 100)))}%` }} />
@@ -143,7 +143,9 @@ export function SweatPill({ league, id }: { league: string; id: string }) {
   if (!s) return null;
   return (
     <button type="button" onClick={() => openSweat(s.leg.pickId)} className="sweat-btn mb-2 w-full rounded-xl px-3 py-2 text-left text-sm font-black text-white" data-testid="sweat-pill">
-      💓 Last leg alive: {s.leg.name} · {s.leg.valueText}/{s.leg.lineText}. Sweat it
+      💓 Last leg alive: {s.leg.kind === "team" ? s.leg.label : s.leg.name}
+      {s.leg.kind === "team" ? (s.leg.value != null ? ` · now ${s.leg.valueText}` : "") : s.leg.value != null && s.leg.lineText ? ` · ${s.leg.valueText} of ${s.leg.lineText}` : s.leg.label ? ` · ${s.leg.label}` : ""}
+      {" · Sweat it"}
     </button>
   );
 }

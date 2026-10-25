@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser, rateOk, sameOrigin } from "@/lib/auth";
-import { buyItem, buyListing, claim, coinsOn, equip, listItem, lookOf, openBox, state, unlist } from "@/lib/coins";
+import { giftSeen, buyItem, buyListing, claim, coinsOn, equip, listItem, lookOf, openBox, state, unlist } from "@/lib/coins";
 import { uidOf } from "@/lib/social";
 import type { Slot } from "@/lib/coinsCore";
 
@@ -41,6 +41,7 @@ export async function POST(req: Request) {
     case "equip": r = await equip(u.id, String(b.slot) as Slot, b.id ? String(b.id) : null); break;
     case "list": r = await listItem(u.id, String(b.id), Number(b.price)); break;
     case "unlist": r = await unlist(u.id, String(b.id)); break;
+    case "gift-seen": r = await giftSeen(u.id); break;
     case "market-buy": r = await buyListing(u.id, String(b.id)); break;
     default: return NextResponse.json({ error: "Unknown action." }, { status: 400 });
   }

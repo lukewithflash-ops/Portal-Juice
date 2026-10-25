@@ -21,6 +21,7 @@ export const coinsOn = () => process.env.PJ_COINS === "1";
 const K = {
   bal: (u: string) => `pj:coin:bal:${u}`,
   log: (u: string) => `pj:coin:log:${u}`,
+  gift: (u: string) => `pj:coin:gift:${u}`,
   once: (k: string) => `pj:coin:once:${k}`,
   inv: (u: string) => `pj:coin:inv:${u}`,
   inst: (id: string) => `pj:coin:inst:${id}`,
@@ -34,7 +35,8 @@ const K = {
 };
 
 export type Instance = { id: string; item: string; serial: number | null; owner: string; history: { ev: string; to: string; from?: string; price?: number; ts: number }[] };
-export type LogRow = { ts: number; delta: number; why: string; bal: number };
+export type LogRow = { ts: number; delta: number; why: string; bal: number; note?: string; from?: string };
+export type GiftNote = { from: string; note: string; coins: number; ts: number };
 
 /** Atomic: idempotent balance change. ARGV delta (negative = spend), log json, once ttl. Returns new balance, -1 short, -2 duplicate. */
 const MOVE = `
@@ -75,8 +77,8 @@ redis.call('LPUSH', KEYS[7], cjson.encode({ts=ts, delta=-l['price'], why='Bought
 redis.call('LPUSH', KEYS[8], cjson.encode({ts=ts, delta=l['price']-l['fee'], why='Sold '..l['name']..' (fee '..l['fee']..')', bal=s})); redis.call('LTRIM', KEYS[8], 0, 99)
 return {b, l['seller']}`;
 
-async function move(uid: string, delta: number, why: string, onceKey: string | null, ttl = 400 * 86400): Promise<number> {
-  return Number(await redis(["EVAL", MOVE, 3, K.bal(uid), onceKey ? K.once(onceKey) : "", K.log(uid), delta, JSON.stringify({ ts: Date.now(), delta, why }), ttl]));
+async function move(uid: string, delta: number, why: string, onceKey: string | null, ttl = 400 * 86400, extra?: { note: string; from: string }): Promise<number> {
+  return Number(await redis(["EVAL", MOVE, 3, K.bal(uid), onceKey ? K.once(onceKey) : "", K.log(uid), delta, JSON.stringify({ ts: Date.now(), delta, why, ...(extra ?? {}) }), ttl]));
 }
 
 const handle = async (uid: string) => (await getProfile(uid))?.handle ?? "someone";
@@ -316,7 +318,7 @@ export async function supply() {
 }
 
 export async function state(uid: string) {
-  const [bal, inv, look, ch, log, mkt, sup] = await Promise.all([balance(uid), inventory(uid), lookOf(uid), challenges(uid), redis(["LRANGE", K.log(uid), 0, 29]), market(), supply()]);
+  const [bal, inv, look, ch, log, mkt, sup, gift] = await Promise.all([balance(uid), inventory(uid), lookOf(uid), challenges(uid), redis(["LRANGE", K.log(uid), 0, 29]), market(), supply(), redis(["GET", K.gift(uid)])]);
   const ids = ((await redis(["ZREVRANGE", K.mktAll, 0, 199])) as string[] | null) ?? [];
   const mine = await Promise.all(ids.map(async (id) => json<Listing>(await redis(["GET", K.mkt(id)]))));
   return {
@@ -329,15 +331,16 @@ export async function state(uid: string) {
     myListings: mine.filter((l): l is Listing => !!l && l.seller === uid).map((l) => ({ ...l, seller: "" })),
     supply: sup,
     boxes: BOXES,
+    gift: json<GiftNote>(gift as string | null),
     packs: process.env.IAP_ENABLED === "1" ? COIN_PACKS : [],
   };
 }
 
 /** One-time credit for a verified App Store transaction. */
 export async function creditPurchase(uid: string, transactionId: string, productId: string): Promise<{ ok: true; balance: number; dup: boolean } | { ok: false; error: string }> {
-  const pack = COIN_PACKS.find((p) => p.id === productId);
-  if (!pack) return { ok: false, error: "Unknown product." };
-  const r = await move(uid, pack.coins, `Bought ${pack.name}`, `iap:${transactionId}`, 3650 * 86400);
+  const bundle = COIN_PACKS.find((p) => p.id === productId);
+  if (!bundle) return { ok: false, error: "Unknown product." };
+  const r = await move(uid, bundle.coins, `Bought ${bundle.name}`, `iap:${transactionId}`, 3650 * 86400);
   if (r === -2) return { ok: true, balance: await balance(uid), dup: true };
   return { ok: true, balance: r, dup: false };
 }
@@ -363,4 +366,21 @@ export async function award(uid: string, coins: number, why: string, onceKey: st
     if (it && !(await inventory(uid)).some((i) => i.item === itemId)) await grant(uid, it, "prize").catch(() => null);
   }
   return { ok: true, balance: r };
+}
+
+/** House gift with a note: one ledger row carrying the note, plus a one-time popup until seen. onceKey makes it single-use. */
+export async function giftWithNote(uid: string, coins: number, from: string, note: string, onceKey: string): Promise<{ ok: true; balance: number } | { ok: false; error: string }> {
+  const n = note.trim().slice(0, 280);
+  const f = from.replace(/^@/, "").slice(0, 40);
+  if (!n || !f || !(coins > 0)) return { ok: false, error: "Bad gift." };
+  const r = await move(uid, Math.round(coins), `Gift from @${f}`, `gift:${onceKey}`, 3650 * 86400, { note: n, from: f });
+  if (r === -2) return { ok: false, error: "Already sent." };
+  await redis(["SET", K.gift(uid), JSON.stringify({ from: f, note: n, coins: Math.round(coins), ts: Date.now() } satisfies GiftNote), "EX", 180 * 86400]);
+  return { ok: true, balance: r };
+}
+
+/** The popup was seen: never show it again. The ledger row keeps the note. */
+export async function giftSeen(uid: string): Promise<{ ok: true }> {
+  await redis(["DEL", K.gift(uid)]);
+  return { ok: true };
 }

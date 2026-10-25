@@ -34,7 +34,7 @@ export default function LaunchWelcome() {
   const last = i === SLIDES.length - 1;
   return createPortal(
     <div className="welcome fixed inset-0 z-[200] flex items-end justify-center bg-black/70 p-4 pb-[calc(env(safe-area-inset-bottom)+20px)] backdrop-blur-md" role="dialog" aria-modal="true" aria-label="Welcome" data-testid="welcome">
-      <div className="welcome-card relative w-full max-w-md overflow-hidden rounded-3xl p-6 text-center">
+      <div className="welcome-panel relative w-full max-w-md overflow-hidden rounded-3xl p-6 text-center">
         <div className="welcome-burst" aria-hidden>{Array.from({ length: 16 }, (_, k) => <span key={k} style={{ ["--a" as string]: `${k * 22.5}deg`, animationDelay: `${(k % 4) * 60}ms` } as React.CSSProperties} />)}</div>
         <div key={i} className="welcome-icon mx-auto mb-3 grid h-20 w-20 place-items-center text-[38px]">{s.icon}</div>
         <h2 className="wordmark text-[24px] font-black">{s.title}</h2>

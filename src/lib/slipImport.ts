@@ -86,7 +86,8 @@ const PROP_MARKETS: [RegExp, string][] = [
   [/\bpasses(?:\s+attempted)?\b/i, "passes attempted"],
   [/goals?\s*(?:allowed|conceded|against)/i, "goals allowed"],
   [/goal\s*\+\s*assist|goals?\s*(?:and|\+)\s*assists?/i, "goal + assist"],
-  [/tackles?/i, "tackles"],
+  [/solo\s*tackles?/i, "solo tackles"],
+  [/tackles?(?:\s*\+\s*ast(?:s|ists)?)?/i, "tackles"],
   [/clearances?/i, "clearances"],
   [/crosses/i, "crosses"],
   [/shots?\s*assisted|key\s*passes/i, "shots assisted"],
@@ -105,8 +106,14 @@ const PROP_MARKETS: [RegExp, string][] = [
   [/rush(?:ing)?(?:\s+|-)?att(?:empt)?s?|\bcarries\b/i, "rush attempts"],
   [/rush(?:ing)?(?:\s+|-)?y(?:ar)?ds?/i, "rushing yards"],
   [/rec(?:eiving)?(?:\s+|-)?y(?:ar)?ds?/i, "receiving yards"],
-  [/completions?\b|\bcmp\b/i, "completions"],
-  [/receptions?\b|\bcatches\b/i, "receptions"],
+  [/completions?\b|\bcmp\b|\bcomps?\b/i, "completions"],
+  [/receptions?\b|\bcatches\b|\brecs?\b/i, "receptions"],
+  [/\bsacks?\b/i, "sacks"],
+  [/field\s*goals?\s*made|\bfgm\b|\bfgs?\s*made\b/i, "field goals made"],
+  [/kicking\s*(?:points|pts)/i, "kicking points"],
+  [/extra\s*points?\s*made|\bxpm?\b/i, "extra points made"],
+  [/\bh\s*\+\s*r\s*\+\s*rbis?\b|hits\s*\+\s*runs\s*\+\s*rbis?/i, "hits + runs + rbis"],
+  [/earned\s*runs?(?:\s*allowed)?|\ber\b(?=.*\d)/i, "earned runs allowed"],
   [/targets?\b/i, "targets"],
   [/interceptions?\b|\bints?\b/i, "interceptions"],
   [/3[- ]?(?:pointers?|pt|pts|pm)\b|threes?\b|3-?pt made/i, "3-pointers"],
@@ -129,9 +136,9 @@ const PROP_MARKETS: [RegExp, string][] = [
 
 /** Stats you can pick when the slip's market wording is not read. Grouped by sport. */
 export const STAT_CHOICES: Record<string, string[]> = {
-  football: ["passing yards", "rushing yards", "receiving yards", "receptions", "targets", "completions", "pass attempts", "rush attempts", "passing touchdowns", "interceptions", "rushing + receiving yards", "passing + rushing yards", "longest rush", "longest reception", "longest completion", "fantasy score"],
-  basketball: ["points", "rebounds", "assists", "3-pointers", "points + rebounds + assists", "points + rebounds", "points + assists", "rebounds + assists", "steals", "blocks", "steals + blocks", "turnovers", "fantasy score"],
-  baseball: ["hits", "total bases", "home runs", "rbis", "strikeouts"],
+  football: ["passing yards", "rushing yards", "receiving yards", "receptions", "targets", "completions", "pass attempts", "rush attempts", "passing touchdowns", "interceptions", "rushing + receiving yards", "passing + rushing yards", "longest rush", "longest reception", "longest completion", "tackles", "solo tackles", "sacks", "field goals made", "extra points made", "kicking points", "fantasy score"],
+  basketball: ["points", "rebounds", "assists", "3-pointers", "points + rebounds + assists", "points + rebounds", "points + assists", "rebounds + assists", "steals", "blocks", "steals + blocks", "turnovers", "free throws made", "field goals made", "fantasy score"],
+  baseball: ["hits", "total bases", "home runs", "rbis", "runs", "hits + runs + rbis", "walks", "strikeouts", "earned runs allowed"],
   hockey: ["goals", "assists", "points", "shots on goal", "saves"],
   tennis: ["aces", "double faults", "games won", "total games", "sets won", "total sets", "breaks", "fantasy score"],
   soccer: ["fantasy score", "goalie fantasy score", "passes attempted", "shots", "shots on target", "goals", "assists", "goal + assist", "tackles", "clearances", "crosses", "saves", "goals allowed", "shots assisted", "fouls"],
@@ -628,7 +635,7 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
         : !row.selection
           ? "Pick over or under."
           : !tracked
-            ? "No live meter for this stat. It saves as a manual leg you grade."
+            ? "We can’t follow this stat live yet, so you’ll grade this leg yourself."
             : null;
     return { row, leg: { ...leg, athleteName: player.name }, game: gameRef(g), issue, manual: !tracked };
   }

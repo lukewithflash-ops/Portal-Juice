@@ -11,7 +11,7 @@ import { haptic, isNativeApp } from "@/lib/native";
 type Inst = { id: string; item: string; serial: number | null; history: { ev: string; to: string; from?: string; price?: number; ts: number }[] };
 type Listing = { id: string; item: string; name: string; serial: number | null; sellerHandle: string; price: number; fee: number };
 type Ch = { id: string; period: "day" | "week" | "month"; vip?: boolean; label: string; hint: string; reward: number; href: string; done: boolean; claimed: boolean };
-type State = { enabled: boolean; signedIn?: boolean; balance: number; inventory: Inst[]; look: Look; challenges: Ch[]; log: { ts: number; delta: number; why: string }[]; market: Listing[]; myListings: Listing[]; supply: Record<string, { minted: number; cap: number }>; boxes: Box[]; packs: { id: string; coins: number; price: string; name: string }[] };
+type State = { enabled: boolean; signedIn?: boolean; balance: number; inventory: Inst[]; look: Look; challenges: Ch[]; log: { ts: number; delta: number; why: string; note?: string; from?: string }[]; market: Listing[]; myListings: Listing[]; supply: Record<string, { minted: number; cap: number }>; boxes: Box[]; packs: { id: string; coins: number; price: string; name: string }[] };
 
 const Coin = ({ n, big }: { n: number; big?: boolean }) => (
   <span className={`tabular inline-flex items-center gap-1 font-black text-[color:var(--gold)] ${big ? "text-[26px]" : "text-[13px]"}`}><span className="coin-dot" aria-hidden />{n.toLocaleString()}</span>
@@ -227,7 +227,7 @@ export default function CoinsClient() {
         <details className="panel rounded-2xl p-4">
           <summary className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Coin history</summary>
           <ul className="mt-2 space-y-1 text-[13px]">
-            {s.log.map((l, i) => <li key={i} className="flex justify-between gap-2"><span className="text-zinc-300">{l.why}</span><span className={`tabular font-bold ${l.delta > 0 ? "text-[color:var(--plus)]" : "text-zinc-400"}`}>{l.delta > 0 ? "+" : ""}{l.delta}</span></li>)}
+            {s.log.map((l, i) => <li key={i} className="flex justify-between gap-2"><span className="min-w-0 text-zinc-300">{l.why}{l.note ? <span className="gift-log-note mt-0.5 block text-[12px] italic text-pink-200">“{l.note}”</span> : null}</span><span className={`tabular font-bold ${l.delta > 0 ? "text-[color:var(--plus)]" : "text-zinc-400"}`}>{l.delta > 0 ? "+" : ""}{l.delta}</span></li>)}
           </ul>
         </details>
       ) : null}

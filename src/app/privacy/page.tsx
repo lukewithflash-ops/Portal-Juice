@@ -43,7 +43,7 @@ export default function Page() {
               <b>Photo slip reads and Ask Portal</b>: a slip photo or question you send is processed to read the legs or answer you, then discarded. We don&apos;t store the photo.
             </li>
             <li>
-              <b>VIP</b> (if you join on the web): your plan status. Payments are handled by Stripe; we never see or store your card number. If you join the VIP waitlist, we keep your email or account to tell you when it opens.
+              <b>VIP</b> (if you join on the web): your plan status. Payments are handled by Stripe; we never see or store your payment details. If you join the VIP waitlist, we keep your email or account to tell you when it opens.
             </li>
             <li>
               <b>Safety and abuse prevention</b>: short-lived rate-limit counters keyed by account or IP address, and reports you make in threads.

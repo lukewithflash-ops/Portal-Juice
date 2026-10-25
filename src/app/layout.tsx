@@ -9,6 +9,7 @@ import NotifyBanner from "@/components/NotifyBanner";
 import SiteHeader from "@/components/SiteHeader";
 import LiveBanner from "@/components/LiveBanner";
 import LaunchWelcome from "@/components/LaunchWelcome";
+import GiftNotePopup from "@/components/GiftNotePopup";
 import ChromeVars from "@/components/ChromeVars";
 import PortalWipe from "@/components/PortalWipe";
 import { AutoGrade } from "@/components/AutoGrade";
@@ -85,6 +86,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <ChromeVars />
               <PortalWipe />
               <LaunchWelcome />
+              <GiftNotePopup />
               <AutoGrade />
               <UndoToast />
               <Suspense fallback={null}>

@@ -42,7 +42,7 @@ export function statNumber(raw: string | undefined): number | null {
   if (!raw) return null;
   const t = raw.trim();
   if (!t) return null;
-  const split = t.match(/^(\d+)\s*-\s*\d+/);
+  const split = t.match(/^(\d+)\s*[-/]\s*\d+/);
   if (split) return Number(split[1]);
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
@@ -104,6 +104,17 @@ export function marketTerms(market: string): Term[] {
     if (/pass|complet/.test(m)) return [{ aliases: ["longPassing"], w: 1, max: "plays-pass" }];
     return [];
   }
+  // Football defense and kicking, baseball combos (ESPN box keys).
+  if (/solo tackles?/.test(m)) return [T(["soloTackles", "SOLO"])];
+  if (/tackles?/.test(m) && !/soccer/.test(m)) return [T(["s:tackles", "totalTackles", "TOT"])];
+  if (/\bsacks?\b/.test(m)) return [T(["sacks", "SACKS"])];
+  if (/kicking points/.test(m)) return [T(["totalKickingPoints"])];
+  if (/extra points? made/.test(m)) return [T(["extraPointsMade"])];
+  if (/field goals? made|\bfgm\b/.test(m)) return [T(["fieldGoalsMade", "FG"])];
+  if (/free throws? made|\bftm\b/.test(m)) return [T(["freeThrowsMade", "FT"])];
+  if (/hits \+ runs \+ rbis?/.test(m)) return [T(["hits", "H"], 1, true), T(["runs", "R"], 1, true), T(["RBIs", "RBI"], 1, true)];
+  if (/earned runs?/.test(m)) return [T(["earnedRuns", "ER"])];
+  if (/\brecs?\b/.test(m) && !/yard|yds/.test(m)) return [T(["receptions", "REC"])];
   if (m.includes("points") && m.includes("assists") && m.includes("rebounds")) return [PTS, AST, REB];
   if (m.includes("points") && m.includes("assists")) return [PTS, AST];
   if (m.includes("points") && m.includes("rebounds")) return [PTS, REB];

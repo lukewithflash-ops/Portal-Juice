@@ -250,7 +250,7 @@ export function statFromMarket(league: string, market: string): string | null {
   if (/pass.*yard/.test(m)) return "passingYards";
   if (/rush.*yard/.test(m)) return "rushingYards";
   if (/receiv.*yard/.test(m)) return "receivingYards";
-  if (/reception/.test(m)) return "receptions";
+  if (/reception|\brecs?\b/.test(m)) return "receptions";
   if (/completion/.test(m)) return "completions";
   if (/strikeout/.test(m)) return "strikeouts";
   if (/home run/.test(m)) return "homeRuns";

@@ -251,7 +251,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                   : (row.kind === "prop" || row.kind === "total") && !row.selection
                     ? "Pick over or under."
                     : !live
-                      ? "No live meter for this stat. It saves as a manual leg you grade."
+                      ? "We can’t follow this stat live yet, so you’ll grade this leg yourself."
                       : null;
             return { ...x, row, leg, issue, manual: !live };
           })
@@ -358,7 +358,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                   </label>
                   <select
                     className="field ml-auto shrink-0 font-bold text-[color:var(--plus)]"
-                    style={{ width: "4.9rem", padding: "0.2rem 0.35rem", fontSize: "11px" }}
+                    style={{ width: "6.5rem", minWidth: "fit-content", padding: "0.2rem 1.6rem 0.2rem 0.5rem", fontSize: "11px" }}
                     aria-label="League"
                     data-testid="leg-league"
                     value={x.row.leagueLocked ? (x.row.league ?? "") : (x.game?.league ?? x.row.league ?? "")}
@@ -401,7 +401,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                             <option value="">Pick the stat…</option>
                             {all.map((c) => (
                               <option key={c} value={c}>
-                                {c === x.row.market && !choices.includes(c) ? `${c} (as printed)` : c}
+                                {c === x.row.market && !choices.includes(c) ? `${c} · from your slip` : c}
                                 {c === "fantasy score" ? ` · ${FANTASY_NOTE}` : ""}
                               </option>
                             ))}
