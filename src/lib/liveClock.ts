@@ -110,7 +110,8 @@ export function nextClock(prev: ClockModel | null, s: ClockInput, recv: number):
   }
   const prevSecs = prev && prev.league === s.league ? clockSecs(prev.espn) : null;
   // Moving down, and not faster than real time allows: running.
-  const moving = prevSecs !== null && secs < prevSecs && prevSecs - secs <= (now - prev!.at) / 1000 + 3;
+  // ESPN can post in bursts (11s of clock in 5s of wall time), so any drop within the same period under a minute counts.
+  const moving = prevSecs !== null && secs < prevSecs && prevSecs - secs <= Math.max(60, (now - prev!.at) / 1000 + 3);
   return moving ? { league: s.league, espn: s.clock, secs, at, dir: -1, cap: 6 } : { ...still(secs), at };
 }
 
