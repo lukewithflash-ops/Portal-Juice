@@ -1,3 +1,6 @@
+import { parseLive as brkParse } from "../src/lib/live";
+import { nextBall, inBreak } from "../src/lib/breakNext";
+import * as fs from "node:fs";
 import { pickGame, playerNameHit, gradeTennis, parseSlipRows as parseSlip2, slipDateOf, propMarketOf as pm2, tennisGames } from "../src/lib/slipImport";
 import { sectionOf } from "../src/lib/nav";
 import { handleSeed, positionDone } from "../src/lib/socialCore";
@@ -2245,4 +2248,26 @@ t("t178/t179: visualizer, your-player ring and tap-to-replay are wired on the ga
   assert.equal(lsOf({ threePointFieldGoalsAttempted: "6" }, "threes attempted"), 6);
   assert.equal(lsOf({ "3PT": "--" }, "threes attempted"), null);
   console.log("ok hoops box props");
+}
+
+// Break panel: who gets the ball next, from real ESPN fixtures (Oct 25 2026).
+{
+  const load = (f: string) => brkParse(JSON.parse(fs.readFileSync(__dirname + "/fixtures/" + f, "utf8")))!;
+  const ht = load("brk-nfl-ht.json"); // DEN @ ARI at halftime; ARI kicked off to open
+  assert.equal(ht.brk?.openKickTeamId, ht.homeId);
+  assert.ok(inBreak(ht.state, ht.detail));
+  assert.equal(nextBall("nfl", 2, "Halftime", ht.brk, { away: ht.awayId, home: ht.homeId })?.teamId, ht.homeId);
+  const fin = load("brk-nfl-final.json"); // PIT vs NO: NO opened kicking, PIT kicked to start Q3 → NO received
+  assert.ok(fin.brk?.thirdKickTeamId && fin.brk.openKickTeamId);
+  const recv = nextBall("nfl", 2, "Halftime", fin.brk, { away: fin.awayId, home: fin.homeId })!;
+  assert.equal(recv.line, "Receives 2nd half");
+  assert.equal(recv.teamId, fin.brk!.openKickTeamId, "opening kicker received the 2nd half");
+  const nba = load("brk-nba.json"); // LAL @ UTAH, Doncic gains the tip for LAL
+  assert.equal(nba.brk?.tipWinnerId, nba.awayId);
+  const ids = { away: nba.awayId, home: nba.homeId };
+  assert.equal(nextBall("nba", 1, "End of 1st Quarter", nba.brk, ids)?.teamId, nba.homeId);
+  assert.equal(nextBall("nba", 2, "Halftime", nba.brk, ids)?.teamId, nba.homeId);
+  assert.equal(nextBall("nba", 3, "End of 3rd Quarter", nba.brk, ids)?.teamId, nba.awayId);
+  assert.equal(nextBall("ncaam", 1, "Halftime", nba.brk, ids), null);
+  console.log("ok break panel");
 }

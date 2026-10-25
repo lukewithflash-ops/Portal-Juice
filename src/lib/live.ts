@@ -1,3 +1,4 @@
+import { breakFacts } from "@/lib/breakNext";
 /** Slim live snapshot parsed from an ESPN summary. No network. */
 
 import { pickDk } from "@/lib/book";
@@ -208,6 +209,8 @@ export type LiveSnap = {
   period: number | null;
   boxes: LiveBox[];
   plays: LivePlay[];
+  /** Opening kickoff / opening tip, from ESPN plays, for the break panel. */
+  brk?: import("@/lib/breakNext").BreakFacts;
   /** Non-football: scores and period ends older than the recent play window. Server-side only (slimmed out). */
   keyPlays?: LivePlay[];
   /** Football only. Every drive in order, oldest first. */
@@ -572,6 +575,7 @@ export function parseLive(data: unknown): LiveSnap | null {
     period: num(asDict(comp.status).period),
     boxes,
     plays,
+    brk: breakFacts(rawPlays, football, [str(awayTeam.id) || "", str(homeTeam.id) || ""].filter(Boolean)),
     keyPlays: keyPlays.length ? keyPlays : undefined,
     subLog: subLog.length ? subLog : undefined,
     drives,

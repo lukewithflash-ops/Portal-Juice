@@ -1217,3 +1217,13 @@ header[data-fit="3"] .hdr-odds { display: none; }
 html, body { background-color: #06030e; overscroll-behavior: none; }
 html { background-image: linear-gradient(180deg, #06030e 0, #06030e 40vh, var(--void-bg) 100vh); background-attachment: fixed; }
 body::before { content: ""; position: fixed; inset: 0 0 auto 0; height: env(safe-area-inset-top, 0px); background: #06030e; z-index: 55; pointer-events: none; }
+
+/* Break panel: halftime / between quarters. Quiet, always moving. */
+.break-panel { position: relative; overflow: hidden; border-radius: 18px; padding: 12px 14px; background: linear-gradient(135deg, color-mix(in srgb, var(--bc) 22%, #0b0614), #0b0614 60%); border: 1px solid color-mix(in srgb, var(--bc) 55%, transparent); box-shadow: 0 0 24px -6px var(--bc); }
+.break-ring { position: absolute; inset: -60%; background: conic-gradient(from 0deg, transparent, color-mix(in srgb, var(--bc) 35%, transparent), transparent 40%); animation: portal-spin 9s linear infinite; pointer-events: none; }
+.break-panel > .relative { z-index: 1; }
+.break-dot { width: 6px; height: 6px; border-radius: 9999px; background: var(--bc); animation: tv-pulse 1.6s ease-in-out infinite; }
+.break-ball { font-size: 28px; animation: break-bob 2.4s ease-in-out infinite; filter: drop-shadow(0 0 10px var(--bc)); }
+.break-leader { animation: play-in 0.45s ease-out both; }
+@keyframes break-bob { 0%, 100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(-5px) rotate(8deg); } }
+@media (prefers-reduced-motion: reduce) { .break-ring, .break-ball, .break-dot { animation: none; } }

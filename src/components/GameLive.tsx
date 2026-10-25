@@ -1,6 +1,7 @@
 "use client";
 import { isCountdown, isSoccerLeague, stopReason } from "@/lib/liveClock";
 import Lineups from "@/components/Lineups";
+import BreakPanel from "@/components/BreakPanel";
 import { stageColors } from "@/lib/stageColors";
 import { driveTrail, fieldGeom, spotX, type FieldSide, type TrailSeg } from "@/lib/fieldGeom";
 
@@ -368,6 +369,7 @@ export default function GameLive({
           ) : null}
           {edge ? <div key={edge.n} className="edge-lights" style={{ ["--edge" as string]: edge.color } as React.CSSProperties} aria-hidden /> : null}
           </div>
+          {shown ? <BreakPanel league={league} snap={shown} awayColor={awayColor} homeColor={homeColor} /> : null}
           <SweatPill league={league} id={id} />
           <Spotlight league={league} gameId={id} snap={snap} />
           <LiveNotes league={league} gameId={id} snap={snap} />
