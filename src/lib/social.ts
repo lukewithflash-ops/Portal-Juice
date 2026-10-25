@@ -16,7 +16,7 @@ export { handleSeed, positionDone };
 /** edited: the one free handle change has been used. */
 export type Profile = { handle: string; share: boolean; createdAt: string; edited?: boolean; auto?: boolean };
 export type SlimPick = { id: string; subject: string; line: number; market: string | null; selection: "Over" | "Under" | null; league: string | null; gameId: string | null; status: string; date: string; slipId: string | null; createdAt: string; sport?: string; plus?: boolean };
-export type Squad = { id: string; name: string; owner: string; members: string[]; code: string };
+export type Squad = { id: string; name: string; owner: string; members: string[]; code: string; dm?: boolean };
 
 const K = {
   prof: (u: string) => `pj:prof:${u}`,
@@ -204,7 +204,8 @@ export async function getSquad(id: string): Promise<Squad | null> {
 export async function createSquad(uid: string, name: string): Promise<Squad | { error: string }> {
   const n = String(name ?? "").replace(/\s+/g, " ").trim().slice(0, 24);
   if (n.length < 2) return { error: "Name the squad (2–24 characters)." };
-  if (((await smembers(K.usq(uid))).length) >= 5) return { error: "Five squads max." };
+  const mine = (await Promise.all((await smembers(K.usq(uid))).map(getSquad))).filter((x) => x && !x.dm);
+  if (mine.length >= 5) return { error: "Five squads max." };
   const s: Squad = { id: crypto.randomUUID(), name: n, owner: uid, members: [uid], code: code(8) };
   await redis(["SET", K.sq(s.id), JSON.stringify(s)]);
   await redis(["SET", K.sqinv(s.code), s.id]);
@@ -232,7 +233,7 @@ export async function overview(uid: string) {
   const requests = (await Promise.all(rq.map(handleOf))).filter(Boolean) as string[];
   const blocked = (await Promise.all(bl.map(handleOf))).filter(Boolean) as string[];
   const squads = (await Promise.all(sqIds.map(getSquad))).filter((s): s is Squad => !!s);
-  const squadsOut = await Promise.all(squads.map(async (s) => ({ id: s.id, name: s.name, code: s.code, mine: s.owner === uid, members: ((await Promise.all(s.members.map(handleOf))).filter(Boolean) as string[]) })));
+  const squadsOut = await Promise.all(squads.map(async (s) => ({ id: s.id, name: s.name, code: s.code, mine: s.owner === uid, dm: !!s.dm, members: ((await Promise.all(s.members.map(handleOf))).filter(Boolean) as string[]) })));
   return { me, friends, requests, blocked, squads: squadsOut, invite: me ? await myInvite(uid) : null };
 }
 
@@ -455,4 +456,68 @@ export async function dropSocial(uid: string) {
 
 export async function areFriends(a: string, b: string): Promise<boolean> {
   return Number(await redis(["SISMEMBER", K.fr(a), b])) === 1;
+}
+
+/** One-tap DM with a friend: a private two-person squad, reused if it already exists. */
+export async function dmWith(uid: string, handle: string): Promise<{ ok: true; id: string; name: string } | { ok: false; error: string }> {
+  const other = await uidOf(handle);
+  if (!other || other === uid || (await blockedEither(uid, other))) return { ok: false, error: "Can't message them." };
+  if (!(await areFriends(uid, other))) return { ok: false, error: "Add them as a friend first." };
+  const key = `pj:dm:${[uid, other].sort().join(":")}`;
+  const have = (await redis(["GET", key])) as string | null;
+  const ex = have ? await getSquad(have) : null;
+  if (ex && ex.members.includes(uid) && ex.members.includes(other)) {
+    await redis(["SADD", K.usq(uid), ex.id]);
+    return { ok: true, id: ex.id, name: handle };
+  }
+  const s: Squad = { id: crypto.randomUUID(), name: "DM", owner: uid, members: [uid, other], code: code(10), dm: true };
+  await redis(["SET", K.sq(s.id), JSON.stringify(s)]);
+  await redis(["SET", key, s.id]);
+  await Promise.all([redis(["SADD", K.usq(uid), s.id]), redis(["SADD", K.usq(other), s.id])]);
+  return { ok: true, id: s.id, name: handle };
+}
+
+/** Group chat from tapped friends: creates a squad and adds them (friends only, so no strangers get pulled in). */
+export async function squadWith(uid: string, name: string, handles: string[]): Promise<{ ok: true; id: string; name: string } | { ok: false; error: string }> {
+  const s = await createSquad(uid, name);
+  if ("error" in s) return { ok: false, error: s.error };
+  const r = await squadAdd(uid, s.id, handles);
+  return r.ok ? { ok: true, id: s.id, name: s.name } : r;
+}
+
+export async function squadAdd(uid: string, id: string, handles: string[]): Promise<{ ok: true } | { ok: false; error: string }> {
+  const s = await getSquad(id);
+  if (!s || !s.members.includes(uid) || s.dm) return { ok: false, error: "Can't add to that chat." };
+  for (const h of handles.slice(0, 19)) {
+    const o = await uidOf(String(h).replace(/^@/, ""));
+    if (!o || s.members.includes(o) || !(await areFriends(uid, o)) || (await blockedEither(uid, o))) continue;
+    if (s.members.length >= 20) break;
+    s.members.push(o);
+    await redis(["SADD", K.usq(o), s.id]);
+  }
+  await redis(["SET", K.sq(id), JSON.stringify(s)]);
+  return { ok: true };
+}
+
+/** Search-as-you-type by handle prefix (no exact handle needed). Skips you and anyone blocked either way. */
+export async function searchPeople(uid: string, q: string): Promise<string[]> {
+  const pre = String(q ?? "").replace(/^@/, "").toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 16);
+  if (pre.length < 2) return [];
+  const found = new Set<string>();
+  let cur = "0";
+  for (let i = 0; i < 6 && found.size < 12; i++) {
+    const r = (await redis(["SCAN", cur, "MATCH", `pj:hdl:${pre}*`, "COUNT", 1000])) as [string, string[]] | null;
+    if (!r) break;
+    cur = String(r[0]);
+    for (const k of r[1] ?? []) found.add(k);
+    if (cur === "0") break;
+  }
+  const out: string[] = [];
+  for (const k of [...found].slice(0, 12)) {
+    const o = (await redis(["GET", k])) as string | null;
+    if (!o || o === uid || (await blockedEither(uid, o))) continue;
+    const h = (await getProfile(o))?.handle;
+    if (h) out.push(h);
+  }
+  return out;
 }

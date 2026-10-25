@@ -24,7 +24,7 @@ async function handles(ids: string[]) {
   return (await Promise.all(ids.map(async (u) => (await getProfile(u))?.handle))).filter(Boolean) as string[];
 }
 
-export async function messages(uid: string, sq: string): Promise<{ msgs: SquadMsg[]; members: string[] } | null> {
+export async function messages(uid: string, sq: string): Promise<{ msgs: SquadMsg[]; members: string[]; seen: string[]; dm: boolean } | null> {
   const s = await memberSquad(uid, sq);
   if (!s) return null;
   const me = (await getProfile(uid))?.handle;
@@ -50,7 +50,17 @@ export async function messages(uid: string, sq: string): Promise<{ msgs: SquadMs
   }));
   for (const m of msgs) m.look = looks[m.handle];
   await redis(["SET", K.read(uid, sq), Date.now(), "EX", 60 * 86400]);
-  return { msgs: msgs.reverse(), members };
+  // "Seen": who (besides me) has opened the chat since my latest message.
+  const lastMine = msgs.find((m) => m.mine)?.ts ?? 0;
+  const seen: string[] = [];
+  if (lastMine) {
+    await Promise.all(s.members.filter((u) => u !== uid).map(async (u) => {
+      const r = Number(await redis(["GET", K.read(u, sq)])) || 0;
+      const h = (await getProfile(u))?.handle;
+      if (h && r >= lastMine) seen.push(h);
+    }));
+  }
+  return { msgs: msgs.reverse(), members, seen, dm: !!s.dm };
 }
 
 export async function send(uid: string, sq: string, raw: unknown) {
@@ -97,6 +107,11 @@ export async function unread(uid: string) {
     const me = (await getProfile(uid))?.handle?.toLowerCase();
     let n = 0;
     let at = 0;
+    let last: { handle: string; text: string; ts: number } | null = null;
+    try {
+      const m0 = raw[0] ? (JSON.parse(raw[0]) as { handle: string; text: string; ts: number }) : null;
+      if (m0) last = { handle: m0.handle, text: String(m0.text).slice(0, 80), ts: m0.ts };
+    } catch {}
     for (const r of raw) {
       try {
         const m = JSON.parse(r) as { ts: number; uid: string; mentions: string[] };
@@ -106,7 +121,7 @@ export async function unread(uid: string) {
         if (m.mentions?.some((h) => h.toLowerCase() === me)) at++;
       } catch {}
     }
-    return { id, name: s.name, members: await handles(s.members), unread: n, mentions: at };
+    return { id, name: s.name, dm: !!s.dm, members: await handles(s.members), unread: n, mentions: at, last };
   }));
   return out.filter(Boolean);
 }

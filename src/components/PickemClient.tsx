@@ -88,7 +88,7 @@ export default function PickemClient() {
           {ov?.squads.length ? (
             <select aria-label="Leaderboard" value={sq} onChange={(e) => setSq(e.target.value)} className="rounded-lg border border-white/15 bg-black/40 px-2 py-1 text-[12px] font-bold text-white">
               <option value="">Everyone</option>
-              {ov.squads.map((q) => <option key={q.id} value={q.id}>Squad · {q.name}</option>)}
+              {ov.squads.filter((q) => !(q as { dm?: boolean }).dm).map((q) => <option key={q.id} value={q.id}>Squad · {q.name}</option>)}
             </select>
           ) : null}
         </div>
