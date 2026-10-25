@@ -1,6 +1,7 @@
 "use client";
 
 import { NoteSnippet, NoteTag } from "@/components/Notes";
+import PlayerSheet from "@/components/PlayerSheet";
 import { useId, useMemo, useState, useSyncExternalStore } from "react";
 import { headshotFor } from "@/lib/faces";
 import type { LiveAtBat, LivePlay, LiveShot, LiveSnap } from "@/lib/live";
@@ -374,6 +375,8 @@ export function Spotlight({ league, gameId, snap }: { league: string; gameId: st
     }
     return out;
   }, [picks, gameId, snap]);
+  const [open, setOpen] = useState<string | null>(null);
+  const openLeg = legs.find((l) => l.pickId === open) ?? null;
   if (!legs.length) return null;
   return (
     <section className="spotlight mt-3" aria-label="Your player spotlight">
@@ -390,6 +393,15 @@ export function Spotlight({ league, gameId, snap }: { league: string; gameId: st
             l.status === "cleared" ? (l.side === "Over" ? "Cleared" : "Held") : l.status === "missed" ? "Missed" : l.status === "waiting" ? "Soon" : l.status === "no-match" ? "Not in box" : l.tone === "green" ? "On pace" : l.tone === "red" ? "Behind" : "Tracking";
           return (
             <li key={l.pickId} className="spot-tile flex-none" style={{ ["--team" as string]: color } as React.CSSProperties}>
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label={`${l.name}: more live stats`}
+                data-testid="spot-open"
+                onClick={() => setOpen(l.pickId)}
+                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setOpen(l.pickId)}
+                className="spot-press cursor-pointer"
+              >
               <div className="flex items-center gap-2">
                 {face ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -401,10 +413,10 @@ export function Spotlight({ league, gameId, snap }: { league: string; gameId: st
                 )}
                 <div className="min-w-0">
                   <div className="flex items-center gap-1">
-                    <span className="truncate text-[13px] font-black text-white">{l.name}</span>
+                    <span className="spot-name text-[12px] font-black leading-[1.1] text-white">{l.name}</span>
                     <NoteTag player={{ name: l.name, id: l.athleteId ?? null }} />
                   </div>
-                  <div className="truncate text-[10px] font-bold uppercase tracking-wider" style={{ color: l.side === "Over" ? "var(--plus)" : "#38bdf8" }}>
+                  <div className="spot-label mt-0.5 text-[9.5px] font-bold uppercase leading-[1.15] tracking-wide" style={{ color: l.side === "Over" ? "var(--plus)" : "#38bdf8" }}>
                     {l.plus ? "" : l.side + " "}{l.lineText ?? l.line} {l.market}
                   </div>
                 </div>
@@ -421,12 +433,14 @@ export function Spotlight({ league, gameId, snap }: { league: string; gameId: st
                 <div className="spot-fill" style={{ width: `${Math.min(100, pct * 80)}%`, background: color }} />
                 <span className="spot-tick" style={{ left: "80%" }} />
               </div>
-              <div className="mt-1 text-[10px] text-zinc-500">{l.pace !== null && !l.final ? `pace ${l.pace}` : l.final ? "Final" : l.progress}</div>
+              <div className="mt-1 flex items-center justify-between text-[10px] text-zinc-500"><span>{l.pace !== null && !l.final ? `pace ${l.pace}` : l.final ? "Final" : l.progress}</span><span className="font-black text-zinc-400">Stats ›</span></div>
+              </div>
               {picks.find((p) => p.id === l.pickId) ? <NoteSnippet pick={picks.find((p) => p.id === l.pickId)!} /> : null}
             </li>
           );
         })}
       </ul>
+      {openLeg ? <PlayerSheet leg={openLeg} league={league} snap={snap} onClose={() => setOpen(null)} /> : null}
     </section>
   );
 }

@@ -1187,3 +1187,10 @@ html[data-pj-head="chrome"] .wordmark { background: linear-gradient(100deg, #fff
 .tv-bug .clock-chip > span, .clock-chip-line > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .clock-chip-inline { display: inline-flex; max-width: 100%; margin: 0 6px 0 0; font-size: 9.5px; line-height: 14px; }
 .tv-bug > * { min-width: 0; }
+/* Spotlight: names and lines wrap to two lines instead of cutting off; tap for the player sheet. */
+.spot-name, .spot-label { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.spot-press { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: transform 120ms ease; }
+.spot-press:active { transform: scale(0.97); }
+.player-sheet { background: linear-gradient(180deg, rgba(22, 10, 40, 0.98), #0b0716 45%); border-top: 1px solid color-mix(in srgb, var(--team, #a855f7) 60%, transparent); box-shadow: 0 -12px 44px color-mix(in srgb, var(--team, #a855f7) 30%, transparent); }
+.player-sheet-tile { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(168, 85, 247, 0.25); }
+@media (prefers-reduced-motion: reduce) { .spot-press { transition: none; } }

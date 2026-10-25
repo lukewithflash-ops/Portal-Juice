@@ -17,6 +17,8 @@ export type LivePlayer = {
   stats: string[];
   /** Stable ESPN stat name or label → cell. Used to match a prop. */
   statMap: Record<string, string>;
+  /** The full box line per ESPN group ("passing", "rushing"…), labels as ESPN prints them. */
+  lines?: { group: string; labels: string[]; cells: string[] }[];
   position?: string | null;
   jersey?: string | null;
   headshot?: string | null;
@@ -298,11 +300,16 @@ export function parseLive(data: unknown): LiveSnap | null {
         ? asList(a.stats).map((x) => (typeof x === "string" ? x : x == null ? "" : String(x)))
         : [];
       const statMap: Record<string, string> = {};
+      const lines: { group: string; labels: string[]; cells: string[] }[] = [];
       for (const g of groups) {
         const gNames = asList(g.names).map((x) => str(x) || "");
         const gLabels = asList(g.labels).map((x) => str(x) || "");
         const row = asList(g.athletes).map(asDict).find((row) => str(asDict(row.athlete).id) === id);
         const cells = asList(row?.stats).map((x) => (typeof x === "string" ? x : x == null ? "" : String(x)));
+        if (row && cells.length) {
+          const labels = (gLabels.length ? gLabels : gNames).slice(0, cells.length);
+          if (labels.length) lines.push({ group: str(g.name) || str(g.type) || str(g.text) || "", labels, cells: cells.slice(0, labels.length) });
+        }
         gNames.forEach((key, i) => {
           if (key && cells[i] != null && cells[i] !== "") statMap[key] = cells[i];
         });
@@ -331,6 +338,7 @@ export function parseLive(data: unknown): LiveSnap | null {
         played: a.didNotPlay !== true,
         stats,
         statMap,
+        lines,
         active: flagged.length ? flagged.some((x) => x.r!.active === true && !/pitch/i.test(x.g)) || (flagged.length === 1 && flagged[0].r!.active === true) : null,
         pitcher: Boolean(pitchRow),
         pitchingNow: pitchRow ? pitchRow.r!.active === true : false,
