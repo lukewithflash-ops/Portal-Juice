@@ -39,11 +39,13 @@ function yardsLabel(p: LivePlay): string | null {
 export default function DriveFeed({
   snap,
   freshIds,
+  stop,
   awayColor,
   homeColor,
 }: {
   snap: LiveSnap;
   freshIds: string[];
+  stop?: { id: string; label: string } | null;
   awayColor: string;
   homeColor: string;
 }) {
@@ -77,7 +79,7 @@ export default function DriveFeed({
                     .map((pid) => byId.get(pid))
                     .filter((p): p is LivePlay => !!p)
                     .map((p, j) => (
-                      <PlayRow key={p.id} play={p} color={colorOf(p.teamId)} fresh={freshIds.includes(p.id)} newest={first && j === 0} snap={snap} />
+                      <PlayRow key={p.id} play={p} color={colorOf(p.teamId)} fresh={freshIds.includes(p.id)} newest={first && j === 0} snap={snap} stop={stop?.id === p.id ? stop.label : null} />
                     ))}
                 </ol>
               ) : null}
@@ -113,7 +115,7 @@ function DriveHead({ drive, color, expanded, onToggle }: { drive: LiveDrive; col
   );
 }
 
-function PlayRow({ play, color, fresh, newest, snap }: { play: LivePlay; color: string; fresh: boolean; newest: boolean; snap: LiveSnap }) {
+function PlayRow({ play, color, fresh, newest, snap, stop }: { play: LivePlay; color: string; fresh: boolean; newest: boolean; snap: LiveSnap; stop?: string | null }) {
   const big = isBigPlay(play);
   const kind = playKind(play);
   const yards = yardsLabel(play);
@@ -158,6 +160,7 @@ function PlayRow({ play, color, fresh, newest, snap }: { play: LivePlay; color: 
         ) : ICON[kind] ? (
           <span className="mr-1" aria-hidden>{ICON[kind]}</span>
         ) : null}
+        {stop ? <span className="clock-chip clock-chip-inline" data-testid="pbp-stop">⏸ {stop}</span> : null}
         <TaggedText text={play.text} />
       </p>
       <div className="mt-0.5 flex items-center gap-2 text-[10px]">

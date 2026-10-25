@@ -1,4 +1,5 @@
 "use client";
+import { stopReason } from "@/lib/liveClock";
 import Lineups from "@/components/Lineups";
 import { stageColors } from "@/lib/stageColors";
 import { driveTrail, fieldGeom, spotX, type FieldSide, type TrailSeg } from "@/lib/fieldGeom";
@@ -312,6 +313,8 @@ export default function GameLive({
   const football = league === "nfl" || league === "ncaaf";
   const hoops = league === "nba" || league === "wnba" || league === "ncaam" || league === "ncaaw";
   const newestPlay = snap?.plays.length ? snap.plays[snap.plays.length - 1] : null;
+  const stopWhy = isLive && snap ? stopReason(league, snap) : null;
+  const stopMark = stopWhy?.known && stopWhy.playId ? { id: stopWhy.playId, label: stopWhy.label } : null;
   const popPlay = !football && newestPlay && freshIds.includes(newestPlay.id) ? newestPlay : null;
 
   return (
@@ -389,9 +392,9 @@ export default function GameLive({
           ) : null}
           <div ref={feedRef} className="scroll-mt-20">
           {snap && snap.drives.length ? (
-            <DriveFeed snap={snap} freshIds={freshIds} awayColor={awayColor} homeColor={homeColor} />
+            <DriveFeed snap={snap} stop={stopMark} freshIds={freshIds} awayColor={awayColor} homeColor={homeColor} />
           ) : (
-            <Feed plays={plays.slice(0, 30)} freshIds={freshIds} snap={snap} awayColor={awayColor} homeColor={homeColor} />
+            <Feed plays={plays.slice(0, 30)} stop={stopMark} freshIds={freshIds} snap={snap} awayColor={awayColor} homeColor={homeColor} />
           )}
           </div>
           <Lineups league={league} gameId={id} snap={snap} />
@@ -1046,12 +1049,14 @@ function BigChips({ plays, snap }: { plays: LivePlay[]; snap: LiveSnap | null })
 
 function Feed({
   plays,
+  stop,
   freshIds,
   snap,
   awayColor,
   homeColor,
 }: {
   plays: LivePlay[];
+  stop?: { id: string; label: string } | null;
   freshIds: string[];
   snap: LiveSnap | null;
   awayColor: string;
@@ -1107,6 +1112,7 @@ function Feed({
                     {p.scoring && p.points > 0 ? <span className="font-black" style={{ color }}>+{p.points}</span> : null}
                   </div>
                   <p className="mt-0.5 leading-snug text-[color:var(--flat)]">
+                    {stop?.id === p.id ? <span className="clock-chip clock-chip-inline" data-testid="pbp-stop">⏸ {stop.label}</span> : null}
                     <TaggedText text={p.text} />
                   </p>
                   {p.awayScore !== null && p.homeScore !== null && p.scoring ? (

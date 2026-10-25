@@ -226,6 +226,8 @@ export type LiveSnap = {
   winMarks?: { i: number; label: string }[];
   /** Play id for each point in `win`, so a replay can cut the line at the right play. */
   winIds?: string[];
+  /** When the server built this response (ISO). Added by the live route. */
+  servedAt?: string;
   /** Scheduled start, ISO, from the summary header. */
   start?: string | null;
   /** Tennis: games per set, who is serving, total games so far, tournament and round. */

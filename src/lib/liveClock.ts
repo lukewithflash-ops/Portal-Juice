@@ -30,6 +30,8 @@ export type ClockInput = {
   period: number | null;
   /** Latest play's type and text (to see clock-stopping plays). */
   lastPlay?: { typeText: string; text: string } | null;
+  /** When the server built this snapshot (ISO). */
+  servedAt?: string | null;
 };
 
 const COUNTDOWN = new Set(["nba", "wnba", "ncaam", "ncaaw", "nhl", "nfl", "ncaaf"]);
@@ -70,7 +72,10 @@ export function footballClockRuns(p: { typeText: string; text: string } | null |
 }
 
 /** Next model from a new ESPN update. `prev` is the model before it; `now` is when it arrived. */
-export function nextClock(prev: ClockModel | null, s: ClockInput, now: number): ClockModel {
+export function nextClock(prev: ClockModel | null, s: ClockInput, recv: number): ClockModel {
+  // Anchor to when the server read the feed (never in the future, never more than 4s back).
+  const sa = s.servedAt ? Date.parse(s.servedAt) : NaN;
+  const now = Number.isFinite(sa) ? Math.min(recv, Math.max(recv - 4000, sa)) : recv;
   const still = (secs: number | null = null): ClockModel => ({ league: s.league, espn: s.clock, secs, at: now, dir: 0, cap: 0 });
   if (s.state !== "in" || !s.clock || STOPPED_STATUS.test(s.detail)) return still();
   const same = prev && prev.league === s.league && prev.espn === s.clock;
@@ -129,4 +134,90 @@ export function clockAt(m: ClockModel, now: number): string | null {
   if (left < 60 && !/:/.test(m.espn ?? "")) return left.toFixed(1);
   const whole = Math.ceil(left - 1e-6);
   return `${Math.floor(whole / 60)}:${pad(whole % 60)}`;
+}
+
+export type StopReason = { label: string; playId: string | null; known: boolean };
+type ReasonPlay = { id: string; typeText: string; text: string; teamId: string | null };
+type ReasonSnap = {
+  state: string;
+  detail: string;
+  awayId: string;
+  homeId: string;
+  awayAbbr: string;
+  homeAbbr: string;
+  awayName?: string | null;
+  homeName?: string | null;
+  plays: ReasonPlay[];
+};
+
+/** Why the clock is still, read only from the feed: status detail first, then the latest play. Never guesses a cause. */
+export function stopReason(league: string, s: ReasonSnap): StopReason | null {
+  if (s.state !== "in") return null;
+  const d = s.detail || "";
+  const soccer = isSoccerLeague(league);
+  const football = league === "nfl" || league === "ncaaf";
+  const unit = soccer || league.startsWith("ncaam") ? "half" : league === "nhl" ? "period" : "quarter";
+  if (/halftime|^ht$/i.test(d)) return { label: "Halftime", playId: null, known: true };
+  if (/two[- ]minute/i.test(d)) return { label: "Two-minute warning", playId: null, known: true };
+  if (/delay|suspend/i.test(d)) return { label: /suspend/i.test(d) ? "Suspended" : "Delayed", playId: null, known: true };
+  if (/intermission/i.test(d)) return { label: "Intermission", playId: null, known: true };
+  if (/^end\b|end of/i.test(d)) return { label: d.replace(/\s+/g, " ").trim().slice(0, 28), playId: null, known: true };
+  const p = s.plays.length ? s.plays[s.plays.length - 1] : null;
+  if (!p) return { label: "Clock stopped", playId: null, known: false };
+  const t = `${p.typeText} ${p.text}`;
+  const teamAbbr = (): string | null => {
+    if (p.teamId && p.teamId === s.awayId) return s.awayAbbr;
+    if (p.teamId && p.teamId === s.homeId) return s.homeAbbr;
+    for (const [abbr, name] of [[s.awayAbbr, s.awayName], [s.homeAbbr, s.homeName]] as const) {
+      if (new RegExp(`\\b${abbr}\\b`).test(p.text)) return abbr;
+      const nick = (name ?? "").split(" ").pop();
+      if (nick && nick.length > 2 && p.text.toLowerCase().includes(nick.toLowerCase())) return abbr;
+    }
+    return null;
+  };
+  const r = (label: string): StopReason => ({ label, playId: p.id, known: true });
+  if (/\bvar\b|video assistant/i.test(t)) return r("VAR check");
+  if (/review|challenge|replay/i.test(t)) return r("Official review");
+  if (/official'?s? ?tv|tv timeout|media timeout|commercial/i.test(t)) return r("TV timeout");
+  if (/timeout/i.test(t)) {
+    const a = teamAbbr();
+    return r(a ? `Timeout ${a}` : /official/i.test(t) ? "Official timeout" : "Timeout");
+  }
+  if (/two[- ]minute/i.test(t)) return r("Two-minute warning");
+  if (/injur/i.test(t)) return r("Injury");
+  if (/end (of )?(the )?(game|regulation)/i.test(t)) return r("End of regulation");
+  if (/end (of )?(the )?(\d\w* )?(period|quarter|half)|end period|end quarter/i.test(t)) return r(`End of ${/half/i.test(t) ? "half" : unit}`);
+  if (/halftime/i.test(t)) return r("Halftime");
+  if (/delay/i.test(t) && !/delay of game/i.test(t)) return r("Delay");
+  if (football) {
+    if (/penalty|flag|delay of game|false start|holding|offside|pass interference/i.test(t)) return r("Penalty flag");
+    if (/touchdown/i.test(t)) return r("Touchdown");
+    if (/extra point|two-point|2pt|pat\b/i.test(t)) return r("PAT");
+    if (/field goal/i.test(t)) return r(/no good|missed|blocked/i.test(t) ? "Missed FG" : "Field goal");
+    if (/safety/i.test(t)) return r("Safety");
+    if (/kickoff/i.test(t)) return r("Kickoff");
+    if (/punt/i.test(t)) return r("Punt · change of possession");
+    if (/intercept|fumble|turnover on downs|downs\b/i.test(t)) return r("Change of possession");
+    if (/incomplete|spike/i.test(t)) return r("Incomplete pass");
+    if (/out of bounds|\bob\b/i.test(t)) return r("Out of bounds");
+    if (/kneel/i.test(t)) return r("Kneel down");
+  } else if (league === "nhl") {
+    if (/goal\b/i.test(t) && !/no goal|goalie|goaltender/i.test(t)) return r("Goal");
+    if (/penalty|minor|major|misconduct/i.test(t)) { const a = teamAbbr(); return r(a ? `Penalty ${a} · power play` : "Penalty"); }
+    if (/icing/i.test(t)) return r("Icing");
+    if (/offside/i.test(t)) return r("Offside");
+    if (/stoppage|faceoff|puck (out|over)|frozen|net off/i.test(t)) return r(/faceoff/i.test(t) ? "Faceoff" : "Stoppage");
+  } else if (soccer) {
+    if (/goal/i.test(t)) return r("Goal");
+    if (/substitut/i.test(t)) return r("Substitution");
+    if (/card|foul/i.test(t)) return r(/yellow/i.test(t) ? "Foul · yellow card" : /red/i.test(t) ? "Red card" : "Foul");
+    if (/offside/i.test(t)) return r("Offside");
+  } else {
+    if (/free throw/i.test(t)) return r("Free throws");
+    if (/foul/i.test(t)) return r("Foul");
+    if (/out of bounds|turnover|traveling|violation|kicked ball|backcourt|shot clock/i.test(t)) return r(/out of bounds/i.test(t) ? "Out of bounds" : "Turnover");
+    if (/jump ball/i.test(t)) return r("Jump ball");
+    if (/substitution|enters the game/i.test(t)) return r("Substitution");
+  }
+  return { label: "Clock stopped", playId: p.id, known: false };
 }
