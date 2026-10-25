@@ -964,7 +964,7 @@ t("log money stays on the device: leaderboard code never reads net or stake", ()
 t("slip import reads props, spreads, moneylines, totals, and stake; skips junk", () => {
   const rows = parseSlipRows("Josh Allen Over 245.5 Passing Yards -115\nKansas City Chiefs -3.5 -110\nLakers ML +150\nOver 47.5 Total Points KC @ BUF\nStake: $25.00\nPlace bet\nJames Cook O 64.5 Rushing Yards −120");
   assert.equal(rows.length, 5);
-  assert.deepEqual(rows[0], { subject: "Josh Allen", market: "passing yards", line: 245.5, selection: "Over", odds: -115, kind: "prop" });
+  assert.deepEqual(rows[0], { subject: "Josh Allen", market: "passing yards", line: 245.5, selection: "Over", odds: -115, kind: "prop", marketRaw: "Passing Yards" });
   assert.equal(rows[1].kind, "spread");
   assert.equal(rows[1].line, -3.5);
   assert.equal(rows[2].kind, "moneyline");

@@ -2,6 +2,7 @@
 
 import { SPORT_ORDER, type Pick, type PickStatus } from "./types";
 import { haptic } from "./native";
+import { propMarketOf } from "./slipImport";
 
 /** Device-only log. Nothing leaves the browser. */
 export const STORAGE_KEY = "portal-juice:log:v1";
@@ -12,12 +13,20 @@ let cacheRaw: string | null = null;
 let cache: Pick[] = EMPTY;
 const listeners = new Set<() => void>();
 
+/** Open legs saved with the printed stat re-read it, so a stat the reader got wrong earlier is fixed in place. */
+export function reResolve(p: Pick): Pick {
+  if (!p || p.status !== "open" || typeof p.marketRaw !== "string" || !p.marketRaw.trim()) return p;
+  const now = propMarketOf(p.marketRaw);
+  if (!now || propMarketOf(p.market ?? "") === now) return p;
+  return { ...p, market: now };
+}
+
 function parse(raw: string | null): Pick[] {
   if (!raw) return EMPTY;
   try {
     const v = JSON.parse(raw);
     if (!Array.isArray(v)) return EMPTY;
-    return v.filter(
+    return v.map(reResolve).filter(
       (p): p is Pick =>
         p &&
         typeof p.id === "string" &&

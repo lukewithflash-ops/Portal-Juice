@@ -17,6 +17,8 @@ export type SlipKind = "prop" | "spread" | "total" | "moneyline";
 export type SlipRow = {
   subject: string;
   market: string;
+  /** The stat exactly as printed ("2-Pt Att"), kept so a later alias fix can re-read the leg. */
+  marketRaw?: string;
   line: number | null;
   selection: "Over" | "Under" | null;
   odds: number | null;
@@ -342,6 +344,7 @@ export function pickemRows(lines: string[]): { rows: SlipRow[]; used: Set<number
       subject: lines[i],
       kind: "prop",
       market: propMarketOf(stat[2]),
+      marketRaw: stat[2].trim().slice(0, 60),
       line: Number(stat[1]),
       selection: side === "over" ? "Over" : side === "under" ? "Under" : null,
       odds: null,
@@ -423,7 +426,8 @@ function parseSlipRowsPlain(raw: string): SlipRow[] {
     }
     if (kind !== "total" && subject.length < 2) continue;
     if (value != null && !Number.isFinite(value)) continue;
-    const row: SlipRow = { subject, market: kind === "prop" ? market : kind, line: value, selection: kind === "prop" || kind === "total" ? sel : null, odds, kind };
+    const rawStat = kind === "prop" && numM ? line.slice((numM.index ?? 0) + numM[0].length).replace(/[+-]\d{3,4}\b/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) : "";
+    const row: SlipRow = { subject, market: kind === "prop" ? market : kind, ...(rawStat ? { marketRaw: rawStat } : {}), line: value, selection: kind === "prop" || kind === "total" ? sel : null, odds, kind };
     const key = `${row.kind}|${subject.toLowerCase()}|${row.market}|${row.line}|${row.selection ?? ""}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -881,4 +885,28 @@ export function markNote(result: "win" | "loss" | "push" | null, mark: "win" | "
   if (result && result !== mark) return `The slip shows ${said}; ESPN's final says ${result}. ESPN's result is used.`;
   if (!result && noGame) return `The slip shows ${said}: set it in your Log.`;
   return null;
+}
+
+/**
+ * The vision model sometimes tidies a printed stat into a common one ("2-Pt Att" -> "Points").
+ * Check the leg against the slip's own text lines near the player: when those lines name exactly one
+ * different stat, the printed text wins.
+ */
+export function statFromNearbyText(lines: string[], subject: string, modelMarket: string): string | null {
+  const last = subject.trim().split(/\s+/).pop()?.replace(/[^A-Za-z'-]/g, "").toLowerCase();
+  if (!last || last.length < 3) return null;
+  const found = new Set<string>();
+  lines.forEach((l, i) => {
+    if (!l.toLowerCase().includes(last)) return;
+    for (let j = i; j < Math.min(lines.length, i + 4); j++) {
+      if (j > i && /^[A-Z][a-z]+\.?\s+[A-Z][a-z]+/.test(lines[j]) && !/\d/.test(lines[j]) && !lines[j].toLowerCase().includes(last)) break;
+      // Matchup rows ("TOR @ MIN") and clocks are not stats.
+      if (/\b[A-Z]{2,4}\s*(?:@|vs\.?)\s*[A-Z]{2,4}\b/.test(lines[j]) || /\b\d{1,2}:\d{2}\b/.test(lines[j])) continue;
+      const m = propMarketOf(lines[j]);
+      if (m) found.add(m);
+    }
+  });
+  if (found.size !== 1) return null;
+  const only = [...found][0];
+  return only !== modelMarket ? only : null;
 }

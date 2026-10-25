@@ -120,6 +120,8 @@ export type Pick = {
   gameId?: string;
   /** Market words the user confirmed. Empty means unknown. */
   market?: string;
+  /** Prop stat exactly as printed on the slip ("2-Pt Att"). Open legs re-read it on load, so alias fixes reach saved legs. */
+  marketRaw?: string;
   selection?: "Over" | "Under" | null;
   /** Link the slip was read from, if any. */
   link?: string;

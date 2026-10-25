@@ -332,7 +332,7 @@ export default function SlipImport({ onBreakDown, compact = false, shared = null
       if (x.leg && x.game && !x.dirty) {
         // Tied to a game: the Log can follow it live when the stat is trackable. Finished games land graded.
         const p = pickFromLeg(x.row.kind === "prop" ? { ...x.leg, market: x.row.market } : x.leg, { home: x.game.home, away: x.game.away }, { ...extra, date: localDay(x.game.start) });
-        addPick({ ...p, ...plus, status: x.result ?? "open", link: link.trim() || undefined });
+        addPick({ ...p, ...plus, ...(x.row.kind === "prop" && x.row.marketRaw ? { marketRaw: x.row.marketRaw } : {}), status: x.result ?? "open", link: link.trim() || undefined });
         return;
       }
       // Not tied to a game: saved as read, so you can fix it in the Log.
@@ -350,6 +350,7 @@ export default function SlipImport({ onBreakDown, compact = false, shared = null
         createdAt: new Date().toISOString(),
         market: x.row.kind === "prop" ? x.row.market : `${KIND_LABEL[x.row.kind]}${x.row.opponent ? ` vs ${x.row.opponent.replace(/^(vs\.?|@)\s*/i, "")}` : ""}`,
         selection: x.row.selection,
+        ...(x.row.kind === "prop" && x.row.marketRaw ? { marketRaw: x.row.marketRaw } : {}),
         ...plus,
         link: link.trim() || undefined,
       });

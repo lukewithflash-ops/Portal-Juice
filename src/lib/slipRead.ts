@@ -17,6 +17,7 @@ import {
   normalizeSlipText,
   parseSlipRows,
   propMarketOf,
+  statFromNearbyText,
   slipDateOf,
   rowSport,
   teamScore,
@@ -417,7 +418,7 @@ Return JSON:
 Read EVERY leg on the slip, top to bottom, even when there are many (up to 20). Each player block on a pick'em slip is one leg. Each line of a parlay or same-game parlay is one leg.
 - subject: the player for props (full name as printed), the team for spread/moneyline, the matchup ("AWAY @ HOME") for game totals. Tennis: the player.
 - Keep each leg's own details together: the matchup, date and teams for a leg come from that leg's own row or the game header it sits under, never from a neighboring leg.
-- market: the stat as printed for props (e.g. "Points", "Pts+Rebs+Asts", "3-PT Made", "Passing Yards", "Aces", "Total Games", "Games Won", "Double Faults", "Fantasy Score", "Break Points Won"); "spread", "moneyline" or "total" otherwise. Keep any quarter, half or period words exactly as printed ("2nd Quarter Receiving Yards", "1Q Points", "1st Half Rush Yds"): a period prop counts only that period.
+- market: the stat for props copied EXACTLY as printed, abbreviations and all ("2-Pt Att" stays "2-Pt Att", "3PT Made" stays "3PT Made", "FG Att" stays "FG Att"). Never shorten, expand or swap it for a more common stat: "2-Pt Att" is two-pointers attempted, NOT Points. Examples (e.g. "Points", "Pts+Rebs+Asts", "3-PT Made", "Passing Yards", "Aces", "Total Games", "Games Won", "Double Faults", "Fantasy Score", "Break Points Won"); "spread", "moneyline" or "total" otherwise. Keep any quarter, half or period words exactly as printed ("2nd Quarter Receiving Yards", "1Q Points", "1st Half Rush Yds"): a period prop counts only that period.
 - line: the number for that leg (spread keeps its sign). null if not printed. Demon/goblin/discounted lines: use the number shown.
 - "X+" means at least X: "1+ Shots on Goal" is line 0.5 side over, "2+ Hits" is line 1.5 side over, "25+ Points" is 24.5 over.
 - The line is the stat number printed with the stat or the More/Less (Over/Under) choice. NEVER use a jersey number ("#22", "No. 22"), odds ("+150", "-110"), a payout multiplier ("3x", "10x"), a pick or player count ("5 picks", "5-pick"), a game clock or time, a score, a live stat progress number ("0/1", "3 of 5"), or a projection/average label.
@@ -517,7 +518,17 @@ async function readOnce(dataUrl: string, auth: string, model: string, timeout: n
       // "Winner" / "To Win" under a name is a moneyline, whatever kind the reader picked.
       const kind = kind0 && isWinnerMarket(String(l.market ?? "")) ? "moneyline" : kind0;
       if (!subject || !kind) continue;
-      const market = kind === "prop" ? propMarketOf(String(l.market ?? "")) || String(l.market ?? "").toLowerCase().slice(0, 40) : kind;
+      const printed = String(l.market ?? "").trim();
+      let market = kind === "prop" ? propMarketOf(printed) || printed.toLowerCase().slice(0, 40) : kind;
+      let marketRaw = kind === "prop" ? printed.slice(0, 60) : undefined;
+      if (kind === "prop") {
+        const fromText = statFromNearbyText(lines, subject, market);
+        if (fromText) {
+          console.log(JSON.stringify({ event: "slip.stat-reread", subject, model: printed, fixed: fromText }));
+          market = fromText;
+          marketRaw = fromText;
+        }
+      }
       const side = String(l.side ?? "").toLowerCase();
       const odds = num(l.odds);
       // "1+" printed: over 0.5, whatever number the model put in line.
@@ -538,6 +549,7 @@ async function readOnce(dataUrl: string, auth: string, model: string, timeout: n
         subject,
         kind,
         market,
+        ...(marketRaw ? { marketRaw } : {}),
         line,
         selection: kind === "prop" || kind === "total" ? (sideFix ?? (/^(over|more|higher|o)$/.test(side) ? "Over" : /^(under|less|lower|u)$/.test(side) ? "Under" : null)) : null,
         odds: odds != null && Math.abs(odds) >= 100 && Math.abs(odds) < 100000 ? Math.round(odds) : null,

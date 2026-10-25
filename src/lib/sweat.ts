@@ -1,4 +1,5 @@
 /** Sweat mode: a parlay down to its last live leg (every other leg hit or pushed). Pure. */
+import { resolveStat, shortStat } from "@/lib/statAlias";
 import type { LegView, SlipView } from "@/lib/myLive";
 
 export type Sweat = { slipKey: string; leg: LegView; hit: number; total: number };
@@ -34,7 +35,11 @@ const ABBR: [RegExp, string][] = [
   [/3-?pointers?|threes/i, "3PM"], [/hits?\b/i, "hits"], [/strikeouts?/i, "K"], [/total bases/i, "TB"], [/goals?/i, "goal"],
   [/saves?/i, "saves"], [/receiving yards/i, "rec yds"], [/rushing yards/i, "rush yds"], [/passing yards/i, "pass yds"], [/receptions?/i, "rec"],
 ];
+const BASIC = new Set(["points", "rebounds", "assists", "3-pointers", "hits", "strikeouts", "total bases", "goals", "saves", "receiving yards", "rushing yards", "passing yards", "receptions", "shots on goal"]);
 export function statShort(market: string): string {
+  // Alias table first: "2-pt att", "Pts+Reb+Ast" and other specific stats keep their own short name, never "pts".
+  const r = resolveStat(market, { strict: true });
+  if (r && !BASIC.has(r.label)) return shortStat(r.label);
   for (const [re, s] of ABBR) if (re.test(market)) return s;
   return market.toLowerCase();
 }
