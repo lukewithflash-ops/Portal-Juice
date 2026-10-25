@@ -21,6 +21,7 @@ jobs:
     timeout-minutes: 60
     env:
       PROFILE_NAME: Portal Juice App Store
+      SHARE_PROFILE_NAME: Portal Juice Share App Store
       MARKETING_VERSION: ${{ github.event.inputs.marketing_version || '1.0.0' }}
       BUILD_NUMBER: ${{ github.run_number }}
     steps:
@@ -49,6 +50,7 @@ jobs:
           P12_B64: ${{ secrets.IOS_DIST_P12_B64 }}
           P12_PASSWORD: ${{ secrets.IOS_DIST_P12_PASSWORD }}
           PROFILE_B64: ${{ secrets.IOS_PROFILE_B64 }}
+          SHARE_PROFILE_B64: ${{ secrets.IOS_SHARE_PROFILE_B64 }}
         run: |
           KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
           KEYCHAIN_PASSWORD=$(openssl rand -hex 16)
@@ -61,14 +63,25 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
           rm -f "$RUNNER_TEMP/dist.p12"
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          echo "$PROFILE_B64" | base64 --decode > "$RUNNER_TEMP/app.mobileprovision"
+          echo "$PROFILE_B64" | base64 --decode > "$RUNNER_TEMP/app.mobileprovision" "$RUNNER_TEMP/share.mobileprovision"
           UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin <<< "$(security cms -D -i "$RUNNER_TEMP/app.mobileprovision")")
           cp "$RUNNER_TEMP/app.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$UUID.mobileprovision"
           echo "PROFILE_UUID=$UUID" >> "$GITHUB_ENV"
+          echo "$SHARE_PROFILE_B64" | base64 --decode > "$RUNNER_TEMP/share.mobileprovision"
+          SUUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin <<< "$(security cms -D -i "$RUNNER_TEMP/share.mobileprovision")")
+          cp "$RUNNER_TEMP/share.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/$SUUID.mobileprovision"
+          echo "SHARE_PROFILE_UUID=$SUUID" >> "$GITHUB_ENV"
           security find-identity -v -p codesigning "$KEYCHAIN"
 
       - name: Set Release signing and build number
         run: python3 scripts/ios-ci-signing.py ios/App/App.xcodeproj/project.pbxproj "$PROFILE_NAME" "$BUILD_NUMBER" "$MARKETING_VERSION"
+
+      - name: Add Share Extension target
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          gem list -i xcodeproj >/dev/null || sudo gem install xcodeproj --no-document
+          ruby scripts/ios-add-share-extension.rb ios/App/App.xcodeproj "$BUILD_NUMBER" "$MARKETING_VERSION" "$TEAM_ID" "$SHARE_PROFILE_NAME"
 
       - name: Archive
         run: |
@@ -94,7 +107,7 @@ jobs:
             <key>signingStyle</key><string>manual</string>
             <key>signingCertificate</key><string>Apple Distribution</string>
             <key>provisioningProfiles</key>
-            <dict><key>app.portaljuice</key><string>$PROFILE_UUID</string></dict>
+            <dict><key>app.portaljuice</key><string>$PROFILE_UUID</string><key>app.portaljuice.share</key><string>$SHARE_PROFILE_UUID</string></dict>
             <key>uploadSymbols</key><true/>
             <key>manageAppVersionAndBuildNumber</key><false/>
           </dict>
