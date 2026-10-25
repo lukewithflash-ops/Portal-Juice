@@ -36,6 +36,7 @@ export type ClockInput = {
 
 const COUNTDOWN = new Set(["nba", "wnba", "ncaam", "ncaaw", "nhl", "nfl", "ncaaf"]);
 const SOCCER = new Set(["epl", "mls", "ucl", "laliga", "seriea", "bundesliga", "soccer"]);
+export const isCountdown = (l: string) => COUNTDOWN.has(l) || /hockey|basketball|football/.test(l);
 export const isSoccerLeague = (l: string) => SOCCER.has(l) || /^soccer|\.\d$/.test(l);
 
 /** "11:46" → 706, "0:47.3" → 47.3, "47.0" → 47. Null when not a clock. */
@@ -57,7 +58,7 @@ export function soccerMinute(v: string | null): { min: number; plus: number } | 
   return { min: Number(m[1]), plus: m[2] ? Number(m[2]) : 0 };
 }
 
-const STOPPED_STATUS = /halftime|end of|end \d|end period|intermission|delay|suspend|postponed|overtime break|shootout|final|between/i;
+const STOPPED_STATUS = /^ht$|^ft$|halftime|end of|end \d|end period|intermission|delay|suspend|postponed|overtime break|shootout|final|between/i;
 /** Plays after which the clock is stopped until the next restart (all sports). */
 const STOP_PLAY = /timeout|end (of )?(the )?(period|quarter|half|game)|end period|free throw|foul|jump ball|review|challenge|injury|official|violation|stoppage|offside|icing|penalty|goal\b|substitution|two-minute|kickoff|extra point|field goal|touchdown|punt|incomplete|out of bounds|\bob\b|spike|intercept|fumble|safety|turnover|sack.*fumble|kneel|end zone/i;
 /** Football snaps after which the clock keeps running (in bounds). */
@@ -86,13 +87,11 @@ export function nextClock(prev: ClockModel | null, s: ClockInput, recv: number):
     const m = soccerMinute(s.clock);
     if (!m) return still();
     // Count up only once ESPN has shown a minute change: then we know roughly where in the minute we are.
-    const changed = prev && !same && prev.espn !== null && soccerMinute(prev.espn) !== null;
-    const anchored = same ? prev!.dir === 1 : !!changed;
-    if (!anchored) return { ...still(), at };
+    // A soccer clock never stops in play. Anchored at first sight, it rolls a minute only 60s later, so it can lag but never run ahead.
     return { league: s.league, espn: s.clock, secs: (m.plus ? m.min + m.plus : m.min) * 60 - 60, at, dir: 1, cap: 60, stoppage: m.plus ? { base: m.min, plus: m.plus } : null };
   }
 
-  if (!COUNTDOWN.has(s.league)) return still();
+  if (!isCountdown(s.league)) return still();
   const secs = clockSecs(s.clock);
   if (secs === null) return still();
   const football = s.league === "nfl" || s.league === "ncaaf";
@@ -148,6 +147,8 @@ type ReasonSnap = {
   awayName?: string | null;
   homeName?: string | null;
   plays: ReasonPlay[];
+  clock?: string | null;
+  period?: number | null;
 };
 
 /** Why the clock is still, read only from the feed: status detail first, then the latest play. Never guesses a cause. */
@@ -155,17 +156,23 @@ export function stopReason(league: string, s: ReasonSnap): StopReason | null {
   if (s.state !== "in") return null;
   const d = s.detail || "";
   const soccer = isSoccerLeague(league);
+  if (!soccer && !isCountdown(league)) return null; // no game clock (baseball, tennis, golf...)
   const football = league === "nfl" || league === "ncaaf";
   const unit = soccer || league.startsWith("ncaam") ? "half" : league === "nhl" ? "period" : "quarter";
   if (/halftime|^ht$/i.test(d)) return { label: "Halftime", playId: null, known: true };
   if (/two[- ]minute/i.test(d)) return { label: "Two-minute warning", playId: null, known: true };
   if (/delay|suspend/i.test(d)) return { label: /suspend/i.test(d) ? "Suspended" : "Delayed", playId: null, known: true };
   if (/intermission/i.test(d)) return { label: "Intermission", playId: null, known: true };
+  if (/^ht$|^ft$/i.test(d)) return { label: /ht/i.test(d) ? "Halftime" : "Full time", playId: null, known: true };
   if (/^end\b|end of/i.test(d)) return { label: d.replace(/\s+/g, " ").trim().slice(0, 28), playId: null, known: true };
   const p = s.plays.length ? s.plays[s.plays.length - 1] : null;
-  if (!p) return { label: "Clock stopped", playId: null, known: false };
+  if (!p) return soccer ? null : { label: "Clock stopped", playId: null, known: false };
   const t = `${p.typeText} ${p.text}`;
   const teamAbbr = (): string | null => {
+    for (const [abbr, name] of [[s.awayAbbr, s.awayName], [s.homeAbbr, s.homeName]] as const) {
+      const full = (name ?? "").toLowerCase();
+      if (full && p.text.toLowerCase().includes(`timeout ${full}`)) return abbr;
+    }
     if (p.teamId && p.teamId === s.awayId) return s.awayAbbr;
     if (p.teamId && p.teamId === s.homeId) return s.homeAbbr;
     for (const [abbr, name] of [[s.awayAbbr, s.awayName], [s.homeAbbr, s.homeName]] as const) {
@@ -179,6 +186,12 @@ export function stopReason(league: string, s: ReasonSnap): StopReason | null {
   if (/\bvar\b|video assistant/i.test(t)) return r("VAR check");
   if (/review|challenge|replay/i.test(t)) return r("Official review");
   if (/official'?s? ?tv|tv timeout|media timeout|commercial/i.test(t)) return r("TV timeout");
+  if (football) {
+    if (/touchdown/i.test(t)) return r("Touchdown");
+    if (/extra point|two-point|2pt|\bpat\b|kick attempt/i.test(t)) return r("PAT");
+    if (/field goal/i.test(t)) return r(/no good|missed|blocked/i.test(t) ? "Missed FG" : "Field goal");
+    if (/safety/i.test(t)) return r("Safety");
+  }
   if (/timeout/i.test(t)) {
     const a = teamAbbr();
     return r(a ? `Timeout ${a}` : /official/i.test(t) ? "Official timeout" : "Timeout");
@@ -201,6 +214,7 @@ export function stopReason(league: string, s: ReasonSnap): StopReason | null {
     if (/incomplete|spike/i.test(t)) return r("Incomplete pass");
     if (/out of bounds|\bob\b/i.test(t)) return r("Out of bounds");
     if (/kneel/i.test(t)) return r("Kneel down");
+    if (league === "ncaaf" && /1st down/i.test(t)) return r("First down · chains");
   } else if (league === "nhl") {
     if (/goal\b/i.test(t) && !/no goal|goalie|goaltender/i.test(t)) return r("Goal");
     if (/penalty|minor|major|misconduct/i.test(t)) { const a = teamAbbr(); return r(a ? `Penalty ${a} · power play` : "Penalty"); }
@@ -208,15 +222,15 @@ export function stopReason(league: string, s: ReasonSnap): StopReason | null {
     if (/offside/i.test(t)) return r("Offside");
     if (/stoppage|faceoff|puck (out|over)|frozen|net off/i.test(t)) return r(/faceoff/i.test(t) ? "Faceoff" : "Stoppage");
   } else if (soccer) {
-    if (/goal/i.test(t)) return r("Goal");
-    if (/substitut/i.test(t)) return r("Substitution");
-    if (/card|foul/i.test(t)) return r(/yellow/i.test(t) ? "Foul · yellow card" : /red/i.test(t) ? "Red card" : "Foul");
-    if (/offside/i.test(t)) return r("Offside");
+    return null; // running time: fouls and goals don't stop a soccer clock
   } else {
     if (/free throw/i.test(t)) return r("Free throws");
     if (/foul/i.test(t)) return r("Foul");
     if (/out of bounds|turnover|traveling|violation|kicked ball|backcourt|shot clock/i.test(t)) return r(/out of bounds/i.test(t) ? "Out of bounds" : "Turnover");
     if (/jump ball/i.test(t)) return r("Jump ball");
+    const left = clockSecs(s.clock ?? null);
+    const late = left !== null && (league.startsWith("nba") || league === "wnba" ? (s.period ?? 0) >= 4 && left <= 120 : (s.period ?? 0) >= 2 && left <= 60);
+    if (late && /\bmakes\b|\bmade\b/i.test(t)) return r("Made basket · late clock stops");
     if (/substitution|enters the game/i.test(t)) return r("Substitution");
   }
   return { label: "Clock stopped", playId: p.id, known: false };

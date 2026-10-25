@@ -1,5 +1,5 @@
 "use client";
-import { stopReason } from "@/lib/liveClock";
+import { isCountdown, isSoccerLeague, stopReason } from "@/lib/liveClock";
 import Lineups from "@/components/Lineups";
 import { stageColors } from "@/lib/stageColors";
 import { driveTrail, fieldGeom, spotX, type FieldSide, type TrailSeg } from "@/lib/fieldGeom";
@@ -554,7 +554,7 @@ function Hero({
           </div>
           <div className="tabular mt-0.5 text-sm font-black text-[color:var(--flat)]">
             {live && otLabel(league, snap?.period ?? null) ? <span className="ot-pill mr-1">{otLabel(league, snap?.period ?? null)}</span> : null}
-            {live && snap?.clock ? <LiveClock league={league} snap={snap} /> : ""}
+            {live && snap?.clock && (isCountdown(league) || isSoccerLeague(league)) ? <LiveClock league={league} snap={snap} /> : ""}
           </div>
           <div className="text-[10px] text-zinc-400">{snap?.detail || ""}</div>
           {live && league === "mlb" && bug ? (
