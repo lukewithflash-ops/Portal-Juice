@@ -72,7 +72,7 @@ export function propView(pick: Pick, leg: Leg, snap: LiveSnap | null): LegView {
   let state = propState(leg);
   let auto = false;
   if (pick.status !== "open") state = STATUS_STATE[pick.status] ?? state;
-  else if (snap?.state === "post") {
+  else if (snap) {
     const g = gradePick(pick, snap);
     if (g) {
       state = STATUS_STATE[g];

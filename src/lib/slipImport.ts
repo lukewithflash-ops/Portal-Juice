@@ -5,10 +5,11 @@
  */
 
 import { statFromMarket, type LegInput } from "@/lib/breakdown";
-import { marketTerms } from "@/lib/tracker";
+import { trackableMarket } from "@/lib/tracker";
+import { periodOf, stripPeriod, withPeriod, type PeriodCode } from "@/lib/periodStats";
 import { leaguesForMarket, leaguesForSpread, teamScoreLeague } from "@/lib/teamResolve";
 
-const liveTrackable = (market: string) => marketTerms(market).length > 0;
+const liveTrackable = (market: string, league?: string) => trackableMarket(market, league);
 
 export type SlipKind = "prop" | "spread" | "total" | "moneyline";
 
@@ -30,6 +31,8 @@ export type SlipRow = {
   plus?: boolean;
   /** The slip marks this leg settled (a check, "Won", "Lost"). Only used to look at past games; never a grade. */
   settled?: boolean;
+  /** Quarter or half the prop counts in ("2Q", "1H"). Null = the full game. Also carried in the market text. */
+  period?: PeriodCode | null;
   /** Sport as read from the slip (flags + two players + "Winner" = tennis). A hint for matching. */
   sport?: "tennis" | "mma" | "team" | null;
   /** The slip's own mark (green check = win). A hint only: ESPN's final always decides. */
@@ -194,7 +197,10 @@ export function nameClose(a: string, b: string): boolean {
 }
 
 export function propMarketOf(text: string): string {
-  for (const [re, label] of PROP_MARKETS) if (re.test(text)) return label;
+  // "Rec Yds 2Q", "2nd Quarter Receiving Yards", "1H Points": the stat, then the period it counts in.
+  const code = periodOf(text);
+  const base = code ? stripPeriod(text) : text;
+  for (const [re, label] of PROP_MARKETS) if (re.test(base)) return withPeriod(label, code);
   return "";
 }
 
@@ -609,7 +615,7 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
   const sport = rowSport(row);
   if (row.kind === "prop") {
     const known = propMarketOf(row.market);
-    if (known) row = { ...row, market: known };
+    if (known) row = { ...row, market: known, period: periodOf(known) };
     // Tennis: the players are the two sides of the match.
     const tennisAll = sport === "tennis" || (!player && row.league == null) ? tennisGames(row.subject, games) : [];
     const tennisVs = row.opponent ? tennisGames(row.subject, games, row.opponent) : [];
@@ -643,7 +649,7 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
       pick: row.selection === "Under" ? "under" : "over",
       odds,
     };
-    const tracked = row.market && liveTrackable(row.market);
+    const tracked = row.market && liveTrackable(row.market, g.league);
     const issue = !row.market
       ? "Pick the stat. Until then it saves as a manual leg."
       : row.line == null
@@ -651,7 +657,9 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
         : !row.selection
           ? "Pick over or under."
           : !tracked
-            ? "We can’t follow this stat live yet, so you’ll grade this leg yourself."
+            ? periodOf(row.market)
+              ? "We can’t follow this stat for one period in this sport yet, so you’ll grade this leg yourself."
+              : "We can’t follow this stat live yet, so you’ll grade this leg yourself."
             : null;
     return { row, leg: { ...leg, athleteName: player.name }, game: gameRef(g), issue, manual: !tracked };
   }

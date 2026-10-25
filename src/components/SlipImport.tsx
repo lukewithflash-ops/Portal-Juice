@@ -9,7 +9,8 @@ import { pickFromLeg, sportOf } from "@/lib/legPick";
 import { addPick } from "@/lib/pickStore";
 import { StatTipLine } from "@/components/StatsExtras";
 import { STAT_CHOICES, sportGroupOf, type GameRef, type ImportLeg, type SlipKind, type SlipRow } from "@/lib/slipImport";
-import { marketTerms, FANTASY_NOTE } from "@/lib/tracker";
+import { trackableMarket, FANTASY_NOTE } from "@/lib/tracker";
+import { PERIOD_LABEL, periodOf, stripPeriod, withPeriod, type PeriodCode } from "@/lib/periodStats";
 import { statFromMarket } from "@/lib/breakdown";
 import { ptTime } from "@/lib/time";
 
@@ -219,7 +220,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
             const g = x.options?.find((o) => `${o.league}/${o.id}` === key) ?? (x.game && `${x.game.league}/${x.game.id}` === key ? x.game : null);
             if (!g) return { ...x, leg: null, game: null, result: null, issue: "Not tied to a game. Saves as a manual leg you grade.", manual: true };
             const s2 = side ?? guessSide(x.row, g);
-            return { ...x, game: g, leg: legFor(x.row, g, s2), result: null, dirty: false, manual: x.row.kind === "prop" && marketTerms(x.row.market).length === 0, issue: g.state === "post" ? "Matched by you. A finished game grades in your Log within a couple of minutes." : null };
+            return { ...x, game: g, leg: legFor(x.row, g, s2), result: null, dirty: false, manual: x.row.kind === "prop" && !trackableMarket(x.row.market, g.league), issue: g.state === "post" ? "Matched by you. A finished game grades in your Log within a couple of minutes." : null };
           })
         : xs
     );
@@ -242,7 +243,7 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
               pick: row.selection === "Under" ? "under" : "over",
               odds: row.odds,
             };
-            const live = row.kind !== "prop" || marketTerms(row.market).length > 0;
+            const live = row.kind !== "prop" || trackableMarket(row.market, x.game?.league);
             const issue =
               row.kind === "prop" && !row.market
                 ? "Pick the stat. Until then it saves as a manual leg."
@@ -251,9 +252,11 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                   : (row.kind === "prop" || row.kind === "total") && !row.selection
                     ? "Pick over or under."
                     : !live
-                      ? "We can’t follow this stat live yet, so you’ll grade this leg yourself."
+                      ? periodOf(row.market)
+                        ? "We can’t follow this stat for one period in this sport yet, so you’ll grade this leg yourself."
+                        : "We can’t follow this stat live yet, so you’ll grade this leg yourself."
                       : null;
-            return { ...x, row, leg, issue, manual: !live };
+            return { ...x, row: { ...row, period: periodOf(row.market) }, leg, issue, manual: !live };
           })
         : xs
     );
@@ -392,16 +395,18 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                     ))}
                   </select>
                   {x.row.kind === "prop" ? (
-                    <select className="field col-span-6" value={x.row.market} aria-label="Stat" onChange={(e) => edit(i, { market: e.target.value })}>
+                    <>
+                    <select className="field col-span-4" value={stripPeriod(x.row.market)} aria-label="Stat" onChange={(e) => edit(i, { market: e.target.value ? withPeriod(e.target.value, periodOf(x.row.market)) : "" })}>
                       {(() => {
                         const choices = STAT_CHOICES[sportGroupOf(x.game?.league ?? x.leg?.league ?? "")] ?? STAT_CHOICES.football;
-                        const all = [...new Set([...(x.row.market && !choices.includes(x.row.market) ? [x.row.market] : []), ...choices])];
+                        const base = stripPeriod(x.row.market);
+                        const all = [...new Set([...(base && !choices.includes(base) ? [base] : []), ...choices])];
                         return (
                           <>
                             <option value="">Pick the stat…</option>
                             {all.map((c) => (
                               <option key={c} value={c}>
-                                {c === x.row.market && !choices.includes(c) ? `${c.charAt(0).toUpperCase()}${c.slice(1)} · as written on your slip` : `${c.charAt(0).toUpperCase()}${c.slice(1)}`}
+                                {c === base && !choices.includes(c) ? `${c.charAt(0).toUpperCase()}${c.slice(1)} · as written on your slip` : `${c.charAt(0).toUpperCase()}${c.slice(1)}`}
                                 {c === "fantasy score" ? ` · ${FANTASY_NOTE}` : ""}
                               </option>
                             ))}
@@ -409,6 +414,21 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
                         );
                       })()}
                     </select>
+                    <select
+                      className="field col-span-2 min-w-0"
+                      value={periodOf(x.row.market) ?? ""}
+                      aria-label="Period"
+                      data-testid="import-period"
+                      onChange={(e) => edit(i, { market: withPeriod(x.row.market || "", (e.target.value || null) as PeriodCode | null) })}
+                    >
+                      <option value="">Full game</option>
+                      {periodChoices(x.game?.league ?? x.leg?.league ?? "").map((p) => (
+                        <option key={p} value={p}>
+                          {PERIOD_LABEL[p].charAt(0).toUpperCase() + PERIOD_LABEL[p].slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                    </>
                   ) : null}
                   {x.row.kind === "prop" && x.row.market ? <StatTipLine market={x.row.market} /> : null}
                   {x.row.kind === "prop" || x.row.kind === "total" ? (
@@ -528,4 +548,12 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
       ) : null}
     </div>
   );
+}
+
+/** Periods a prop can count in for this league. Unknown league: quarters and halves. */
+function periodChoices(league: string): PeriodCode[] {
+  if (league === "nhl") return ["1P", "2P", "3P"];
+  if (league === "ncaam") return ["1H", "2H"];
+  if (["mlb", "atp", "wta", "ufc"].includes(league)) return [];
+  return ["1Q", "2Q", "3Q", "4Q", "1H", "2H"];
 }

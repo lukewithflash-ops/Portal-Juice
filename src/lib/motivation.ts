@@ -6,7 +6,8 @@
 
 import type { LiveSnap } from "@/lib/live";
 import type { Pick } from "@/lib/types";
-import { clockSpan, liveStat, marketGroups, paceOf, playerByName, type TrackTone } from "@/lib/tracker";
+import { clockSpan, legStat, paceOf, playerByName, trackableMarket, type TrackTone } from "@/lib/tracker";
+import { PERIOD_LABEL, periodOf, periodState, stripPeriod } from "@/lib/periodStats";
 import { combinedChance, livePropChance, playedShare, pregameChance, type Chance } from "@/lib/chance";
 
 export type LegStatus = "waiting" | "on-track" | "behind" | "cleared" | "missed" | "no-match";
@@ -62,6 +63,8 @@ export function unitsNeeded(line: number, value: number): number {
 }
 
 function shortMarket(m: string): string {
+  const code = periodOf(m);
+  if (code) return `${shortMarket(stripPeriod(m))} · ${PERIOD_LABEL[code]}`;
   const t = m.replace(/ milestones$/i, "").trim();
   const map: [RegExp, string][] = [
     [/points.*rebounds.*assists|pts\s*\+\s*reb\s*\+\s*ast|pra/i, "PRA"],
@@ -85,6 +88,8 @@ function shortMarket(m: string): string {
 export function legFromPick(pick: Pick, snap: LiveSnap | null, prevValue: number | null = null): Leg | null {
   const leg = legCore(pick, snap, prevValue);
   if (!leg) return leg;
+  // The chance model is built on full-game pace; a one-period leg shows its meter without a chance.
+  if (periodOf(pick.market)) return { ...leg, chance: null };
   return { ...leg, chance: legChance(leg, pick, snap) };
 }
 
@@ -103,7 +108,8 @@ export function slipChance(slip: SlipLive): number | null {
 
 function legCore(pick: Pick, snap: LiveSnap | null, prevValue: number | null = null): Leg | null {
   if (!pick.market || !pick.gameId || !pick.league) return null;
-  if (!marketGroups(pick.market).length || !(pick.line > 0)) return null;
+  if (!trackableMarket(pick.market, pick.league) || !(pick.line > 0)) return null;
+  const code = periodOf(pick.market);
   const side: Leg["side"] = pick.selection === "Under" ? "Under" : "Over";
   const line = pick.line;
   const market = shortMarket(pick.market);
@@ -131,13 +137,18 @@ function legCore(pick: Pick, snap: LiveSnap | null, prevValue: number | null = n
   }
   const player = playerByName(snap.boxes, pick.subject);
   base.athleteId = player?.id ?? null;
-  const value = player ? liveStat(player.statMap, pick.market, snap.plays, player.name) : null;
-  const final = state === "post";
+  const pState = code ? periodState(pick.league, code, snap) : null;
+  if (code && pState === "pending") {
+    return { ...base, value: null, pace: null, toGo: null, fill: 0, tone: "flat", status: "waiting", progress: `${want} ${market}`, hype: `Starts counting in the ${PERIOD_LABEL[code]}`, final: false };
+  }
+  const value = player ? legStat(snap, player, pick.market, pick.league) : null;
+  const final = state === "post" || pState === "done";
   if (value === null) {
     return { ...base, value: null, pace: null, toGo: null, fill: 0, tone: "flat", status: "no-match", progress: `${want} ${market}`, hype: final ? null : "Not in the box yet", final };
   }
   const span = clockSpan(pick.league, snap.period, snap.clock, snap.state);
-  const pace = paceOf(value, span, snap.state);
+  // Full-game pace would mislead a one-quarter leg: no pace there.
+  const pace = code ? null : paceOf(value, span, snap.state);
   const jumped = prevValue !== null && value > prevValue ? round1(value - prevValue) : 0;
   let status: LegStatus;
   let tone: TrackTone;

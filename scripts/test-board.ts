@@ -1,3 +1,7 @@
+import * as ps from "../src/lib/periodStats";
+import { legStat as pLegStat, trackableMarket as pTrackable } from "../src/lib/tracker";
+import { propMarketOf as pPropMarketOf } from "../src/lib/slipImport";
+import { gradePick as pGradePick } from "../src/lib/grade";
 import { parseLive as brkParse } from "../src/lib/live";
 import { nextBall, inBreak } from "../src/lib/breakNext";
 import * as fs from "node:fs";
@@ -2270,4 +2274,97 @@ t("t178/t179: visualizer, your-player ring and tap-to-replay are wired on the ga
   assert.equal(nextBall("nba", 3, "End of 3rd Quarter", nba.brk, ids)?.teamId, nba.awayId);
   assert.equal(nextBall("ncaam", 1, "Halftime", nba.brk, ids), null);
   console.log("ok break panel");
+}
+
+{
+  // Period props: parsing, and quarter sums from real ESPN play-by-play vs the final box score.
+  assert.equal(ps.periodOf("Rec Yds 2Q"), "2Q");
+  assert.equal(ps.periodOf("2nd Quarter Receiving Yards"), "2Q");
+  assert.equal(ps.periodOf("first quarter points"), "1Q");
+  assert.equal(ps.periodOf("Q4 Rushing Yards"), "4Q");
+  assert.equal(ps.periodOf("1H Points"), "1H");
+  assert.equal(ps.periodOf("2nd half rush yds"), "2H");
+  assert.equal(ps.periodOf("1st Period Shots on Goal"), "1P");
+  assert.equal(ps.periodOf("3-PT Made"), null);
+  assert.equal(ps.periodOf("Pts+Rebs+Asts"), null);
+  assert.equal(ps.periodOf("Receiving Yards"), null);
+  assert.equal(pPropMarketOf("Rec Yds 2Q"), "receiving yards · 2nd quarter");
+  assert.equal(pPropMarketOf("4th Quarter Rushing Yards"), "rushing yards · 4th quarter");
+  assert.equal(pPropMarketOf("1st Half Points"), "points · 1st half");
+  assert.equal(pPropMarketOf("Passing Yards"), "passing yards");
+  assert.ok(pTrackable("receiving yards · 2nd quarter", "nfl"));
+  assert.ok(pTrackable("points · 1st half", "nba"));
+  assert.ok(!pTrackable("receiving yards · 2nd quarter", "ncaaf"), "college football period legs stay manual");
+  assert.ok(!pTrackable("fantasy score · 1st quarter", "nfl"));
+  assert.ok(!pTrackable("tackles · 1st quarter", "nfl"));
+  assert.ok(!pTrackable("points · 1st quarter", "ncaam"), "men's college plays halves");
+
+  type Fx = { core?: unknown; plays?: unknown; box: { statistics: { name: string; keys: string[]; athletes: { athlete: { id: string }; stats: string[] }[] }[] }[] };
+  const fx = (f: string) => JSON.parse(readFileSync(join("scripts/fixtures", f), "utf8")) as Fx;
+  const boxOf = (b: Fx["box"]) => {
+    const m: Record<string, Record<string, number>> = {};
+    for (const t of b) for (const g of t.statistics) if (!g.name || ["passing", "rushing", "receiving"].includes(g.name)) for (const a of g.athletes) {
+      const r = (m[a.athlete.id] ??= {});
+      g.keys.forEach((k, i) => {
+        const v = String(a.stats[i]);
+        const ks = k.split(/[-/]/);
+        const vs = v.split(/[-/]/);
+        if (ks.length === 2 && vs.length === 2) { r[ks[0]] = Number(vs[0]); r[ks[1]] = Number(vs[1]); }
+        else if (!(k in r)) r[k] = Number(v);
+      });
+    }
+    return m;
+  };
+  const diffs = (stats: import("../src/lib/periodStats").PeriodStats, box: Record<string, Record<string, number>>, keys: string[]) => {
+    const out: string[] = [];
+    for (const id of Object.keys(box)) for (const k of keys) {
+      const want = box[id][k];
+      if (want == null || Number.isNaN(want)) continue;
+      let got = 0;
+      for (const p of Object.keys(stats)) got += stats[p][id]?.[k] ?? 0;
+      if (got !== want) out.push(`${id}:${k}`);
+    }
+    return out.sort();
+  };
+  // Known differences are ESPN's own: its play feed and its box disagree there (a 1-yard spot, a play missing from the feed).
+  const NFL_KNOWN: Record<string, string[]> = { "401873017": [], "401873011": [], "401873016": ["4686422:rushingYards"] };
+  for (const [id, known] of Object.entries(NFL_KNOWN)) {
+    const f = fx(`period-nfl-${id}.json`);
+    assert.deepEqual(diffs(ps.footballPeriodStats(f.core, "nfl"), boxOf(f.box), ps.FOOTBALL_KEYS), known, `nfl ${id} quarter sums = box`);
+  }
+  const NBA_KNOWN: Record<string, string[]> = { "401909859": [], "401909853": ["2528210:blocks", "3032979:fieldGoalsAttempted", "4433287:defensiveRebounds", "4433287:rebounds", "4433287:turnovers"] };
+  for (const [id, known] of Object.entries(NBA_KNOWN)) {
+    const f = fx(`period-nba-${id}.json`);
+    const d = diffs(ps.hoopsPeriodStats(f.plays), boxOf(f.box), ps.HOOPS_KEYS);
+    assert.deepEqual(d, known, `nba ${id} quarter sums = box`);
+    assert.ok(!d.some((x) => x.endsWith(":points")), "points always match");
+  }
+
+  // legStat: McCaffrey (SF @ ATL), each quarter on its own; they add up to his box line.
+  const sf = fx("period-nfl-401873017.json");
+  const byPeriod = ps.footballPeriodStats(sf.core, "nfl");
+  const cmc = { id: "3117251", name: "Christian McCaffrey", statMap: {} as Record<string, string> };
+  const post = { state: "post" as const, period: 4, detail: "Final", plays: [], byPeriod };
+  const qs = ["1Q", "2Q", "3Q", "4Q"].map((q) => pLegStat(post, cmc, ps.withPeriod("rushing yards", q as never), "nfl")!);
+  assert.equal(qs.reduce((a, b) => a + b, 0), boxOf(sf.box)["3117251"].rushingYards);
+  assert.equal(pLegStat(post, cmc, "rushing yards · 1st half", "nfl"), qs[0] + qs[1]);
+  assert.equal(pLegStat(post, cmc, "rushing yards", "nfl"), null, "full-game market reads the box, not plays");
+  // Pending before its quarter, live during, locked after.
+  const mid = { state: "in" as const, period: 2, detail: "8:12 - 2nd Quarter", plays: [], byPeriod };
+  assert.equal(ps.periodState("nfl", "3Q", mid), "pending");
+  assert.equal(pLegStat(mid, cmc, "rushing yards · 3rd quarter", "nfl"), null);
+  assert.equal(ps.periodState("nfl", "2Q", mid), "live");
+  assert.equal(ps.periodState("nfl", "1Q", mid), "done");
+  assert.equal(ps.periodState("nfl", "2Q", { state: "in", period: 2, detail: "Halftime" }), "done");
+  assert.equal(ps.periodState("nfl", "2H", { state: "in", period: 5, detail: "OT" }), "live", "2nd half runs through OT");
+  assert.equal(ps.periodState("nfl", "4Q", { state: "in", period: 5, detail: "OT" }), "done", "4th quarter excludes OT");
+  // OT counts in the 2nd half only (NYG @ HOU went to OT).
+  assert.deepEqual(ps.periodsFor("nfl", "2H", 5), [3, 4, 5]);
+  assert.deepEqual(ps.periodsFor("nfl", "4Q", 5), [4]);
+  // A Q1 leg grades mid-game once Q1 is over.
+  const pick = { id: "t", sport: "nfl", subject: "Christian McCaffrey", line: qs[0] - 0.5, odds: -110, stake: 0, book: "DK", date: "2026-10-25", status: "open", createdAt: "", league: "nfl", gameId: "401873017", market: "rushing yards · 1st quarter", selection: "Over" } as unknown as import("../src/lib/types").Pick;
+  const snapMid = { ...mid, boxes: [{ abbr: "SF", color: "", columns: [], players: [{ ...cmc, starter: true, played: true, stats: [] }] }] } as unknown as import("../src/lib/live").LiveSnap;
+  assert.equal(pGradePick(pick, snapMid), "win");
+  assert.equal(pGradePick({ ...pick, market: "rushing yards · 3rd quarter" }, snapMid), null, "Q3 not started: no grade");
+  console.log("ok period props");
 }

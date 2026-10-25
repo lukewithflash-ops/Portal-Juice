@@ -7,6 +7,7 @@ export { mvpTeam, propTeam };
 import { unstable_cache } from "next/cache";
 import { allowedHeadshot } from "@/lib/headshots";
 import { implied } from "@/lib/odds";
+import { footballPeriodStats, hoopsPeriodStats, periodSport, type PeriodStats } from "@/lib/periodStats";
 import { bugFromScoreboard, freshestStatus, parseLive, situationFromScoreboard, statusFromScoreboard, type LiveSnap } from "@/lib/live";
 import {
   parseMvpMarket,
@@ -694,6 +695,36 @@ function easternDay(iso: string | null): string | null {
   return `${get("year")}${get("month")}${get("day")}`;
 }
 
+/** The core play feed is large: one call per game per 10 seconds per server is plenty for a quarter meter. */
+const coreCache = new Map<string, { at: number; value: Promise<unknown> }>();
+function coreMemo(url: string): Promise<unknown> {
+  const now = Date.now();
+  const hit = coreCache.get(url);
+  if (hit && now - hit.at < 10_000) return hit.value;
+  const value = getJson(url);
+  coreCache.set(url, { at: now, value });
+  value.catch(() => coreCache.delete(url));
+  if (coreCache.size > 60) for (const [k, v] of coreCache) if (now - v.at >= 10_000) coreCache.delete(k);
+  return value;
+}
+
+/** Per-period player stats from the real play-by-play (period props). Undefined when the sport has none. */
+async function periodStatsFor(leagueId: string, id: string, summary: unknown): Promise<PeriodStats | undefined> {
+  const sp = periodSport(leagueId);
+  if (sp === "hoops") return hoopsPeriodStats((summary as { plays?: unknown })?.plays);
+  if (leagueId !== "nfl") return undefined;
+  try {
+    // Never hold up the live game for a quarter meter: give the core feed 4 seconds.
+    const core = await Promise.race([
+      coreMemo(`https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events/${id}/competitions/${id}/plays?limit=1000`),
+      new Promise<null>((r) => setTimeout(() => r(null), 4_000)),
+    ]);
+    return core ? footballPeriodStats(core, "nfl") : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function getLive(leagueId: string, id: string): Promise<LiveSnap | null> {
   const league = leagueById(leagueId);
   const extra = league ? null : sportLeague(leagueId);
@@ -708,6 +739,7 @@ export async function getLive(leagueId: string, id: string): Promise<LiveSnap | 
     return null;
   }
   let snap = parseLive(data);
+  if (snap && snap.state !== "pre") snap = { ...snap, byPeriod: await periodStatsFor(leagueId, id, data) };
   const startAt = (data as { header?: { competitions?: { date?: string }[] } })?.header?.competitions?.[0]?.date;
   if (snap && typeof startAt === "string") snap = { ...snap, start: startAt };
   if (snap && extra?.kind === "soccer") {

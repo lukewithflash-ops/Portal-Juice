@@ -180,6 +180,8 @@ export function bugFromScoreboard(data: unknown, eventId: string): LiveBug | nul
 
 export type LiveSnap = {
   state: "pre" | "in" | "post";
+  /** Per-quarter / per-half player stats summed from ESPN play-by-play (period props). Football: NFL only. */
+  byPeriod?: import("@/lib/periodStats").PeriodStats;
   clock: string | null;
   detail: string;
   awayAbbr: string;

@@ -3,6 +3,8 @@ import { soccerKey, soccerStat } from "@/lib/soccerScore";
 
 import type { LiveBox, LivePlay, LiveSnap } from "@/lib/live";
 
+import { FOOTBALL_KEYS, HOOPS_KEYS, periodMap, periodOf, periodSport, periodState, periodsFor, stripPeriod } from "@/lib/periodStats";
+
 export type TrackTone = "gold" | "green" | "red" | "flat";
 
 export type TrackRow = {
@@ -213,7 +215,43 @@ export function longestPassFromPlays(plays: { text: string }[], name: string): n
   return best;
 }
 
+/** True when a market can be followed live in this league (period props only for stats we sum from plays). */
+export function trackableMarket(market: string, league?: string | null): boolean {
+  const code = periodOf(market);
+  if (!code) return marketTerms(market).length > 0;
+  return !!league && periodSupported(league, market);
+}
+
+/** A period leg's market works when every box key it needs is one we sum from the plays. */
+export function periodSupported(league: string, market: string): boolean {
+  const code = periodOf(market);
+  if (!code || !PERIOD_LEAGUES.has(league) || !periodsFor(league, code, 4)) return false;
+  const base = stripPeriod(market);
+  if (/fantasy|longest|first|double|triple|milestone/i.test(base)) return false;
+  const terms = marketTerms(base);
+  const keys = periodSport(league) === "football" ? FOOTBALL_KEYS : HOOPS_KEYS;
+  return terms.length > 0 && terms.every((t) => t.aliases.some((a) => keys.includes(a)));
+}
+
+/** NFL and basketball. College football stays manual: its play feed leaves too many plays without a named player. */
+const PERIOD_LEAGUES = new Set(["nfl", "nba", "wnba", "ncaam", "ncaaw"]);
+
+/**
+ * A leg's value right now. Full-game legs read the box score; period legs ("Rec yds · 2nd quarter") read only
+ * that period's plays, and stay null until it starts. Null = not followable (you grade it).
+ */
+export function legStat(snap: Pick<LiveSnap, "state" | "period" | "detail" | "plays" | "byPeriod">, player: { id: string; name: string; statMap: Record<string, string> }, market: string, league: string | null | undefined): number | null {
+  const code = periodOf(market);
+  if (!code) return liveStat(player.statMap, market, snap.plays, player.name);
+  if (!league || !periodSupported(league, market) || !snap.byPeriod) return null;
+  if (periodState(league, code, snap) === "pending") return null;
+  const map = periodMap(league, code, snap.byPeriod, player.id, Number(snap.period ?? 4));
+  return map ? sumTerms(map, marketTerms(stripPeriod(market))) : null;
+}
+
 export function liveStat(map: Record<string, string> | undefined, market: string, plays?: { text: string }[], name?: string): number | null {
+  // A period market never reads the full-game box.
+  if (periodOf(market)) return null;
   if (map && map["s:soccer"]) return soccerStat(map, market);
   const terms = marketTerms(market);
   if (!terms.length || !map) return null;

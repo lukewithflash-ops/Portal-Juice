@@ -4,6 +4,7 @@ import { NoteTag, PastNotes } from "@/components/Notes";
 import { matchupKey } from "@/lib/notesCore";
 import { useState } from "react";
 import SlipCheck, { checkLegOf } from "@/components/SlipCheck";
+import { PERIOD_LABEL, withPeriod, type PeriodCode } from "@/lib/periodStats";
 import { STAT_CHOICES, type GameRef, type ImportLeg, type SlipKind, type SlipRow } from "@/lib/slipImport";
 import { pickFromLeg } from "@/lib/legPick";
 import { addPick } from "@/lib/pickStore";
@@ -39,6 +40,7 @@ export default function QuickPick({ onDone }: { onDone?: () => void }) {
   const [sport, setSport] = useState("any");
   const [who, setWho] = useState("");
   const [market, setMarket] = useState("points");
+  const [period, setPeriod] = useState<PeriodCode | "">("");
   const [line, setLine] = useState("");
   const [side, setSide] = useState<"Over" | "Under">("Over");
   const [busy, setBusy] = useState(false);
@@ -55,7 +57,8 @@ export default function QuickPick({ onDone }: { onDone?: () => void }) {
     const row: SlipRow = {
       subject: who.trim(),
       kind,
-      market: kind === "prop" ? market : kind,
+      market: kind === "prop" ? withPeriod(market, period || null) : kind,
+      period: kind === "prop" ? period || null : null,
       line: kind === "moneyline" || !line.trim() || !Number.isFinite(n) ? null : n,
       selection: kind === "prop" || kind === "total" ? side : null,
       odds: null,
@@ -90,14 +93,20 @@ export default function QuickPick({ onDone }: { onDone?: () => void }) {
   }
 
   return (
-    <form onSubmit={find} className="panel mt-4 grid gap-2 rounded-2xl p-4 sm:grid-cols-[auto_1fr_auto_auto_auto_auto]" data-testid="quick-pick">
-      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-purple-200/80 sm:col-span-6">Find the game · live meters on My Live</p>
+    <form onSubmit={find} className="panel mt-4 grid gap-2 rounded-2xl p-4 sm:grid-cols-[auto_1fr_auto_auto_auto_auto_auto]" data-testid="quick-pick">
+      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-purple-200/80 sm:col-span-7">Find the game · live meters on My Live</p>
       <select aria-label="Sport" className="field" value={sport} onChange={(e) => { setSport(e.target.value); const g = SPORTS.find((x) => x.id === e.target.value)?.group ?? "basketball"; setMarket(STAT_CHOICES[g]?.[0] ?? "points"); }}>
         {SPORTS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
       </select>
       <input aria-label="Player or team" className="field" value={who} onChange={(e) => setWho(e.target.value)} placeholder={s.group === "tennis" ? "e.g. Iga Swiatek" : "Player or team"} autoComplete="off" data-testid="quick-who" />
       <select aria-label="Stat" className="field" value={market} onChange={(e) => setMarket(e.target.value)} data-testid="quick-stat">
         {stats.map((m) => <option key={m} value={m}>{m}</option>)}
+      </select>
+      <select aria-label="Period" className="field" value={period} onChange={(e) => setPeriod(e.target.value as PeriodCode | "")} disabled={TEAM_MARKETS.includes(market) || ["tennis", "baseball", "soccer"].includes(s.group)} data-testid="quick-period">
+        <option value="">Full game</option>
+        {(s.league === "nhl" ? (["1P", "2P", "3P"] as PeriodCode[]) : s.league === "ncaam" ? (["1H", "2H"] as PeriodCode[]) : (["1Q", "2Q", "3Q", "4Q", "1H", "2H"] as PeriodCode[])).map((p) => (
+          <option key={p} value={p}>{PERIOD_LABEL[p]}</option>
+        ))}
       </select>
       <input aria-label="Line" className="field w-24" inputMode="decimal" value={line} onChange={(e) => setLine(e.target.value)} placeholder="Line" disabled={market === "moneyline"} data-testid="quick-line" />
       <select aria-label="Side" className="field" value={side} onChange={(e) => setSide(e.target.value as "Over" | "Under")} disabled={market === "moneyline" || market === "spread"}>
@@ -108,7 +117,7 @@ export default function QuickPick({ onDone }: { onDone?: () => void }) {
         {busy ? "Finding…" : "Find"}
       </button>
       {found?.game ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm sm:col-span-6" data-testid="quick-found">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm sm:col-span-7" data-testid="quick-found">
           <span className="rounded bg-white/10 px-1.5 text-[10px] font-black uppercase text-zinc-300">{found.game.league}</span>
           <span className="font-bold text-white">{found.leg?.athleteName ?? found.row.subject}</span>
           {found.leg?.athleteName ? <NoteTag player={{ name: found.leg.athleteName, id: found.leg.athleteId ?? null }} /> : null}
@@ -121,14 +130,14 @@ export default function QuickPick({ onDone }: { onDone?: () => void }) {
         </div>
       ) : null}
       {found?.game ? (
-        <div className="sm:col-span-6">
+        <div className="sm:col-span-7">
           <SlipCheck legs={[{ ...checkLegOf(found), line: Number.isFinite(Number(line)) && line.trim() ? Number(line) : found.row.line, selection: found.row.kind === "prop" ? side : found.row.selection }]} />
         </div>
       ) : null}
-      <div className="sm:col-span-6">
+      <div className="sm:col-span-7">
         <PastNotes name={found?.leg?.athleteName ?? who.trim()} id={found?.leg?.athleteId ?? null} />
       </div>
-      {msg ? <p className="text-xs text-zinc-400 sm:col-span-6" data-testid="quick-msg">{msg}</p> : null}
+      {msg ? <p className="text-xs text-zinc-400 sm:col-span-7" data-testid="quick-msg">{msg}</p> : null}
     </form>
   );
 }
