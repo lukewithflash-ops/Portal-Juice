@@ -2366,5 +2366,7 @@ t("t178/t179: visualizer, your-player ring and tap-to-replay are wired on the ga
   const snapMid = { ...mid, boxes: [{ abbr: "SF", color: "", columns: [], players: [{ ...cmc, starter: true, played: true, stats: [] }] }] } as unknown as import("../src/lib/live").LiveSnap;
   assert.equal(pGradePick(pick, snapMid), "win");
   assert.equal(pGradePick({ ...pick, market: "rushing yards · 3rd quarter" }, snapMid), null, "Q3 not started: no grade");
+  assert.equal(statFromMarket("nfl", "receiving yards · 2nd quarter"), null, "period legs never use full-game lines or logs");
+  assert.equal(statFromMarket("nfl", "receiving yards"), "receivingYards");
   console.log("ok period props");
 }

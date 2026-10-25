@@ -4,6 +4,7 @@ import { sportLeague } from "@/lib/sports";
  * Every pro and con quotes the numbers it came from. No invented text, no money wording.
  */
 
+import { periodOf } from "@/lib/periodStats";
 import { implied } from "@/lib/odds";
 
 export type LegKind = "spread" | "total" | "moneyline" | "prop";
@@ -233,6 +234,8 @@ export function statLabel(league: string, key: string | undefined): string {
 /** Map an ESPN prop market name to a stat key. */
 export function statFromMarket(league: string, market: string): string | null {
   const m = market.toLowerCase();
+  // A quarter/half prop is not the full-game stat: full-game logs, hit rates and lines don't apply to it.
+  if (periodOf(m)) return null;
   if (/points.*rebounds.*assists|pts.*reb.*ast|\bpra\b/.test(m)) return "pra";
   // Combos, longest plays, and fantasy scores: computed per game from the log.
   if (/fantasy/.test(m)) return "fantasy";
