@@ -832,8 +832,8 @@ html[data-team] .portal-bg::after {
 .night-pill.r-P { background: var(--flat); }
 .night-pill.r-O { background: #52525b; color: #fff; }
 .streak-chip {
-  display: inline-flex; align-items: center; border-radius: 999px; padding: 0.05rem 0.45rem; font-size: 11px; font-weight: 900; color: #fff7d1;
-  border: 1px solid #f97316; background: rgba(40, 14, 4, 0.85); box-shadow: 0 0 10px rgba(249, 115, 22, 0.7);
+  display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; border-radius: 999px; padding: 0.25rem 0.45rem; font-size: 11px; line-height: 1; font-weight: 900; color: #ffd8b0; white-space: nowrap;
+  border: 1px solid rgba(249, 115, 22, 0.45); background: linear-gradient(135deg, rgba(249, 115, 22, 0.16), rgba(192, 38, 255, 0.16)); box-shadow: 0 0 10px rgba(249, 115, 22, 0.2);
   animation: pj-combo-in 0.5s cubic-bezier(.2,1.4,.4,1);
 }
 html[data-streak] .site-chrome { border-bottom-color: rgba(57, 255, 20, 0.45); }
@@ -1155,9 +1155,6 @@ html[data-pj-head="chrome"] .wordmark { background: linear-gradient(100deg, #fff
 @keyframes shopSheen{0%,60%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
 @media (prefers-reduced-motion:reduce){.shop-entry::after{animation:none}}
 /* Live banner: translucent neon, no solid backdrop; each slide only as tall as itself. */
-.top-stack:has(> .live-banner){background:transparent}
-.top-stack:has(> .live-banner) > :not(.live-banner){background:#030306}
-.live-banner{background:transparent}
 .live-banner .banner-in{-webkit-backdrop-filter:blur(14px) saturate(1.4);backdrop-filter:blur(14px) saturate(1.4);box-shadow:0 0 18px -6px rgba(192,38,255,.55)}
 .lb-leg{background:rgba(10,6,20,.45);border:1px solid rgba(192,38,255,.35)}
 .neon-run .neon-legs,.neon-tackle .neon-legs{animation:neonStride .28s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:50% 0}
@@ -1194,3 +1191,23 @@ html[data-pj-head="chrome"] .wordmark { background: linear-gradient(100deg, #fff
 .player-sheet { background: linear-gradient(180deg, rgba(22, 10, 40, 0.98), #0b0716 45%); border-top: 1px solid color-mix(in srgb, var(--team, #a855f7) 60%, transparent); box-shadow: 0 -12px 44px color-mix(in srgb, var(--team, #a855f7) 30%, transparent); }
 .player-sheet-tile { background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(168, 85, 247, 0.25); }
 @media (prefers-reduced-motion: reduce) { .spot-press { transition: none; } }
+
+/* One solid sticky stack: header, tabs, live banner and page bars share a single blurred neon surface.
+   Children are transparent, so there are no black strips and nothing shows between layers in any scroll state. */
+.top-stack {
+  background: linear-gradient(180deg, rgba(6, 3, 14, 0.96), rgba(12, 5, 26, 0.94));
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
+  box-shadow: 0 1px 0 rgba(192, 38, 255, 0.28), 0 10px 24px -14px rgba(192, 38, 255, 0.45);
+  transform: translateZ(0);
+  isolation: isolate;
+}
+.top-stack > *, .top-stack .site-chrome, #top-stack-slot > *, #top-stack-slot [data-testid="league-bar"] { background: transparent !important; margin-top: 0; margin-bottom: 0; }
+.top-stack .site-chrome { box-shadow: none; }
+/* Anchors and focus scroll land below the stack, never under it. */
+html { scroll-padding-top: calc(var(--chrome-h, 0px) + 8px); }
+/* Header fit steps (set by SiteHeader after measuring). */
+header[data-fit="1"] .hdr-tagline, header[data-fit="2"] .hdr-tagline, header[data-fit="3"] .hdr-tagline { display: none; }
+header[data-fit="1"] .wordmark { font-size: 15px; }
+header[data-fit="2"] .hdr-brand-text, header[data-fit="3"] .hdr-brand-text { display: none; }
+header[data-fit="3"] .hdr-odds { display: none; }

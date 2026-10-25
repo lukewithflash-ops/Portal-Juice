@@ -8,7 +8,7 @@ import VipBadge from "@/components/VipBadge";
 import CoinPill from "@/components/CoinPill";
 import { useLiveHub } from "@/components/LiveHub";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePrefs, type FavTeam } from "@/components/Prefs";
 import { IMPLIED_TIP } from "@/lib/odds";
 import { LEAGUES, type LeagueId } from "@/lib/slate";
@@ -19,6 +19,32 @@ import type { TeamOption } from "@/lib/team";
 export default function SiteHeader() {
   const path = usePathname();
   const firstPath = useRef(path);
+  // Fit the header in any width: step down (smaller wordmark → icon only → hide odds toggle) until nothing is clipped. Measured, never hard-coded.
+  const row = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = row.current;
+    const hdr = el?.closest("header");
+    if (!el || !hdr) return;
+    const right = el.querySelector<HTMLElement>("[data-hdr-right]");
+    const fit = () => {
+      for (let lvl = 0; lvl <= 3; lvl++) {
+        hdr.dataset.fit = String(lvl);
+        if (!right) return;
+        const edge = el.getBoundingClientRect().right + 0.5;
+        const over = right.scrollWidth > right.clientWidth + 0.5 || [...right.children].some((c) => (c as HTMLElement).getBoundingClientRect().right > edge);
+        if (!over) return;
+      }
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    const mo = new MutationObserver(fit);
+    if (right) mo.observe(right, { childList: true, subtree: true, characterData: true });
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+    };
+  }, []);
   const [showTagline, setShowTagline] = useState(true);
   const { odds, setOdds, team } = usePrefs();
   const liveCount = useLiveHub().live.length;
@@ -60,7 +86,7 @@ export default function SiteHeader() {
   return (
     <header className="site-chrome">
       <div className="mx-auto max-w-6xl px-3 pt-2.5 sm:px-4">
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div ref={row} className="flex items-center gap-2 sm:gap-3">
           <Link href="/lines" className="flex shrink-0 items-center gap-1.5 sm:gap-2.5" aria-label={SITE_NAME + " — Lines"}>
             {team ? (
               <span className={"brand-mask h-7 w-9 shrink-0 sm:h-9 sm:w-11 " + spin} aria-hidden />
@@ -72,21 +98,21 @@ export default function SiteHeader() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={team.logo} alt="" width={24} height={24} className="hidden h-6 w-6 shrink-0 min-[380px]:block" />
             ) : null}
-            <span className="flex shrink-0 flex-col leading-none">
+            <span className="hdr-brand-text flex shrink-0 flex-col leading-none">
               <span className="wordmark whitespace-nowrap text-[17px] font-black tracking-tight sm:text-xl" data-testid="site-name">{SITE_NAME}</span>
               {showTagline && (
-                <span className="mt-1 whitespace-nowrap text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-400 sm:text-[10px] sm:tracking-[0.22em]">{TAGLINE}</span>
+                <span className="hdr-tagline mt-1 whitespace-nowrap text-[9px] font-medium uppercase tracking-[0.12em] text-zinc-400 sm:text-[10px] sm:tracking-[0.22em]">{TAGLINE}</span>
               )}
             </span>
           </Link>
-          <div className="ml-auto flex min-w-0 shrink items-center gap-1 sm:gap-1.5">
+          <div data-hdr-right className="ml-auto flex min-w-0 shrink items-center gap-1 sm:gap-1.5">
             <VipBadge />
             <CoinPill />
             <StreakGlow />
             <Bell />
             <button
               type="button"
-              className="shrink-0 rounded-lg border border-white/10 px-1.5 py-1 text-[11px] font-bold text-zinc-200 sm:px-2"
+              className="hdr-odds shrink-0 rounded-lg border border-white/10 px-1.5 py-1 text-[11px] font-bold text-zinc-200 sm:px-2"
               aria-pressed={odds === "pct"}
               aria-label={odds === "pct" ? "Odds: implied chance. Tap for American odds." : "Odds: American. Tap for implied chance."}
               title={IMPLIED_TIP}

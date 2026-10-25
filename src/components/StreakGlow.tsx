@@ -16,8 +16,8 @@ export default function StreakGlow() {
   }, [level]);
   if (n < 2) return null;
   return (
-    <span key={n} className="streak-chip" title={`${n} logged wins in a row on this device`} aria-label={`${n} win streak`}>
-      🔥{n}
+    <span key={n} className="streak-chip press tabular" title={`${n} logged wins in a row on this device`} aria-label={`${n} win streak`}>
+      <span aria-hidden>🔥</span>{n}
     </span>
   );
 }
