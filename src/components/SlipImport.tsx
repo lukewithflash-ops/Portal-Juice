@@ -10,6 +10,7 @@ import { addPick } from "@/lib/pickStore";
 import { StatTipLine } from "@/components/StatsExtras";
 import { STAT_CHOICES, sportGroupOf, type GameRef, type ImportLeg, type SlipKind, type SlipRow } from "@/lib/slipImport";
 import { trackableMarket, FANTASY_NOTE } from "@/lib/tracker";
+import { CANON_LABELS, friendlyStat, shortStat } from "@/lib/statAlias";
 import { PERIOD_LABEL, periodOf, stripPeriod, withPeriod, type PeriodCode } from "@/lib/periodStats";
 import { statFromMarket } from "@/lib/breakdown";
 import { ptTime } from "@/lib/time";
@@ -427,7 +428,7 @@ export default function SlipImport({ onBreakDown, compact = false, shared = null
                   </select>
                   {x.row.kind === "prop" ? (
                     <>
-                    <select className="field col-span-4" value={stripPeriod(x.row.market)} aria-label="Stat" onChange={(e) => edit(i, { market: e.target.value ? withPeriod(e.target.value, periodOf(x.row.market)) : "" })}>
+                    <select className="field col-span-6 min-w-0" value={stripPeriod(x.row.market)} aria-label="Stat" data-testid="import-stat" onChange={(e) => edit(i, { market: e.target.value ? withPeriod(e.target.value, periodOf(x.row.market)) : "" })}>
                       {(() => {
                         const choices = STAT_CHOICES[sportGroupOf(x.game?.league ?? x.leg?.league ?? "")] ?? STAT_CHOICES.football;
                         const base = stripPeriod(x.row.market);
@@ -437,7 +438,7 @@ export default function SlipImport({ onBreakDown, compact = false, shared = null
                             <option value="">Pick the stat…</option>
                             {all.map((c) => (
                               <option key={c} value={c}>
-                                {c === base && !choices.includes(c) ? `${c.charAt(0).toUpperCase()}${c.slice(1)} · as written on your slip` : `${c.charAt(0).toUpperCase()}${c.slice(1)}`}
+                                {c === base && !choices.includes(c) ? (CANON_LABELS.includes(c) ? shortStat(c) : friendlyStat(c)) : shortStat(c)}
                                 {c === "fantasy score" ? ` · ${FANTASY_NOTE}` : ""}
                               </option>
                             ))}
@@ -446,7 +447,7 @@ export default function SlipImport({ onBreakDown, compact = false, shared = null
                       })()}
                     </select>
                     <select
-                      className="field col-span-2 min-w-0"
+                      className="field col-span-3 min-w-0"
                       value={periodOf(x.row.market) ?? ""}
                       aria-label="Period"
                       data-testid="import-period"
@@ -464,7 +465,7 @@ export default function SlipImport({ onBreakDown, compact = false, shared = null
                   {x.row.kind === "prop" && x.row.market ? <StatTipLine market={x.row.market} /> : null}
                   {x.row.kind === "prop" || x.row.kind === "total" ? (
                     <select
-                      className="field col-span-2 min-w-0"
+                      className="field col-span-3 min-w-0"
                       value={x.row.plus ? "+" : x.row.selection ?? ""}
                       aria-label="Side"
                       data-testid="import-side"
@@ -482,7 +483,7 @@ export default function SlipImport({ onBreakDown, compact = false, shared = null
                   ) : null}
                   {x.row.kind !== "moneyline" ? (
                     <input
-                      className={"field min-w-0 " + (x.row.kind === "prop" || x.row.kind === "total" ? "col-span-2" : "col-span-3") + (!x.dirty && x.issue?.startsWith("Check this line") ? " ring-2 ring-[color:var(--minus)]" : "")}
+                      className={"field min-w-0 " + (x.row.kind === "prop" ? "col-span-3" : x.row.kind === "total" ? "col-span-2" : "col-span-3") + (!x.dirty && x.issue?.startsWith("Check this line") ? " ring-2 ring-[color:var(--minus)]" : "")}
                       value={x.row.plus && x.row.line != null ? x.row.line + 0.5 : x.row.line ?? ""}
                       placeholder={x.row.plus ? "At least" : "Line"}
                       inputMode="decimal"
@@ -494,7 +495,7 @@ export default function SlipImport({ onBreakDown, compact = false, shared = null
                     />
                   ) : null}
                   <input
-                    className={"field min-w-0 " + (x.row.kind === "spread" ? "col-span-3" : x.row.kind === "moneyline" ? "col-span-6" : "col-span-2")}
+                    className={"field min-w-0 " + (x.row.kind === "spread" ? "col-span-3" : x.row.kind === "moneyline" ? "col-span-6" : x.row.kind === "prop" ? "col-span-3" : "col-span-2")}
                     value={x.row.odds ?? ""}
                     placeholder="Price"
                     aria-label="Price"

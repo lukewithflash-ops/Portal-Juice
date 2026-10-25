@@ -6,6 +6,7 @@ import { useState } from "react";
 import SlipCheck, { checkLegOf } from "@/components/SlipCheck";
 import { PERIOD_LABEL, withPeriod, type PeriodCode } from "@/lib/periodStats";
 import { STAT_CHOICES, type GameRef, type ImportLeg, type SlipKind, type SlipRow } from "@/lib/slipImport";
+import { CANON_LABELS, shortStat } from "@/lib/statAlias";
 import { pickFromLeg } from "@/lib/legPick";
 import { addPick } from "@/lib/pickStore";
 
@@ -100,7 +101,7 @@ export default function QuickPick({ onDone }: { onDone?: () => void }) {
       </select>
       <input aria-label="Player or team" className="field" value={who} onChange={(e) => setWho(e.target.value)} placeholder={s.group === "tennis" ? "e.g. Iga Swiatek" : "Player or team"} autoComplete="off" data-testid="quick-who" />
       <select aria-label="Stat" className="field" value={market} onChange={(e) => setMarket(e.target.value)} data-testid="quick-stat">
-        {stats.map((m) => <option key={m} value={m}>{m}</option>)}
+        {stats.map((m) => <option key={m} value={m}>{CANON_LABELS.includes(m) ? shortStat(m) : m.charAt(0).toUpperCase() + m.slice(1)}</option>)}
       </select>
       <select aria-label="Period" className="field" value={period} onChange={(e) => setPeriod(e.target.value as PeriodCode | "")} disabled={TEAM_MARKETS.includes(market) || ["tennis", "baseball", "soccer"].includes(s.group)} data-testid="quick-period">
         <option value="">Full game</option>

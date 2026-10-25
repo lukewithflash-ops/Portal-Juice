@@ -2370,3 +2370,70 @@ t("t178/t179: visualizer, your-player ring and tap-to-replay are wired on the ga
   assert.equal(statFromMarket("nfl", "receiving yards"), "receivingYards");
   console.log("ok period props");
 }
+
+// ---- Slip stat names: every book's wording maps to a stat we follow, or a stated reason it can't be ----
+import { PROP_FIXTURES } from "./fixtures/prop-strings.fixture";
+import { notTrackableReason as sNotTrackable, resolveStat as sResolve, shortStat as sShort, friendlyStat as sFriendly } from "../src/lib/statAlias";
+import { propMarketOf as sProp } from "../src/lib/slipImport";
+import { trackableMarket as sTrackable, legStat as sLegStat } from "../src/lib/tracker";
+import { parseLive as sParseLive } from "../src/lib/live";
+import { periodOf as sPeriodOf } from "../src/lib/periodStats";
+import * as sFs from "fs";
+{
+  assert.ok(PROP_FIXTURES.length >= 300, `at least 300 real prop strings (${PROP_FIXTURES.length})`);
+  const failed: string[] = [];
+  for (const f of PROP_FIXTURES) {
+    const m = sProp(f.text);
+    if (m && sTrackable(m, f.league)) continue;
+    if (sNotTrackable(f.text, f.league)) continue;
+    failed.push(`${f.league} "${f.text}" -> "${m}"`);
+  }
+  assert.deepEqual(failed, [], "every prop string maps to a live stat or a stated reason");
+  // Exact readings that matter.
+  const cases: [string, string][] = [
+    ["2-pt att", "two-pointers attempted"], ["Att 2-pt", "two-pointers attempted"], ["2PA", "two-pointers attempted"], ["two pointers attempted", "two-pointers attempted"],
+    ["2PT attempted", "two-pointers attempted"], ["2PM", "two-pointers made"], ["2-pt made", "two-pointers made"], ["3pta", "threes attempted"],
+    ["Pts + Rebs + Asts", "points + rebounds + assists"], ["Reb+Ast", "rebounds + assists"], ["Ast+Reb", "rebounds + assists"], ["TO", "turnovers"],
+    ["Pts+Reb+Ast+Stl", "points + rebounds + assists + steals"], ["Stolen Bases", ""], ["First TD Scorer", ""], ["Tackles+Ast", "tackles"],
+    ["Outs", "outs recorded"], ["Total Bases (From Hits)", "total bases"], ["2nd Quarter Rush Yds", "rushing yards · 2nd quarter"],
+  ];
+  for (const [txt, want] of cases) assert.equal(sProp(txt), want, txt);
+  // "to" as a word is not turnovers; inside a stat column it is.
+  assert.equal(sResolve("to", { strict: false }), null);
+  assert.equal(sResolve("TO")?.label, "turnovers");
+  // Fuzzy: a typo still resolves; noise does not.
+  assert.equal(sResolve("Rebouds")?.label, "rebounds");
+  assert.equal(sResolve("Pasing Yards")?.label, "passing yards");
+  assert.equal(sResolve("Banana Splits"), null);
+  assert.equal(sShort("two-pointers attempted"), "2-pt att");
+  assert.equal(sFriendly("PTS+REB+BLK DUNKS"), "Pts+Reb+Blk Dunks");
+  // The slip from Luke's screenshot: Power Play, Anthony Edwards Over 11.5 2-pt att. Tracked, no manual note.
+  assert.equal(sTrackable(sProp("Anthony Edwards Over 11.5 2-pt att"), "nba"), true);
+  assert.equal(sTrackable(sProp("2-pt att"), "nba"), true);
+  assert.equal(sNotTrackable("Dunks", "nba")?.label, "Dunks");
+  // Every trackable label reads a real number from real ESPN box scores (NBA, WNBA, NCAAB, NFL, NCAAF, MLB, NHL).
+  const ABSENT_OK = new Set(["fumbles lost"]); // nobody fumbled in that game: ESPN's fumbles group is empty
+  const files = sFs.readdirSync("scripts/fixtures").filter((f) => f.startsWith("statmap-"));
+  assert.ok(files.length >= 7);
+  for (const f of files) {
+    const lg = f.split("-")[1];
+    const snap = sParseLive(JSON.parse(sFs.readFileSync("scripts/fixtures/" + f, "utf8")))!;
+    const players = snap.boxes.flatMap((b) => b.players);
+    const labels = new Set(PROP_FIXTURES.filter((x) => x.league === lg).map((x) => sProp(x.text)).filter((m) => m && sTrackable(m, lg) && !sPeriodOf(m)));
+    for (const m of labels) {
+      if (ABSENT_OK.has(m)) continue;
+      const vals = players.map((p) => sLegStat(snap, p, m, lg)).filter((v) => v !== null);
+      assert.ok(vals.length > 0, `${lg} ${m}: ESPN box gives a value`);
+    }
+  }
+  // Two-pointers equal FG minus 3PT on the real box (Bam Adebayo-style check on every player).
+  const nba = sParseLive(JSON.parse(sFs.readFileSync("scripts/fixtures/statmap-nba-401909853.json", "utf8")))!;
+  for (const p of nba.boxes.flatMap((b) => b.players)) {
+    const fg = p.statMap.FG?.match(/^(\d+)-(\d+)$/);
+    const tp = p.statMap["3PT"]?.match(/^(\d+)-(\d+)$/);
+    if (!fg || !tp) continue;
+    assert.equal(sLegStat(nba, p, "two-pointers attempted", "nba"), Number(fg[2]) - Number(tp[2]), p.name);
+    assert.equal(sLegStat(nba, p, "two-pointers made", "nba"), Number(fg[1]) - Number(tp[1]), p.name);
+  }
+  console.log(`ok - slip stat names: ${PROP_FIXTURES.length} real prop strings, all mapped or explained`);
+}

@@ -876,8 +876,9 @@ export function addHitTypes(rawPlays: unknown[], boxes: LiveBox[]): void {
   for (const b of boxes)
     for (const p of b.players) {
       if (!("atBats" in p.statMap) || p.statMap.hits == null) continue;
-      const hits = Number(p.statMap.hits);
-      const hr = Number(p.statMap.homeRuns ?? 0);
+      const lead = (v: string | undefined) => Number((v ?? "").trim().match(/^\d+/)?.[0] ?? NaN);
+      const hits = lead(p.statMap.H ?? p.statMap.hits);
+      const hr = lead(p.statMap.HR ?? p.statMap.homeRuns ?? "0");
       const c = counts.get(p.id) ?? { s: 0, d: 0, t: 0, hr: 0 };
       if (!Number.isFinite(hits) || c.s + c.d + c.t + c.hr !== hits || c.hr !== hr) continue;
       p.statMap["c:singles"] = String(c.s);

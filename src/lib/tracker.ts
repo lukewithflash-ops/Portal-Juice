@@ -119,7 +119,7 @@ const LABEL_TERMS: Record<string, Term[]> = {
   "pitches thrown": [T(["pitches", "PC", "#P"])],
   "goals against": [T(["goalsAgainst", "GA"])],
   // Soccer reads its own map first; hockey goalies read goals against.
-  "goals allowed": [T(["goalsAgainst", "GA", "s:conceded"])],
+  "goals allowed": [T(["goalsAgainst", "GA", "s:ga"])],
   "faceoffs won": [T(["faceoffsWon", "FW"])],
   "penalty minutes": [T(["penaltyMinutes", "PIM"])],
   "shots on goal": [T(["shotsTotal", "SOG", "shotsOnGoal"])],
