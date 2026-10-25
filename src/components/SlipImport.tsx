@@ -3,7 +3,7 @@ import { isPickem } from "@/lib/plusLegs";
 import SlipCheck, { checkLegOf } from "@/components/SlipCheck";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { checkHref, type LegInput } from "@/lib/breakdown";
 import { pickFromLeg, sportOf } from "@/lib/legPick";
 import { addPick } from "@/lib/pickStore";
@@ -88,7 +88,10 @@ async function post(body: unknown, timeoutMs = 95_000): Promise<ReadReply> {
  * Photo, link, or pasted text → rows you confirm → Break it down or Track it.
  * Rows only come from what the slip shows. Anything we cannot tie to a game is flagged.
  */
-export default function SlipImport({ onBreakDown, compact = false }: { onBreakDown?: (legs: LegInput[]) => void; compact?: boolean }) {
+/** An item shared in from another app (iOS Share Extension or PWA share target). */
+export type SharedSlip = { image?: string; text?: string; url?: string };
+
+export default function SlipImport({ onBreakDown, compact = false, shared = null }: { onBreakDown?: (legs: LegInput[]) => void; compact?: boolean; shared?: SharedSlip | null }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -136,13 +139,14 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
     }
   }
 
-  async function onLink(e: React.FormEvent) {
+  async function onLink(e: React.FormEvent, given?: string) {
     e.preventDefault();
-    if (!link.trim()) return;
+    const link0 = given ?? link;
+    if (!link0.trim()) return;
     setError("");
     setBusy("Opening the link…");
     try {
-      const res = await fetch("/api/slip", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: link }) });
+      const res = await fetch("/api/slip", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: link0 }) });
       const d = await res.json();
       if (!res.ok || !String(d.text ?? "").trim()) {
         setError(`${d.error ?? "That book doesn’t share the slip with us."} Open the slip, copy its text (or screenshot it), and use the box below.`);
@@ -172,6 +176,33 @@ export default function SlipImport({ onBreakDown, compact = false }: { onBreakDo
       setBusy("");
     }
   }
+
+  // Shared from another app: run the same reader as a picked photo, a link, or pasted text.
+  const sharedDone = useRef<SharedSlip | null>(null);
+  useEffect(() => {
+    if (!shared || sharedDone.current === shared) return;
+    sharedDone.current = shared;
+    (async () => {
+      if (shared.image) {
+        const blob = await (await fetch(shared.image)).blob();
+        await onPhoto(new File([blob], "shared.jpg", { type: blob.type || "image/jpeg" }));
+      } else if (shared.url && !shared.text?.replace(shared.url, "").trim()) {
+        setLink(shared.url);
+        await onLink({ preventDefault() {} } as React.FormEvent, shared.url);
+      } else if (shared.text) {
+        setPasted(shared.text);
+        setBusy("Reading…");
+        try {
+          load(await post({ text: shared.text }), "Read from the shared text. Check each row.");
+        } catch {
+          setError("Could not read that.");
+        } finally {
+          setBusy("");
+        }
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shared]);
 
   async function rematch() {
     if (!items) return;

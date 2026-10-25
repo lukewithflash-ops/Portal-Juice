@@ -19,7 +19,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
         { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
         { src: "/icons/icon-512-maskable.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
       ];
-  return {
+  return ({
     name: "Portal Juice",
     short_name: SITE_NAME,
     description: "The number moved. Lines, juice, streaks. Not a book.",
@@ -29,10 +29,16 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     background_color: "#030306",
     theme_color: team ? `#${team.color}` : "#030306",
     icons,
+    share_target: {
+      action: "/api/share",
+      method: "POST",
+      enctype: "multipart/form-data",
+      params: { title: "title", text: "text", url: "url", files: [{ name: "image", accept: ["image/*"] }] },
+    },
     shortcuts: [
       { name: "My Live", short_name: "Live", url: "/live", description: "Your open picks and parlays, live" },
       { name: "Log a pick", short_name: "Log", url: "/lines/portfolio" },
       { name: "Quests", short_name: "Quests", url: "/quests" },
     ],
-  };
+  }) as MetadataRoute.Manifest;
 }

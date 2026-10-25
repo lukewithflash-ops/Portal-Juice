@@ -36,7 +36,22 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
         // Called when the app was launched with a url. Feel free to add additional processing here,
         // but if you want the App API to support tracking app url opens, make sure to keep this call
+        if url.scheme == "app.portaljuice", url.host == "share",
+           let id = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "id" })?.value {
+            openShared(id: id, tries: 0)
+        }
         return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
+    }
+
+    /// Share Extension hand-off: open the Log page's slip reader with the shared item.
+    private func openShared(id: String, tries: Int) {
+        let safe = id.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
+        guard let web = (window?.rootViewController as? CAPBridgeViewController)?.webView,
+              let target = URL(string: "https://portaljuice.app/lines/portfolio?share=\(safe)#add-slip") else {
+            if tries < 20 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { self.openShared(id: id, tries: tries + 1) } }
+            return
+        }
+        web.load(URLRequest(url: target))
     }
 
     func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
