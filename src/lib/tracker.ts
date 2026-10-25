@@ -1,6 +1,7 @@
 import { soccerKey, soccerStat } from "@/lib/soccerScore";
 /** Match a posted prop line to a live box cell. No invented stats. */
 
+import { LEAGUE_NOT_TRACKABLE } from "@/lib/statAlias";
 import type { LiveBox, LivePlay, LiveSnap } from "@/lib/live";
 
 import { FOOTBALL_KEYS, HOOPS_KEYS, periodMap, periodOf, periodSport, periodState, periodsFor, stripPeriod } from "@/lib/periodStats";
@@ -78,12 +79,75 @@ export const FANTASY_HOOPS: Term[] = [
 ];
 export const FANTASY_NOTE = "PrizePicks-style scoring";
 
-const PTS = T(["points", "PTS"]);
+const PTS = T(["points", "PTS", "c:hockeyPoints"]);
 const REB = T(["rebounds", "REB"]);
 const AST = T(["assists", "AST"]);
 
+const W = (aliases: string[], w: number): Term => ({ aliases, w });
+/** Exact labels from the alias table (statAlias.ts). Computed ones use the ESPN box only. */
+const LABEL_TERMS: Record<string, Term[]> = {
+  points: [T(["points", "PTS", "c:hockeyPoints"])],
+  "hockey points": [T(["c:hockeyPoints"])],
+  "two-pointers made": [T(["fieldGoalsMade", "FG"]), W(["threePointFieldGoalsMade", "3PT"], -1)],
+  "two-pointers attempted": [T(["fieldGoalsAttempted", "FG#2"]), W(["threePointFieldGoalsAttempted", "3PT#2"], -1)],
+  "field goals attempted": [T(["fieldGoalsAttempted", "FG#2", "fieldGoalAttempts"])],
+  "double-double": [T(["c:dd"])],
+  "triple-double": [T(["c:td"])],
+  "minutes played": [T(["minutes", "MIN"])],
+  blocks: [T(["blocks", "BLK", "blockedShots"])],
+  "rushing touchdowns": [T(["rushingTouchdowns"])],
+  "receiving touchdowns": [T(["receivingTouchdowns"])],
+  "rush + rec touchdowns": [T(["rushingTouchdowns"], 1, true), T(["receivingTouchdowns"], 1, true)],
+  // Any touchdown the player scores himself (not the passer): rushing, receiving, returns, defense.
+  "anytime touchdown": ["rushingTouchdowns", "receivingTouchdowns", "kickReturnTouchdowns", "puntReturnTouchdowns", "interceptionTouchdowns", "defensiveTouchdowns"].map((k) => T([k], 1, true)),
+  "assisted tackles": [T(["totalTackles", "TOT"]), W(["soloTackles", "SOLO"], -1)],
+  "tackles for loss": [T(["tacklesForLoss", "TFL"])],
+  "passes defended": [T(["passesDefended", "PD"])],
+  "longest field goal": [T(["longFieldGoalMade"])],
+  "fumbles lost": [T(["fumblesLost"])],
+  "total bases": [T(["c:totalBases"])],
+  singles: [T(["c:singles"])],
+  doubles: [T(["c:doubles"])],
+  triples: [T(["c:triples"])],
+  "extra base hits": [T(["c:doubles"]), T(["c:triples"]), T(["homeRuns", "HR"])],
+  "hits allowed": [T(["hits", "H"])],
+  "walks allowed": [T(["walks", "BB"])],
+  "runs allowed": [T(["runs", "R"])],
+  walks: [T(["walks", "BB"])],
+  runs: [T(["runs", "R"])],
+  "outs recorded": [T(["c:outs"])],
+  "pitches thrown": [T(["pitches", "PC", "#P"])],
+  "goals against": [T(["goalsAgainst", "GA"])],
+  // Soccer reads its own map first; hockey goalies read goals against.
+  "goals allowed": [T(["goalsAgainst", "GA", "s:conceded"])],
+  "faceoffs won": [T(["faceoffsWon", "FW"])],
+  "penalty minutes": [T(["penaltyMinutes", "PIM"])],
+  "shots on goal": [T(["shotsTotal", "SOG", "shotsOnGoal"])],
+};
+
+/** Stats ESPN doesn't post as one cell but we can compute from cells it does post. */
+const COMPUTED: Record<string, (map: Record<string, string>) => number | null> = {
+  "c:hockeyPoints": (m) => ("shotsTotal" in m && "goals" in m ? (statNumber(m.goals) ?? 0) + (statNumber(m.assists) ?? 0) : null),
+  "c:outs": (m) => {
+    const ip = (m["fullInnings.partInnings"] ?? m.IP ?? "").trim().match(/^(\d+)(?:\.(\d))?$/);
+    return ip ? Number(ip[1]) * 3 + Number(ip[2] ?? 0) : null;
+  },
+  "c:dd": (m) => doubles(m, 2),
+  "c:td": (m) => doubles(m, 3),
+};
+function doubles(m: Record<string, string>, need: number): number | null {
+  if (!("points" in m || "PTS" in m)) return null;
+  const cats = [["points", "PTS"], ["rebounds", "REB"], ["assists", "AST"], ["steals", "STL"], ["blocks", "BLK"]];
+  const tens = cats.filter((c) => (readAlias(m, c) ?? 0) >= 10).length;
+  return tens >= need ? 1 : 0;
+}
+
 /** The box score terms behind a market. Empty when we cannot compute it live. */
 export function marketTerms(market: string): Term[] {
+  const exact = LABEL_TERMS[market.trim().toLowerCase()];
+  if (exact) return exact;
+  // Any hoops combo label ("points + rebounds + assists + steals"): sum its parts.
+  if (/ \+ /.test(market) && market.split(" + ").every((p) => HOOP_PART[p.trim().toLowerCase()])) return market.split(" + ").flatMap((p) => HOOP_PART[p.trim().toLowerCase()]);
   // Short labels ("Pts+Reb+Ast", "Rebs+Asts", "Blk+Stl") read like the long ones.
   const m = market
     .toLowerCase()
@@ -163,6 +227,11 @@ export function marketTerms(market: string): Term[] {
   return [];
 }
 
+const HOOP_PART: Record<string, Term[]> = {
+  points: [T(["points", "PTS"])], rebounds: [T(["rebounds", "REB"])], assists: [T(["assists", "AST"])], steals: [T(["steals", "STL"])],
+  blocks: [T(["blocks", "BLK"])], turnovers: [T(["turnovers", "TO"])], "3-pointers": [T(["threePointFieldGoalsMade", "3PT"])],
+};
+
 /** Old shape kept for callers that only need to know a market is trackable. */
 export function marketGroups(market: string): string[][] {
   return marketTerms(market).map((t) => t.aliases);
@@ -180,6 +249,11 @@ function readAlias(map: Record<string, string>, aliases: string[]): number | nul
     }
     const key = raw;
     if (Object.prototype.hasOwnProperty.call(map, key)) return statNumber(map[key]);
+    const calc = COMPUTED[key];
+    if (calc) {
+      const v = calc(map);
+      if (v !== null) return v;
+    }
   }
   return null;
 }
@@ -217,6 +291,7 @@ export function longestPassFromPlays(plays: { text: string }[], name: string): n
 
 /** True when a market can be followed live in this league (period props only for stats we sum from plays). */
 export function trackableMarket(market: string, league?: string | null): boolean {
+  if (league && LEAGUE_NOT_TRACKABLE.some((x) => x.leagues.includes(league) && x.re.test(market))) return false;
   const code = periodOf(market);
   if (!code) return marketTerms(market).length > 0;
   return !!league && periodSupported(league, market);

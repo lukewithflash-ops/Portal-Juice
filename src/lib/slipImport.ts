@@ -7,6 +7,7 @@
 import { statFromMarket, type LegInput } from "@/lib/breakdown";
 import { trackableMarket } from "@/lib/tracker";
 import { periodOf, stripPeriod, withPeriod, type PeriodCode } from "@/lib/periodStats";
+import { findStatIn, notTrackableReason, resolveStat } from "@/lib/statAlias";
 import { leaguesForMarket, leaguesForSpread, teamScoreLeague } from "@/lib/teamResolve";
 
 const liveTrackable = (market: string, league?: string) => trackableMarket(market, league);
@@ -155,10 +156,10 @@ const PROP_MARKETS: [RegExp, string][] = [
 
 /** Stats you can pick when the slip's market wording is not read. Grouped by sport. */
 export const STAT_CHOICES: Record<string, string[]> = {
-  football: ["passing yards", "rushing yards", "receiving yards", "receptions", "targets", "completions", "pass attempts", "rush attempts", "passing touchdowns", "interceptions", "rushing + receiving yards", "passing + rushing yards", "longest rush", "longest reception", "longest completion", "tackles", "solo tackles", "sacks", "field goals made", "extra points made", "kicking points", "fantasy score"],
-  basketball: ["points", "rebounds", "assists", "3-pointers", "threes attempted", "field goals made", "field goals attempted", "free throws made", "free throws attempted", "offensive rebounds", "defensive rebounds", "personal fouls", "points + rebounds + assists", "points + rebounds", "points + assists", "rebounds + assists", "steals", "blocks", "steals + blocks", "turnovers", "fantasy score"],
-  baseball: ["hits", "total bases", "home runs", "rbis", "runs", "hits + runs + rbis", "walks", "strikeouts", "earned runs allowed"],
-  hockey: ["goals", "assists", "points", "shots on goal", "saves"],
+  football: ["passing yards", "rushing yards", "receiving yards", "receptions", "targets", "completions", "pass attempts", "rush attempts", "passing touchdowns", "rushing touchdowns", "receiving touchdowns", "rush + rec touchdowns", "anytime touchdown", "interceptions", "rushing + receiving yards", "passing + rushing yards", "longest rush", "longest reception", "longest completion", "tackles", "solo tackles", "assisted tackles", "sacks", "tackles for loss", "passes defended", "field goals made", "extra points made", "kicking points", "longest field goal", "fumbles lost", "fantasy score"],
+  basketball: ["points", "rebounds", "assists", "3-pointers", "threes attempted", "two-pointers made", "two-pointers attempted", "field goals made", "field goals attempted", "free throws made", "free throws attempted", "offensive rebounds", "defensive rebounds", "personal fouls", "points + rebounds + assists", "points + rebounds", "points + assists", "rebounds + assists", "steals", "blocks", "steals + blocks", "turnovers", "double-double", "triple-double", "minutes played", "fantasy score"],
+  baseball: ["hits", "total bases", "singles", "doubles", "triples", "extra base hits", "home runs", "rbis", "runs", "hits + runs + rbis", "walks", "strikeouts", "outs recorded", "earned runs allowed", "hits allowed", "walks allowed", "runs allowed", "pitches thrown"],
+  hockey: ["goals", "assists", "points", "shots on goal", "saves", "goals against", "blocks", "hits", "faceoffs won", "penalty minutes"],
   tennis: ["aces", "double faults", "games won", "total games", "sets won", "total sets", "breaks", "fantasy score"],
   soccer: ["fantasy score", "goalie fantasy score", "passes attempted", "shots", "shots on target", "goals", "assists", "goal + assist", "tackles", "clearances", "crosses", "saves", "goals allowed", "shots assisted", "fouls"],
 };
@@ -196,11 +197,21 @@ export function nameClose(a: string, b: string): boolean {
   return lev(x, y) <= Math.max(1, Math.floor(Math.min(x.length, y.length) / 6));
 }
 
+/** Words soccer and tennis read their own way ("Shots", "Fouls"): the older reader decides those. */
+const PREFER_REGEX = new Set(["shots on goal", "personal fouls", "goals against", "tackles", "saves", "goals", "assists", "fantasy score"]);
+
 export function propMarketOf(text: string): string {
   // "Rec Yds 2Q", "2nd Quarter Receiving Yards", "1H Points": the stat, then the period it counts in.
   const code = periodOf(text);
   const base = code ? stripPeriod(text) : text;
+  const exact = resolveStat(base, { strict: true });
+  if (exact && (exact.via === "combo" || (exact.via === "alias" && !PREFER_REGEX.has(exact.label) && !/\bpasses\s+attempted\b/i.test(base)))) return withPeriod(exact.label, code);
+  // "Stolen Bases", "First TD Scorer": never read as a nearby stat ("total bases", "touchdowns").
+  if (notTrackableReason(base)) return "";
   for (const [re, label] of PROP_MARKETS) if (re.test(base)) return withPeriod(label, code);
+  if (exact) return withPeriod(exact.label, code);
+  const inLine = findStatIn(base);
+  if (inLine) return withPeriod(inLine.label, code);
   return "";
 }
 
@@ -657,7 +668,9 @@ export function matchRow(row: SlipRow, games: SlateGame[], player: FoundPlayer |
         : !row.selection
           ? "Pick over or under."
           : !tracked
-            ? periodOf(row.market)
+            ? notTrackableReason(row.market, g.league)
+              ? `${notTrackableReason(row.market, g.league)!.label} can’t be followed live: ${notTrackableReason(row.market, g.league)!.reason}. You’ll grade this leg yourself.`
+              : periodOf(row.market)
               ? "We can’t follow this stat for one period in this sport yet, so you’ll grade this leg yourself."
               : "We can’t follow this stat live yet, so you’ll grade this leg yourself."
             : null;

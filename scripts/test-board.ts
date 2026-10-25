@@ -1322,7 +1322,7 @@ t("slip import never blocks: unknown players and markets save as manual legs", (
   assert.equal(c.leg, null);
   assert.equal(c.manual, true);
   assert.match(c.issue ?? "", /manual/);
-  const d = matchRow(row("Bear Bachmeier", "anytime touchdown scorer", 0.5, "Over"), games, { id: "1", name: "Bear Bachmeier", league: "ncaaf", teamId: "252" });
+  const d = matchRow(row("Bear Bachmeier", "first touchdown scorer", 0.5, "Over"), games, { id: "1", name: "Bear Bachmeier", league: "ncaaf", teamId: "252" });
   assert.ok(d.leg && d.manual, "unknown stat still makes a leg, graded by you");
 });
 

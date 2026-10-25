@@ -548,6 +548,7 @@ export function parseLive(data: unknown): LiveSnap | null {
     winIds.push(str(p.id) as string);
   }
 
+  addHitTypes(rawPlays, boxes);
   return {
     state,
     clock: state === "in" ? str(asDict(comp.status).displayClock) : null,
@@ -844,4 +845,44 @@ export function situationFromScoreboard(data: unknown, eventId: string, snap: Pi
     redZone: sit.isRedZone === true,
     source: "scoreboard",
   };
+}
+
+/**
+ * Baseball: singles, doubles, triples and total bases per batter from ESPN's play feed (batter id on each play).
+ * Written into the box only when the counts add up to the box score's own hits and home runs, so a gap in the
+ * feed never turns into a wrong number.
+ */
+export function addHitTypes(rawPlays: unknown[], boxes: LiveBox[]): void {
+  const counts = new Map<string, { s: number; d: number; t: number; hr: number }>();
+  const seen = new Set<string>();
+  for (const raw of rawPlays) {
+    const r = asDict(raw);
+    const text = str(r.text) || "";
+    const kind = text.match(/\b(singled|doubled|tripled|homered|grand slam|inside-the-park home run)\b/i)?.[1]?.toLowerCase();
+    if (!kind) continue;
+    const id = str(r.id) || text;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const batter = asList(r.participants).map(asDict).find((x) => x.type === "batter");
+    const bid = str(asDict(batter?.athlete).id);
+    if (!bid) continue;
+    const c = counts.get(bid) ?? { s: 0, d: 0, t: 0, hr: 0 };
+    if (kind === "singled") c.s++;
+    else if (kind === "doubled") c.d++;
+    else if (kind === "tripled") c.t++;
+    else c.hr++;
+    counts.set(bid, c);
+  }
+  for (const b of boxes)
+    for (const p of b.players) {
+      if (!("atBats" in p.statMap) || p.statMap.hits == null) continue;
+      const hits = Number(p.statMap.hits);
+      const hr = Number(p.statMap.homeRuns ?? 0);
+      const c = counts.get(p.id) ?? { s: 0, d: 0, t: 0, hr: 0 };
+      if (!Number.isFinite(hits) || c.s + c.d + c.t + c.hr !== hits || c.hr !== hr) continue;
+      p.statMap["c:singles"] = String(c.s);
+      p.statMap["c:doubles"] = String(c.d);
+      p.statMap["c:triples"] = String(c.t);
+      p.statMap["c:totalBases"] = String(c.s + 2 * c.d + 3 * c.t + 4 * c.hr);
+    }
 }

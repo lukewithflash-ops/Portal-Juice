@@ -21,7 +21,7 @@ ext.build_configurations.each do |c|
   s['CURRENT_PROJECT_VERSION'] = build
   s['MARKETING_VERSION'] = version
   s['GENERATE_INFOPLIST_FILE'] = 'NO'
-  s['APPLICATION_EXTENSION_API_ONLY'] = 'NO'
+  s['APPLICATION_EXTENSION_API_ONLY'] = 'YES'
   s['SKIP_INSTALL'] = 'YES'
   s['LD_RUNPATH_SEARCH_PATHS'] = ['$(inherited)', '@executable_path/Frameworks', '@executable_path/../../Frameworks']
   if c.name == 'Release'
