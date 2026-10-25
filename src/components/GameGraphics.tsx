@@ -440,7 +440,7 @@ export function Spotlight({ league, gameId, snap }: { league: string; gameId: st
           );
         })}
       </ul>
-      {openLeg ? <PlayerSheet leg={openLeg} league={league} snap={snap} onClose={() => setOpen(null)} /> : null}
+      {openLeg ? <PlayerSheet leg={openLeg} market={picks.find((p) => p.id === openLeg.pickId)?.market || openLeg.market} league={league} snap={snap} onClose={() => setOpen(null)} /> : null}
     </section>
   );
 }

@@ -34,7 +34,7 @@ function hisPlays(snap: LiveSnap | null, name: string) {
   return snap.plays.filter((pl) => pats.some((r) => r.test(pl.text))).slice(-40).reverse();
 }
 
-export default function PlayerSheet({ leg, league, snap, onClose }: { leg: Leg; league: string; snap: LiveSnap | null; onClose: () => void }) {
+export default function PlayerSheet({ leg, market, league, snap, onClose }: { leg: Leg; market?: string; league: string; snap: LiveSnap | null; onClose: () => void }) {
   const [log, setLog] = useState<Log | undefined>(undefined);
   const box = findBoxPlayer(snap, leg.athleteId, leg.name);
   const plays = useMemo(() => hisPlays(snap, box?.p.name ?? leg.name), [snap, box?.p.name, leg.name]);
@@ -43,14 +43,14 @@ export default function PlayerSheet({ leg, league, snap, onClose }: { leg: Leg; 
     if (!id || !/^\d+$/.test(id)) return;
     const before = (snap?.start ?? new Date().toISOString()).slice(0, 10);
     let dead = false;
-    fetch(`/api/player-stats?league=${encodeURIComponent(league)}&athleteId=${id}&market=${encodeURIComponent(leg.market)}&before=${before}`)
+    fetch(`/api/player-stats?league=${encodeURIComponent(league)}&athleteId=${id}&market=${encodeURIComponent(market || leg.market)}&before=${before}`)
       .then((r) => r.json())
       .then((j: { log: Log }) => !dead && setLog(j.log ?? null))
       .catch(() => !dead && setLog(null));
     return () => {
       dead = true;
     };
-  }, [id, league, leg.market, snap?.start]);
+  }, [id, league, market, leg.market, snap?.start]);
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", k);
