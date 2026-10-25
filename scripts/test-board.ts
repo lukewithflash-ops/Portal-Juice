@@ -2411,6 +2411,15 @@ import * as sFs from "fs";
   assert.equal(sTrackable(sProp("Anthony Edwards Over 11.5 2-pt att"), "nba"), true);
   assert.equal(sTrackable(sProp("2-pt att"), "nba"), true);
   assert.equal(sNotTrackable("Dunks", "nba")?.label, "Dunks");
+  {
+    const { parseSlipRows: sRows } = require("../src/lib/slipImport") as typeof import("../src/lib/slipImport");
+    const rows = sRows("Anthony Edwards\nOver 11.5 2-pt att\nJalen Brunson\nUnder 2.5 TO\nNikola Jokic\nOver 1.5 Dunks");
+    assert.deepEqual(rows.map((r) => [r.subject, r.kind, r.market, r.line]), [
+      ["Anthony Edwards", "prop", "two-pointers attempted", 11.5],
+      ["Jalen Brunson", "prop", "turnovers", 2.5],
+      ["Nikola Jokic", "prop", "Dunks", 1.5],
+    ]);
+  }
   // Every trackable label reads a real number from real ESPN box scores (NBA, WNBA, NCAAB, NFL, NCAAF, MLB, NHL).
   const ABSENT_OK = new Set(["fumbles lost"]); // nobody fumbled in that game: ESPN's fumbles group is empty
   const files = sFs.readdirSync("scripts/fixtures").filter((f) => f.startsWith("statmap-"));

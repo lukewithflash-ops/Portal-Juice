@@ -210,6 +210,8 @@ export function propMarketOf(text: string): string {
   if (notTrackableReason(base)) return "";
   for (const [re, label] of PROP_MARKETS) if (re.test(base)) return withPeriod(label, code);
   if (exact) return withPeriod(exact.label, code);
+  // A bare "TO" right after the line ("Under 2.5 TO") is the stat itself: turnovers.
+  if (/\d\s+TOs?\s*(?:[+-]\d{3,4}\s*)?$/i.test(base)) return withPeriod("turnovers", code);
   const inLine = findStatIn(base);
   if (inLine) return withPeriod(inLine.label, code);
   return "";
@@ -382,10 +384,15 @@ function parseSlipRowsPlain(raw: string): SlipRow[] {
     const sel = sideM ? (/^o/i.test(sideM[1]) ? "Over" : "Under") : null;
     const ml = /\b(ml|money\s?line|to win|winner)\b/i.test(line);
     const totalWord = /\b(total|game total|o\/u)\b/i.test(line);
-    const market = propMarketOf(line);
+    let market = propMarketOf(line);
     const spreadM = line.match(/(?:^|\s)([+-]\d{1,2}(?:\.5)?)(?=\s|$)/);
     const numM = line.match(/(\d+(?:\.\d+)?)/);
 
+    // A stat no box carries ("Over 1.5 Dunks") is still a player prop: keep the slip's words so the leg says why.
+    if (!market && sel && numM && !totalWord && notTrackableReason(line)) {
+      const after = line.slice((numM.index ?? 0) + numM[0].length).replace(/[+-]\d{3,4}\b/g, " ").replace(/\s+/g, " ").trim();
+      market = after || notTrackableReason(line)!.label.toLowerCase();
+    }
     let kind: SlipKind;
     let value: number | null = null;
     let subjectEnd: number;
