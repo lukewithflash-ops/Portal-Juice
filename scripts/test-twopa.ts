@@ -18,4 +18,8 @@ assert.equal(statFromNearbyText(["Anthony Edwards", "11.5 Points"], "Anthony Edw
 const base = { id: "x", sport: "nba", subject: "Anthony Edwards", line: 11.5, odds: 0, stake: 0, book: "Power Play", date: "2026-10-25", status: "open", createdAt: "" } as never;
 assert.equal(reResolve({ ...(base as object), market: "points", marketRaw: "2-pt att" } as never).market, T);
 assert.equal(reResolve({ ...(base as object), market: "points" } as never).market, "points");
+import { statFromMarket } from "@/lib/breakdown";
+for (const m of ["two-pointers attempted", "two-pointers made", "2-pt att"]) assert.equal(statFromMarket("nba", m), null, m);
+assert.equal(statFromMarket("nba", "points"), "points");
+assert.equal(statFromMarket("nba", "3-pointers"), "threePointFieldGoalsMade");
 console.log("2PA tests ok");

@@ -236,6 +236,8 @@ export function statFromMarket(league: string, market: string): string | null {
   const m = market.toLowerCase();
   // A quarter/half prop is not the full-game stat: full-game logs, hit rates and lines don't apply to it.
   if (periodOf(m)) return null;
+  // Two-pointers (FG minus 3PT) have no log key: never let "pointers" fall through to points.
+  if (/two[- ]?pointers?|\b2[- ]?p(oin)?t|\b2p[am]\b|\btwos\b/.test(m)) return null;
   if (/points.*rebounds.*assists|pts.*reb.*ast|\bpra\b/.test(m)) return "pra";
   // Combos, longest plays, and fantasy scores: computed per game from the log.
   if (/fantasy/.test(m)) return "fantasy";
