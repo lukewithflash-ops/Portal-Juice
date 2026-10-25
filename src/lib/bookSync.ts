@@ -174,6 +174,14 @@ export async function pullAccount(uid: string, acct: string): Promise<SsBetSlip[
   return Array.isArray(r) ? r : r.results ?? [];
 }
 
+/** Read a bettorAccount straight from SharpSports (sandbox webhooks are re-checked this way). */
+export async function fetchAccount(acct: string): Promise<{ bettor: string | null; book: string | null; verified: boolean } | null> {
+  const r = (await ss(`/bettorAccounts/${encodeURIComponent(acct)}`, { key: priv() })) as { bettor?: string | { id?: string }; book?: { name?: string } | string; verified?: boolean; access?: boolean };
+  const bettor = typeof r.bettor === "string" ? r.bettor : r.bettor?.id ?? null;
+  const book = typeof r.book === "string" ? r.book : r.book?.name ?? null;
+  return { bettor, book, verified: r.verified !== false && r.access !== false };
+}
+
 export type RefreshResult = { ok: true } | { ok: false; reason: "limit" | "paused" | "relink" | "unknown" | "error" };
 export async function manualRefresh(uid: string, acct: string): Promise<RefreshResult> {
   const s = await getState(uid);
