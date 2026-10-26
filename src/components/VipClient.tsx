@@ -396,6 +396,14 @@ export default function VipClient() {
       </section>
 
       <RecordStrip rec={d.record} />
+      <Link href="/vip/data" data-testid="vip-data-link" className="flex items-center gap-3 rounded-2xl border border-[color:var(--neon-purple)]/45 bg-gradient-to-r from-[color:var(--neon-purple)]/25 to-[color:var(--neon-magenta)]/10 p-4 shadow-[0_0_22px_rgba(192,38,255,0.18)]">
+        <span className="text-2xl">📊</span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-black text-white">VIP Data</span>
+          <span className="block text-[12px] text-zinc-400">ATS, moneyline and O/U records, splits, money lean and line moves</span>
+        </span>
+        <span className="text-[color:var(--gold)]">→</span>
+      </Link>
 
       {!d.access.vip ? (
         <section className="web-only">
