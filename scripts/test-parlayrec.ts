@@ -1,0 +1,13 @@
+import assert from "node:assert";
+import { parlayStats, gradeParlay } from "../src/lib/parlayRecord";
+const L = (slipId: string | undefined, status: string, i = 0) => ({ id: slipId + status + i, slipId, status, createdAt: `2026-10-0${i + 1}T00:00:00Z` }) as never;
+assert.equal(gradeParlay([L("a", "win"), L("a", "push")]), "win");
+assert.equal(gradeParlay([L("a", "win"), L("a", "open")]), "open");
+assert.equal(gradeParlay([L("a", "open"), L("a", "loss")]), "loss");
+assert.equal(gradeParlay([L("a", "push"), L("a", "push")]), "push");
+const s = parlayStats([L("a", "win", 1), L("a", "win", 1), L("b", "loss", 2), L("b", "win", 2), L("b", "win", 2), L("c", "win", 3), L("c", "win", 3), L(undefined, "win"), L("solo", "win")]);
+assert.deepEqual([s.all.w, s.all.l], [2, 1]);
+assert.equal(s.streak.current, 1);
+assert.equal(s.oneOff, 1);
+assert.deepEqual(s.byLegs.map((x) => x.key), ["2", "3"]);
+console.log("parlayrec ok");

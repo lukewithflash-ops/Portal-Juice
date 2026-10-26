@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import ResetStats from "@/components/ResetStats";
 import MascotSlot from "@/components/MascotSlot";
 import { StyleSection, TipDeck } from "@/components/StatsExtras";
+import { parlayStats } from "@/lib/parlayRecord";
 import { myStats, type Group, type Tally } from "@/lib/myStats";
 import { getPicks, getServerPicks, subscribe } from "@/lib/pickStore";
 import { SPORT_LABEL, type Sport } from "@/lib/types";
@@ -67,6 +68,7 @@ function Heatmap({ days }: { days: Map<string, Tally> }) {
 export default function MyStatsClient() {
   const picks = useSyncExternalStore(subscribe, getPicks, getServerPicks);
   const s = useMemo(() => myStats(picks), [picks]);
+  const pr = useMemo(() => parlayStats(picks), [picks]);
   const [toast, setToast] = useState(0);
   useEffect(() => {
     if (!toast) return;
@@ -107,7 +109,7 @@ export default function MyStatsClient() {
           </div>
           <div className="min-w-0">
             <div className="tabular text-3xl font-black text-[color:var(--flat)]">{rec(s.all)}</div>
-            <div className="text-[11px] text-zinc-400">W-L{s.all.p ? "-P" : ""} · {s.all.open} open · Win % = W ÷ (W + L)</div>
+            <div className="text-[11px] text-zinc-400">Every leg/pick W-L{s.all.p ? "-P" : ""} · {s.all.open} open · Win % = W ÷ (W + L)</div>
             <div className="mt-1 text-sm font-black" style={{ color: current > 0 ? "var(--plus)" : current < 0 ? "var(--minus)" : "#a1a1aa" }}>
               {current > 0 ? current === 1 ? "Won the last one" : `🔥 ${current} straight wins` : current < 0 ? current === -1 ? "Lost the last one" : `${-current} straight losses` : "No streak"}
             </div>
@@ -126,6 +128,44 @@ export default function MyStatsClient() {
             </div>
           </div>
         ) : null}
+      </section>
+      <section className="foil-tile p-4 sm:col-span-2" data-testid="parlay-record">
+        <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-200/80">Parlay record</h2>
+        {pr.all.w + pr.all.l + pr.all.p + pr.all.open === 0 ? (
+          <p className="mt-2 text-sm text-zinc-400">No parlays yet. Log 2+ legs from one slip and they grade together here.</p>
+        ) : (
+          <>
+            <div className="mt-2 flex items-center gap-4">
+              <div className="flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-full" style={{ boxShadow: "0 0 0 3px #22d3ee, 0 0 22px #22d3ee, inset 0 0 16px #0891b2" }}>
+                <span className="tabular text-xl font-black" style={{ color: pctColor(pr.all.pct) }}>{pr.all.pct == null ? "—" : pr.all.pct + "%"}</span>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-400">Hit %</span>
+              </div>
+              <div className="min-w-0">
+                <div className="tabular text-2xl font-black text-[color:var(--flat)]">{pr.all.w}-{pr.all.l}{pr.all.p ? "-" + pr.all.p : ""}</div>
+                <div className="text-[11px] text-zinc-400">Tickets W-L{pr.all.p ? "-P" : ""} · {pr.all.open} open · every leg must hit (pushed legs drop off)</div>
+                <div className="mt-1 text-sm font-black" style={{ color: pr.streak.current > 0 ? "var(--plus)" : pr.streak.current < 0 ? "var(--minus)" : "#a1a1aa" }}>
+                  {pr.streak.current === 1 ? "Hit the last parlay" : pr.streak.current === -1 ? "Missed the last parlay" : pr.streak.current > 0 ? `🔥 ${pr.streak.current} straight parlays hit` : pr.streak.current < 0 ? `${-pr.streak.current} straight parlays missed` : "No streak"}
+                </div>
+                <div className="text-[11px] text-zinc-500">Longest: {pr.streak.longestWin} W · {pr.streak.longestLoss} L{pr.oneOff ? ` · ${pr.oneOff} lost by one leg` : ""}</div>
+              </div>
+            </div>
+            {pr.last10.length ? (
+              <div className="mt-3 flex gap-1">
+                {pr.last10.map((r, i) => (
+                  <span key={i} className="flex h-6 flex-1 items-center justify-center rounded text-[10px] font-black text-black" style={{ background: r === "win" ? "#39ff14" : r === "loss" ? "#ff3b5c" : "#a855f7" }}>{r === "win" ? "W" : r === "loss" ? "L" : "P"}</span>
+                ))}
+              </div>
+            ) : null}
+            <div className="mt-3 grid grid-cols-2 gap-1 text-[12px] sm:grid-cols-4">
+              {pr.byLegs.map((g) => (
+                <div key={g.key} className="panel rounded-lg px-2 py-1">
+                  <div className="text-[10px] font-bold uppercase text-zinc-400">{g.key} legs</div>
+                  <div className="tabular font-black">{g.t.w}-{g.t.l}{g.t.p ? "-" + g.t.p : ""} <span style={{ color: pctColor(g.t.pct) }}>{g.t.pct == null ? "" : g.t.pct + "%"}</span></div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </section>
       {s.best.length || s.worst.length ? (
         <section className="foil-tile p-4 sm:col-span-2">
