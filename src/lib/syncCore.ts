@@ -6,7 +6,7 @@
 
 export const LIST_COLS = ["picks", "notes", "follows"] as const;
 export type ListCol = (typeof LIST_COLS)[number];
-export const SINGLES = ["pj-leader-handle", "pj-leader-token", "pj-fav-team", "pj-odds", "pj-alert-prefs-v1", "pj-handle", "pj-quests-v1"] as const;
+export const SINGLES = ["pj-leader-handle", "pj-leader-token", "pj-fav-team", "pj-odds", "pj-alert-prefs-v1", "pj-handle", "pj-quests-v1", "pj-dnb-v1"] as const;
 export type Single = (typeof SINGLES)[number];
 
 export type Stamped<T = unknown> = { v: T; t: number };

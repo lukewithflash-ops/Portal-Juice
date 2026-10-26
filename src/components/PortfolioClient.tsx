@@ -1,5 +1,6 @@
 "use client";
 
+import { dnbHeadsUp } from "@/lib/dnbStore";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import AddSlip from "@/components/AddSlip";
 import QuickPick from "@/components/QuickPick";
@@ -76,9 +77,10 @@ export default function PortfolioClient() {
     return [...m.entries()];
   }, [picks]);
 
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const f = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const f = new FormData(form);
     const subject = String(f.get("subject") ?? "").trim();
     const line = Number(f.get("line"));
     const odds = Number(f.get("odds"));
@@ -92,6 +94,7 @@ export default function PortfolioClient() {
     if (!validOdds(odds)) return setError("Odds are American: -110, +150…");
     if (!book) return setError("Which book holds it?");
     if (!date) return setError("Add the date.");
+    if (!(await dnbHeadsUp([{ subject }]))) return;
     addPick({
       id: crypto.randomUUID(),
       sport,
@@ -106,7 +109,7 @@ export default function PortfolioClient() {
     });
     setError(null);
     setSubjectDraft("");
-    e.currentTarget.reset();
+    form.reset();
     setFormOpen(false);
   }
 

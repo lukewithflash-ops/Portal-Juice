@@ -1,0 +1,24 @@
+import assert from "node:assert/strict";
+import { hits, matches, recordFor, suggest, type DnbEntry } from "../src/lib/dnb";
+import type { Pick } from "../src/lib/types";
+let n = 0;
+const pk = (subject: string, market: string, status: Pick["status"], selection: "Over" | "Under" = "Over"): Pick =>
+  ({ id: String(++n), sport: "NBA", subject, line: 10.5, odds: 0, stake: 0, book: "Log", date: `2026-10-${String(n).padStart(2, "0")}`, status, createdAt: `2026-10-25T00:00:${String(n).padStart(2, "0")}Z`, market, selection }) as Pick;
+const log = [pk("Anthony Edwards", "pts", "loss"), pk("Anthony Edwards", "Points", "loss"), pk("Anthony Edwards", "pts", "loss"), pk("Anthony Edwards", "reb", "win"), pk("Chicago Bulls", "Total", "loss"), pk("Jalen Brunson", "pts", "win"), pk("Jalen Brunson", "pts", "win"), pk("Jalen Brunson", "pts", "loss")];
+const ed: DnbEntry = { id: "a", name: "Edwards", market: "points", at: 0 };
+assert.ok(matches(ed, { subject: "Anthony Edwards", market: "pts" }));
+assert.ok(!matches(ed, { subject: "Anthony Edwards", market: "reb" }));
+assert.ok(!matches({ id: "b", name: "Ed", at: 0 }, { subject: "Anthony Edwards" }), "whole words only");
+assert.ok(matches({ id: "c", name: "Bulls", side: "Over", at: 0 }, { subject: "Chicago Bulls", selection: "Over" }));
+assert.ok(!matches({ id: "c", name: "Bulls", side: "Over", at: 0 }, { subject: "Chicago Bulls", selection: "Under" }));
+const r = recordFor(ed, log);
+assert.equal(r.t.w, 0); assert.equal(r.t.l, 3); assert.equal(r.streak, -3);
+const all = recordFor({ id: "d", name: "Edwards", at: 0 }, log);
+assert.equal(all.t.w, 1); assert.equal(all.missed[0].market, "pts"); assert.equal(all.missed[0].n, 3);
+const s = suggest(log, []);
+assert.ok(s.some((x) => x.name === "Anthony Edwards" && x.market === "pts"), "Edwards pts 0-3 suggested");
+assert.ok(!s.some((x) => x.name === "Jalen Brunson"), "67% not suggested");
+assert.ok(!s.some((x) => x.name === "Chicago Bulls"), "1 pick is too few");
+assert.ok(!suggest(log, [{ ...ed, name: "Anthony Edwards", market: "pts" }]).some((x) => x.market === "pts" && x.name === "Anthony Edwards"), "already listed");
+assert.equal(hits([ed], [{ subject: "Anthony Edwards", market: "Points" }], log).length, 1);
+console.log("dnb ok");

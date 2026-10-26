@@ -1,4 +1,5 @@
 "use client";
+import { dnbHeadsUp } from "@/lib/dnbStore";
 import { isPickem } from "@/lib/plusLegs";
 import SlipCheck, { checkLegOf } from "@/components/SlipCheck";
 
@@ -319,8 +320,9 @@ export default function SlipImport({ onBreakDown, compact = false, shared = null
     else window.location.assign(checkHref(legs));
   }
 
-  function track() {
+  async function track() {
     if (!kept.length) return;
+    if (!(await dnbHeadsUp(kept.map((x) => ({ subject: x.row.subject, market: x.row.market, selection: x.row.selection ?? null }))))) return;
     const slipId = crypto.randomUUID();
     const amount = Number(stake);
     kept.forEach((x0, i) => {

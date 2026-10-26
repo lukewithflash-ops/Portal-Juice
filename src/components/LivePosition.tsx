@@ -1,4 +1,5 @@
 "use client";
+import { dnbHeadsUp } from "@/lib/dnbStore";
 import { COINS_ON, ChatButton, SquadChatSheet, useSquadChats } from "@/components/SquadChat";
 import { Avatar, StyledName } from "@/components/Cosmetics";
 import type { Look } from "@/lib/coinsCore";
@@ -131,6 +132,7 @@ export function PositionGroup({ handle, legs: raw, snaps, onLeave, testid = "pos
     setBusy(true);
     setTimeout(() => setBusy(false), 1500);
     if (alreadyInLog(getPicks(), picks, handle) && !(await confirmAgain())) return;
+    if (!(await dnbHeadsUp(picks))) return;
     const r = await fetch("/api/friends/tail", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ handle, pickIds: raw.map((l) => l.id) }) });
     const j = (await r.json().catch(() => ({}))) as { legs?: PosLeg[]; error?: string };
     // Signed out, the tail still lands in your Log on this device; it just isn't counted for them.

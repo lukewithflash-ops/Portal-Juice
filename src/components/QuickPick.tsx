@@ -1,5 +1,6 @@
 "use client";
 
+import { dnbHeadsUp } from "@/lib/dnbStore";
 import { NoteTag, PastNotes } from "@/components/Notes";
 import { matchupKey } from "@/lib/notesCore";
 import { useState } from "react";
@@ -81,8 +82,9 @@ export default function QuickPick({ onDone }: { onDone?: () => void }) {
     }
   }
 
-  function save() {
+  async function save() {
     if (!found?.leg || !found.game) return;
+    if (!(await dnbHeadsUp([{ subject: found.row.subject, market: found.row.market, selection: found.row.selection ?? null }]))) return;
     const leg = found.row.kind === "prop" ? { ...found.leg, market: found.row.market } : found.leg;
     const p = pickFromLeg(leg, { home: found.game.home, away: found.game.away }, { book: "Log", date: localDay(found.game.start) });
     addPick({ ...p, status: found.result ?? "open" });

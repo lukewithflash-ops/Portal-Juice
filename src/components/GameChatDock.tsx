@@ -1,5 +1,6 @@
 "use client";
 
+import { dnbHeadsUp } from "@/lib/dnbStore";
 import { scroller, scrollTarget, scrollTop } from "@/lib/scroller";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
@@ -220,6 +221,7 @@ export default function GameChatDock({ league, id, label }: { league: string; id
     tailBusy.current = true;
     setTimeout(() => (tailBusy.current = false), 1500);
     if (alreadyInLog(getPicks(), [{ ...p, gameId: id }], m.handle) && !(await confirmAgain())) return;
+    if (!(await dnbHeadsUp([{ subject: p.subject, market: p.market, selection: p.selection }]))) return;
     const now = new Date().toISOString();
     const row: Pick = { id: crypto.randomUUID(), sport: p.sport, subject: p.subject, line: p.line, odds: 0, stake: 0, book: `Tailed from @${m.handle}`, date: new Date().toLocaleDateString("en-CA"), status: "open", createdAt: now, league, gameId: id, market: p.market ?? undefined, selection: p.selection, tailFrom: m.handle, plus: p.plus };
     restorePicks([row]);

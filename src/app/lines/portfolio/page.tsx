@@ -1,6 +1,7 @@
 import PageHeader from "@/components/PageHeader";
 import type { Metadata } from "next";
 import PortfolioClient from "@/components/PortfolioClient";
+import { DoNotBetPanel } from "@/components/DoNotBet";
 
 export const metadata: Metadata = {
   title: "Log",
@@ -12,6 +13,7 @@ export default function LogPage() {
     <>
       <PageHeader title="Log" sub="Your record. Private, never on the leaderboard." />
       <PortfolioClient />
+      <DoNotBetPanel />
     </>
   );
 }

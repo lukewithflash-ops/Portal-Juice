@@ -1,5 +1,6 @@
 "use client";
 
+import { dnbHeadsUp } from "@/lib/dnbStore";
 import { FriendName } from "@/components/LivePosition";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -107,6 +108,7 @@ export default function FriendFeed({ compact = false }: { compact?: boolean }) {
     busyTail.current.add(k);
     setTimeout(() => busyTail.current.delete(k), 1500);
     if (alreadyInLog(getPicks(), picks, handle) && !(await confirmAgain())) return;
+    if (!(await dnbHeadsUp(picks))) return;
     const ids = picks.map((p) => p.id.slice(handle.length + 1));
     const r = await fetch("/api/friends/tail", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ handle, pickIds: ids }) });
     const j = (await r.json()) as { legs?: Slim[]; error?: string };
