@@ -99,18 +99,24 @@ export function teamGames(games: TdGame[], team: string, divOf?: (abbr: string) 
   return out;
 }
 
+const F_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" });
+const F_HOUR = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", hour12: false });
+const F_WD = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", weekday: "short" });
+const F_MO = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", month: "short" });
+const memo = new Map<string, { day: number; hour: number; wd: string; mo: string }>();
+function pt(iso: string) {
+  let v = memo.get(iso);
+  if (!v) {
+    const dt = new Date(iso);
+    v = { day: Date.parse(F_DAY.format(dt) + "T00:00:00Z") / 86400000, hour: Number(F_HOUR.format(dt)) % 24, wd: F_WD.format(dt), mo: F_MO.format(dt) };
+    if (memo.size > 50_000) memo.clear();
+    memo.set(iso, v);
+  }
+  return v;
+}
 /** Calendar day in Pacific time (days since epoch). */
-function dayNum(iso: string): number {
-  const s = new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
-  return Date.parse(s + "T00:00:00Z") / 86400000;
-}
-function ptParts(iso: string) {
-  const dt = new Date(iso);
-  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", hour12: false }).format(dt)) % 24;
-  const wd = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", weekday: "short" }).format(dt);
-  const mo = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", month: "short" }).format(dt);
-  return { hour, wd, mo };
-}
+const dayNum = (iso: string) => pt(iso).day;
+const ptParts = (iso: string) => pt(iso);
 
 export function add(r: Rec, g: TeamGame) {
   r.n++;
