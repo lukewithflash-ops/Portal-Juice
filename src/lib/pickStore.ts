@@ -3,6 +3,7 @@
 import { SPORT_ORDER, type Pick, type PickStatus } from "./types";
 import { haptic } from "./native";
 import { propMarketOf } from "./slipImport";
+import { copyDupes } from "./copyGuard";
 
 /** Device-only log. Nothing leaves the browser. */
 export const STORAGE_KEY = "portal-juice:log:v1";
@@ -110,4 +111,11 @@ export function removePicks(ids: string[]) {
 export function restorePicks(ps: Pick[]) {
   const have = new Set(getPicks().map((p) => p.id));
   write([...ps.filter((p) => !have.has(p.id)), ...getPicks()].sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1)));
+}
+
+/** One-time cleanup: drop exact duplicate copies made by a double "Tail" within 2 min. Returns how many legs were removed. */
+export function dedupeCopies(): number {
+  const ids = copyDupes(getPicks());
+  if (ids.length) removePicks(ids);
+  return ids.length;
 }

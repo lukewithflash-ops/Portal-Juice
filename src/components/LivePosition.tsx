@@ -14,6 +14,8 @@ import { isVipHandle, usePositions, type LivePosition, type PosLeg } from "@/lib
 import type { LiveSnap } from "@/lib/live";
 import type { Pick, Sport } from "@/lib/types";
 import { haptic } from "@/lib/native";
+import { alreadyInLog } from "@/lib/copyGuard";
+import { confirmAgain } from "@/lib/confirmAgain";
 
 const asPick = (s: PosLeg, owner: string): Pick => ({
   id: `${owner}:${s.id}`,
@@ -122,8 +124,13 @@ export function PositionGroup({ handle, legs: raw, snaps, onLeave, testid = "pos
   const mine = useSyncExternalStore(subscribe, getPicks, getServerPicks);
   const picks = raw.map((l) => asPick(l, handle));
   const legs = legViews(picks, snaps, [], slipKeyOf);
-  const tailed = picks.every((p) => mine.some((m) => m.tailFrom === handle && m.subject === p.subject && m.line === p.line && (m.market ?? "") === (p.market ?? "")));
+  const [busy, setBusy] = useState(false);
+  const tailed = alreadyInLog(mine, picks, handle);
   async function doTail() {
+    if (busy) return;
+    setBusy(true);
+    setTimeout(() => setBusy(false), 1500);
+    if (alreadyInLog(getPicks(), picks, handle) && !(await confirmAgain())) return;
     const r = await fetch("/api/friends/tail", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ handle, pickIds: raw.map((l) => l.id) }) });
     const j = (await r.json().catch(() => ({}))) as { legs?: PosLeg[]; error?: string };
     // Signed out, the tail still lands in your Log on this device; it just isn't counted for them.
@@ -170,8 +177,8 @@ export function PositionGroup({ handle, legs: raw, snaps, onLeave, testid = "pos
           );
         })}
       </ul>
-      <button type="button" disabled={tailed} onClick={doTail} className="press mt-2 w-full rounded-xl bg-[color:var(--plus)] py-2.5 text-[15px] font-bold text-black disabled:opacity-50" data-testid="pos-tail">
-        {tailed ? "Tailed" : raw.length > 1 ? `Tail ${raw.length}-leg parlay` : "Tail"}
+      <button type="button" disabled={busy} onClick={doTail} className="press mt-2 w-full rounded-xl bg-[color:var(--plus)] py-2.5 text-[15px] font-bold text-black disabled:opacity-50" data-testid="pos-tail">
+        {tailed ? "In your log ✓" : raw.length > 1 ? `Tail ${raw.length}-leg parlay` : "Tail"}
       </button>
       {msg ? <p className="mt-1.5 text-center text-[13px] font-semibold text-[color:var(--plus)]" role="status" data-testid="pos-msg">{msg}</p> : null}
     </div>

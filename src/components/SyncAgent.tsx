@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
+import { dedupeCopies } from "@/lib/pickStore";
 import { getAccount, localStamp, refreshAccount, syncNow } from "@/lib/syncClient";
 
 /** Runs in the background: picks up the signed-in account and keeps this device and the cloud in step. */
 export default function SyncAgent() {
+  useEffect(() => {
+    try { dedupeCopies(); } catch {}
+  }, []);
   useEffect(() => {
     let last = "";
     let timer: ReturnType<typeof setTimeout> | null = null;

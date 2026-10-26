@@ -2,7 +2,9 @@
 
 import { FriendName } from "@/components/LivePosition";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { alreadyInLog } from "@/lib/copyGuard";
+import { confirmAgain } from "@/lib/confirmAgain";
 import { getPicks, getServerPicks, restorePicks, subscribe } from "@/lib/pickStore";
 import { groupViews, legViews, type LegView, type SlipView } from "@/lib/myLive";
 import { slipKeyOf, TONE_COLOR } from "@/lib/motivation";
@@ -41,6 +43,7 @@ export default function FriendFeed({ compact = false }: { compact?: boolean }) {
   const [snaps, setSnaps] = useState<Record<string, LiveSnap>>({});
   const [msg, setMsg] = useState<string | null>(null);
   const mine = useSyncExternalStore(subscribe, getPicks, getServerPicks);
+  const busyTail = useRef(new Set<string>());
   const pull = useCallback(async () => {
     try {
       const r = await fetch("/api/friends/feed", { cache: "no-store" });
@@ -99,6 +102,11 @@ export default function FriendFeed({ compact = false }: { compact?: boolean }) {
     }
   }
   async function doTail(handle: string, picks: Pick[]) {
+    const k = picks.map((p) => p.id).join(",");
+    if (busyTail.current.has(k)) return;
+    busyTail.current.add(k);
+    setTimeout(() => busyTail.current.delete(k), 1500);
+    if (alreadyInLog(getPicks(), picks, handle) && !(await confirmAgain())) return;
     const ids = picks.map((p) => p.id.slice(handle.length + 1));
     const r = await fetch("/api/friends/tail", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ handle, pickIds: ids }) });
     const j = (await r.json()) as { legs?: Slim[]; error?: string };
@@ -116,7 +124,7 @@ export default function FriendFeed({ compact = false }: { compact?: boolean }) {
     setTimeout(() => setMsg(null), 3500);
     pull();
   }
-  const tailedAlready = (handle: string, picks: Pick[]) => picks.every((p) => mine.some((m) => m.tailFrom === handle && m.subject === p.subject && m.line === p.line && (m.market ?? "") === (p.market ?? "")));
+  const tailedAlready = (handle: string, picks: Pick[]) => alreadyInLog(mine, picks, handle);
 
   const legRow = (f: Friend, l: LegView) => {
     const rawId = l.pickId.slice(f.handle.length + 1);
@@ -161,8 +169,8 @@ export default function FriendFeed({ compact = false }: { compact?: boolean }) {
           {s.total > 1 ? `Parlay · ${s.total} legs · ${s.hit} hit` : "Single"}
           {tails ? <span className="text-zinc-400 normal-case">· 🔁 {tails} tail{tails === 1 ? "" : "s"}</span> : null}
           {allOpen ? (
-            <button type="button" disabled={done} onClick={() => doTail(f.handle, picks)} className="ml-auto rounded-lg border border-[color:var(--plus)]/60 px-2 py-0.5 text-[11px] font-black normal-case tracking-normal text-white disabled:opacity-50" data-testid="tail-btn">
-              {done ? "Tailed ✓" : "🔁 Tail"}
+            <button type="button" onClick={() => doTail(f.handle, picks)} className="ml-auto rounded-lg border border-[color:var(--plus)]/60 px-2 py-0.5 text-[11px] font-black normal-case tracking-normal text-white disabled:opacity-50" data-testid="tail-btn">
+              {done ? "In your log ✓" : "🔁 Tail"}
             </button>
           ) : null}
         </div>

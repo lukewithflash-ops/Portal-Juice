@@ -7,6 +7,8 @@ import { createPortal } from "react-dom";
 import { Avatar, StyledName, fontClass } from "@/components/Cosmetics";
 import { FREE_EMOTES, emoteAnim, emoteGlyph, itemOf, type Look } from "@/lib/coinsCore";
 import { getPicks, getServerPicks, restorePicks, subscribe } from "@/lib/pickStore";
+import { alreadyInLog } from "@/lib/copyGuard";
+import { confirmAgain } from "@/lib/confirmAgain";
 import { haptic } from "@/lib/native";
 import type { Pick, Sport } from "@/lib/types";
 
@@ -39,6 +41,7 @@ export default function GameChatDock({ league, id, label }: { league: string; id
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const [msgs, setMsgs] = useState<Msg[] | null>(null);
+  const tailBusy = useRef(false);
   const [enabled, setEnabled] = useState(true);
   const [me, setMe] = useState<string | null>(null);
   const [signedIn, setSignedIn] = useState(false);
@@ -207,13 +210,16 @@ export default function GameChatDock({ league, id, label }: { league: string; id
     flash(r.ok ? `Blocked @${m.handle}.` : "Couldn't block. Try again.");
   }
 
-  function tail(m: Msg) {
-    if (!m.pick) return;
+  async function tail(m: Msg) {
+    if (!m.pick || tailBusy.current) return;
     const p = m.pick;
     const now = new Date().toISOString();
     const row: Pick = { id: crypto.randomUUID(), sport: p.sport, subject: p.subject, line: p.line, odds: 0, stake: 0, book: `Tailed from @${m.handle}`, date: new Date().toLocaleDateString("en-CA"), status: "open", createdAt: now, league, gameId: id, market: p.market ?? undefined, selection: p.selection, tailFrom: m.handle, plus: p.plus };
     restorePicks([row]);
     haptic("success");
+    tailBusy.current = true;
+    setTimeout(() => (tailBusy.current = false), 1500);
+    if (alreadyInLog(getPicks(), [{ ...p, gameId: id }], m.handle) && !(await confirmAgain())) return;
     flash(`Tailed @${m.handle}: ${p.subject} is in your Log.`);
   }
 
@@ -282,7 +288,7 @@ export default function GameChatDock({ league, id, label }: { league: string; id
                     {m.pick ? (
                       <div className="gc-pick mt-1 flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-[12px]" data-testid="gamechat-pick">
                         <span className="font-bold text-white">🎟️ {pickLabel(m.pick)}</span>
-                        {!m.mine ? <button type="button" onClick={() => tail(m)} className="press rounded-lg bg-white/10 px-2 py-0.5 font-black text-[color:var(--portal-green)]" data-testid="gamechat-tail">Tail</button> : null}
+                        {!m.mine ? <button type="button" onClick={() => tail(m)} className="press rounded-lg bg-white/10 px-2 py-0.5 font-black text-[color:var(--portal-green)]" data-testid="gamechat-tail">{m.pick && alreadyInLog(picks, [{ ...m.pick, gameId: id }], m.handle) ? "In your log ✓" : "Tail"}</button> : null}
                       </div>
                     ) : null}
                     {Object.keys(m.rx).length ? (
