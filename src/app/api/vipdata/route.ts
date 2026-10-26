@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
 import { vipState } from "@/lib/vipAccess";
-import { activeSeasons, defaultSeason, DK_SPLITS_URL, leagueOut, teamOut, todayMatchups } from "@/lib/teamData";
+import { activeSeasons, defaultSeason, DK_SPLITS_URL, leagueOut, teamOut, todayMatchups, moneyView, dkSplitsOn } from "@/lib/teamData";
 import { TD_LEAGUES, tdLeague } from "@/lib/teamDataCore";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +30,7 @@ export async function GET(req: Request) {
   if (!vip) return NextResponse.json({ ...head, locked: true, teams: out?.teams.length ?? 0, boardTitles: out?.boards.map((b) => b.title) ?? [] }, h);
   const team = q.get("team");
   if (team && season) return NextResponse.json({ ...head, locked: false, team: await teamOut(lg, season, team) }, h);
+  if (q.get("view") === "money") return NextResponse.json({ ...head, locked: false, splitsOn: dkSplitsOn(), money: await moneyView(lg) }, h);
   if (q.get("view") === "today" && season) return NextResponse.json({ ...head, locked: false, today: await todayMatchups(lg, season) }, h);
   return NextResponse.json({ ...head, locked: false, boards: out?.boards ?? [], teams: out?.teams ?? [] }, h);
 }

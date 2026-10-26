@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { Board, DkLine, DkSplitEvent, Rec, Split, TeamGame } from "@/lib/teamDataCore";
+import { sideLine, type Board, type DkLine, type DkSplitEvent, type MlEvent, type MlSnap, type Rec, type Split, type TeamGame } from "@/lib/teamDataCore";
 
 type Head = {
   leagues: { id: string; label: string }[];
@@ -101,9 +101,10 @@ function useData<T>(url: string | null) {
 export default function VipDataClient({ initialLeague = "nfl" }: { initialLeague?: string }) {
   const [lg, setLg] = useState(initialLeague);
   const [season, setSeason] = useState<string | null>(null);
-  const [tab, setTab] = useState<"today" | "leaders" | "teams">("today");
+  const [tab, setTab] = useState<"today" | "money" | "leaders" | "teams">("today");
   const qs = `lg=${lg}${season ? `&season=${season}` : ""}`;
   const d = useData<Head & { boards?: Board[]; teams?: TeamRow[] | number; boardTitles?: string[] }>(`/api/vipdata?${qs}`);
+  const money = useData<Head & { splitsOn?: boolean; money?: MoneyV | null }>(d && !d.locked && tab === "money" ? `/api/vipdata?${qs}&view=money` : null);
   const today = useData<Head & { today?: { games: Matchup[]; splitsAt: string | null } }>(d && !d.locked && tab === "today" ? `/api/vipdata?${qs}&view=today` : null);
   return (
     <div className="mx-auto max-w-xl space-y-4" data-testid="vipdata">
@@ -122,9 +123,11 @@ export default function VipDataClient({ initialLeague = "nfl" }: { initialLeague
       ) : (
         <>
           <div className="flex items-center gap-2">
-            {(["today", "leaders", "teams"] as const).map((t) => (
-              <Pill key={t} on={tab === t} onClick={() => setTab(t)}>{t === "today" ? "Today" : t === "leaders" ? "Trend leaders" : "Teams"}</Pill>
+            <div className="no-scrollbar flex min-w-0 gap-2 overflow-x-auto">
+            {(["today", "money", "leaders", "teams"] as const).map((t) => (
+              <Pill key={t} on={tab === t} onClick={() => setTab(t)}>{t === "today" ? "Today" : t === "money" ? "Public money" : t === "leaders" ? "Trend leaders" : "Teams"}</Pill>
             ))}
+            </div>
             {d.seasons.length > 1 ? (
               <select value={d.season ?? ""} onChange={(e) => setSeason(e.target.value)} className="ml-auto rounded-full bg-white/[0.06] px-2 py-1.5 text-[12px] font-bold text-zinc-200" aria-label="Season">
                 {d.seasons.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
@@ -132,6 +135,7 @@ export default function VipDataClient({ initialLeague = "nfl" }: { initialLeague
             ) : null}
           </div>
           {d.games === 0 ? <p className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-[13px] text-zinc-400">No finals stored for this season yet. The data job fills it in every 10 minutes.</p> : null}
+          {tab === "money" ? <Money d={money} /> : null}
           {tab === "leaders" ? <Leaders boards={d.boards ?? []} lg={lg} season={d.season} /> : null}
           {tab === "teams" ? <Teams teams={Array.isArray(d.teams) ? d.teams : []} lg={lg} season={d.season} /> : null}
           {tab === "today" ? <Today d={today?.today ?? null} lg={lg} season={d.season} h={d} /> : null}
@@ -373,5 +377,113 @@ function SplitRow({ s }: { s: Split }) {
       <span className="text-zinc-300">{ouS(s.r)}</span>
       <span className="text-zinc-400">{one(s.r.n ? s.r.margin / s.r.n : 0)}</span>
     </>
+  );
+}
+
+type MoneyV = { at: string | null; upcoming: { ev: MlEvent; lopsided: number; gap: { market: string; side: string; gap: number } | null }[]; graded: MlEvent[]; tally: Record<string, { won: number; lost: number; push: number }> };
+
+function Money({ d }: { d: (Head & { splitsOn?: boolean; money?: MoneyV | null }) | null }) {
+  if (!d) return <div className="skel h-48 rounded-2xl" />;
+  if (!d.splitsOn) return <p className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-[13px] text-zinc-400">Public money is switched off right now.</p>;
+  const m = d.money;
+  if (!m || (!m.upcoming.length && !m.graded.length)) return <p className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-[13px] text-zinc-400">No DraftKings splits saved for this league yet. Snapshots are taken about every 20 minutes before kickoff.</p>;
+  return (
+    <div className="space-y-3" data-testid="moneylean">
+      <p className="px-1 text-[12px] text-zinc-400">Ranked by the most one-sided % of money on any market. “Money vs tickets gap” is % of money minus % of bets on a side.</p>
+      {m.upcoming.map((r, i) => <MoneyGame key={r.ev.id} r={r} rank={i + 1} />)}
+      {m.graded.length ? (
+        <section className="rounded-2xl border border-[color:var(--gold)]/30 bg-white/[0.03] p-3" data-testid="moneylean-graded">
+          <h3 className="mb-1 text-[12px] font-black uppercase tracking-[0.12em] text-[color:var(--gold)]">Closing lean, graded</h3>
+          <p className="mb-2 text-[11px] text-zinc-500">The side with more money in the last snapshot before kickoff, checked against the ESPN final.</p>
+          <div className="mb-2 flex flex-wrap gap-2">
+            {Object.entries(m.tally).map(([k, t]) => (
+              <span key={k} className="rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] font-bold text-zinc-200">Money side, {k}: {t.won}-{t.lost}{t.push ? `-${t.push}` : ""}</span>
+            ))}
+          </div>
+          <ul className="divide-y divide-white/5">
+            {m.graded.map((e) => (
+              <li key={e.id} className="py-2 text-[12px]">
+                <div className="flex justify-between"><span className="font-bold text-white">{e.title}</span><span className="tabular text-zinc-400">Final {e.final!.as}-{e.final!.hs}</span></div>
+                {e.graded!.map((g) => (
+                  <div key={g.market} className="flex justify-between tabular">
+                    <span className="text-zinc-400">{g.market}: {g.side} <span className="text-zinc-500">({g.money}% money, {g.bets}% bets)</span></span>
+                    <span className={"font-black " + (g.result === "won" ? "text-[color:var(--plus)]" : g.result === "lost" ? "text-[color:var(--minus)]" : "text-zinc-300")}>{g.result === "won" ? (/total/i.test(g.market) ? "Hit" : /moneyline/i.test(g.market) ? "Won" : "Covered") : g.result === "lost" ? "Missed" : "Push"}</span>
+                  </div>
+                ))}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      <p className="px-1 text-[11px] text-zinc-500">
+        Source: <a className="underline" href={d.sources.splits.url} target="_blank" rel="noreferrer">{d.sources.splits.label}</a> (lines and splits), results from ESPN. Last snapshot {pt(m.at)}. Snapshots kept 10 days. Past and public data only, not a pick.
+      </p>
+    </div>
+  );
+}
+
+function MoneyGame({ r, rank }: { r: MoneyV["upcoming"][number]; rank: number }) {
+  const ev = r.ev;
+  const last = ev.snaps[ev.snaps.length - 1];
+  const first = ev.snaps[0];
+  return (
+    <section className="rounded-2xl border border-[color:var(--neon-purple)]/35 bg-gradient-to-b from-[color:var(--neon-purple)]/12 to-white/[0.02] p-3" data-testid="moneylean-game">
+      <div className="flex items-center gap-2">
+        <span className="grid h-6 w-6 place-items-center rounded-full bg-[color:var(--gold)] text-[11px] font-black text-black">{rank}</span>
+        <span className="min-w-0 flex-1 truncate text-[14px] font-black text-white">{ev.title}</span>
+        <span className="text-[11px] text-zinc-400">{pt(ev.start)}</span>
+      </div>
+      {r.gap && Math.abs(r.gap.gap) >= 15 ? (
+        <div className="mt-2 rounded-lg border border-[color:var(--gold)]/50 bg-[color:var(--gold)]/10 px-2 py-1 text-[12px] text-[color:var(--gold)]">
+          Money vs tickets gap: {r.gap.side} ({r.gap.market}) has {r.gap.gap > 0 ? `${r.gap.gap} pts more money than tickets` : `${-r.gap.gap} pts more tickets than money`}.
+        </div>
+      ) : null}
+      <div className="mt-2 space-y-3">
+        {Object.entries(last.m).map(([market, rows]) => {
+          const o = first.m[market]?.[0];
+          const n = rows[0];
+          const lnNow = market === "Moneyline" ? n.odds : sideLine(n.side);
+          const lnThen = o ? (market === "Moneyline" ? o.odds : sideLine(o.side)) : null;
+          return (
+            <div key={market}>
+              <div className="mb-1 flex text-[10px] font-bold uppercase tracking-wider text-zinc-500"><span className="flex-1">{market}</span><span className="w-20 text-right">% Bets</span><span className="w-20 text-right">% Money</span></div>
+              {rows.map((x) => (
+                <div key={x.side} className="flex items-center gap-2 py-0.5 text-[12px]">
+                  <span className="min-w-0 flex-1 truncate text-zinc-200">{x.side} <span className="text-zinc-500">{x.odds}</span>{Math.abs(x.h - x.b) >= 15 ? <span className="ml-1 rounded bg-[color:var(--gold)]/20 px-1 text-[10px] font-bold text-[color:var(--gold)]">{x.h - x.b > 0 ? "+" : ""}{x.h - x.b}</span> : null}</span>
+                  <Bar v={x.b} tone="bg-[color:var(--neon-violet)]" />
+                  <Bar v={x.h} tone="bg-[color:var(--plus)]" />
+                </div>
+              ))}
+              <Spark snaps={ev.snaps} market={market} start={ev.start} />
+              <div className="text-[10px] text-zinc-500">
+                {n.side.replace(/\s*[+-]?\d+(\.\d+)?$/, "")}: {ev.snaps.length} snapshots{lnThen != null && String(lnThen) !== String(lnNow) ? `, line ${lnThen} → ${lnNow}` : ", line unchanged"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-2 text-[10px] text-zinc-500">DraftKings, updated {pt(last.t)}</div>
+    </section>
+  );
+}
+
+/** Money % (green) and bets % (violet) for the first side over time; dots where the line changed. */
+function Spark({ snaps, market, start }: { snaps: MlSnap[]; market: string; start: string }) {
+  const pts = snaps.filter((s) => s.m[market]?.[0] && s.t <= start);
+  if (pts.length < 2) return <div className="mt-1 text-[10px] text-zinc-600">Timeline starts after the next snapshot.</div>;
+  const W = 300, H = 36;
+  const t0 = Date.parse(pts[0].t), t1 = Date.parse(pts[pts.length - 1].t) || t0 + 1;
+  const x = (s: MlSnap) => ((Date.parse(s.t) - t0) / Math.max(1, t1 - t0)) * W;
+  const y = (v: number) => H - (v / 100) * H;
+  const line = (k: "h" | "b") => pts.map((s) => `${x(s).toFixed(1)},${y(s.m[market][0][k]).toFixed(1)}`).join(" ");
+  const lineVal = (s: MlSnap) => (market === "Moneyline" ? s.m[market][0].odds : String(sideLine(s.m[market][0].side)));
+  const moves = pts.filter((s, i) => i > 0 && lineVal(s) !== lineVal(pts[i - 1]));
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="mt-1 h-9 w-full" preserveAspectRatio="none" data-testid="moneylean-spark" aria-label={`${market} money and bets over time`}>
+      <line x1="0" x2={W} y1={H / 2} y2={H / 2} stroke="rgba(255,255,255,0.12)" strokeDasharray="3 3" />
+      <polyline points={line("b")} fill="none" stroke="var(--neon-violet)" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
+      <polyline points={line("h")} fill="none" stroke="var(--plus)" strokeWidth="2" vectorEffect="non-scaling-stroke" style={{ filter: "drop-shadow(0 0 3px var(--plus))" }} />
+      {moves.map((s) => <circle key={s.t} cx={x(s)} cy={y(s.m[market][0].h)} r="2.5" fill="var(--gold)" />)}
+    </svg>
   );
 }

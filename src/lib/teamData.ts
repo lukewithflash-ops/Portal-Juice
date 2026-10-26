@@ -12,6 +12,11 @@ import {
   type Board,
   type DkLine,
   type DkSplitEvent,
+  dkWhen,
+  gradeLean,
+  moneyBoard,
+  snapOf,
+  type MlEvent,
   type TdGame,
   type TdLeagueCfg,
   type TdSeason,
@@ -275,9 +280,9 @@ export function dkSplitsOn(): boolean {
   return (process.env.DK_SPLITS ?? "on").toLowerCase() !== "off";
 }
 
-export async function dkSplits(lg: string): Promise<{ at: string; events: DkSplitEvent[] } | null> {
+export async function dkSplits(lg: string, fresh = false): Promise<{ at: string; events: DkSplitEvent[] } | null> {
   if (!dkSplitsOn() || !DK_EG[lg]) return null;
-  const cached = chatEnabled() ? ((await redis(["GET", K.splits(lg)]).catch(() => null)) as string | null) : null;
+  const cached = !fresh && chatEnabled() ? ((await redis(["GET", K.splits(lg)]).catch(() => null)) as string | null) : null;
   if (cached) return JSON.parse(cached);
   try {
     const res = await fetch(`${DK_SPLITS_URL}?tb_eg=${DK_EG[lg]}&tb_edate=n7days&tb_emt=0`, { cache: "no-store", headers: { "user-agent": "Mozilla/5.0 (PortalJuice)" }, signal: AbortSignal.timeout(10_000) });
@@ -345,4 +350,110 @@ export async function todayMatchups(lg: string, season: string): Promise<{ games
     })
   );
   return { games, splitsAt: sp?.at ?? null };
+}
+
+/* ---------- Money lean snapshots ---------- */
+
+const ML = {
+  ev: (l: string, id: string) => `pj:ml:ev:${l}:${id}`,
+  idx: (l: string) => `pj:ml:idx:${l}`,
+  gate: (l: string) => `pj:ml:gate:${l}`,
+  sb: (l: string, d: string) => `pj:ml:sb:${l}:${d}`,
+};
+const TTL = 10 * 86400;
+
+async function getEv(lg: string, id: string): Promise<MlEvent | null> {
+  const raw = (await redis(["GET", ML.ev(lg, id)])) as string | null;
+  return raw ? (JSON.parse(raw) as MlEvent) : null;
+}
+const putEv = (e: MlEvent) => redis(["SET", ML.ev(e.lg, e.id), JSON.stringify(e), "EX", TTL]);
+
+/** Every ~20 min per league: store DraftKings Network splits + lines for each upcoming game (pre-kickoff only). Then grade finished ones. */
+export async function snapMoney(): Promise<Record<string, { snapped: number; graded: number } | string>> {
+  const out: Record<string, { snapped: number; graded: number } | string> = {};
+  if (!chatEnabled()) return { all: "no store" };
+  if (!dkSplitsOn()) return { all: "DK_SPLITS=off" };
+  for (const lg of Object.keys(DK_EG)) {
+    let snapped = 0;
+    if ((await redis(["SET", ML.gate(lg), "1", "NX", "EX", 14 * 60])) === "OK") {
+      const sp = await dkSplits(lg, true);
+      if (!sp) {
+        out[lg] = "splits page unavailable";
+        await redis(["DEL", ML.gate(lg)]);
+        continue;
+      }
+      for (const e of sp.events) {
+        const start = dkWhen(e.when);
+        if (!e.id || !start || Date.parse(start) <= Date.parse(sp.at) || !e.markets.length) continue;
+        const prev = await getEv(lg, e.id);
+        const ev: MlEvent = prev ?? { id: e.id, lg, title: e.title, away: e.away, home: e.home, awayAbbr: e.awayAbbr, homeAbbr: e.homeAbbr, start, snaps: [] };
+        ev.start = start;
+        ev.snaps.push(snapOf(e, sp.at));
+        if (ev.snaps.length > 600) ev.snaps = ev.snaps.slice(-600);
+        await putEv(ev);
+        await redis(["ZADD", ML.idx(lg), Date.parse(start), e.id]);
+        snapped++;
+      }
+      await redis(["ZREMRANGEBYSCORE", ML.idx(lg), 0, Date.now() - TTL * 1000]);
+    }
+    out[lg] = { snapped, graded: await gradeMoney(lg).catch(() => 0) };
+  }
+  return out;
+}
+
+const nickOf = (s: string) => s.trim().split(/\s+/).pop()!.toLowerCase();
+
+/** Attach the ESPN final to games that kicked off 3+ hours ago and grade the closing lean. */
+async function gradeMoney(lg: string): Promise<number> {
+  const c = tdLeague(lg);
+  if (!c) return 0;
+  const ids = ((await redis(["ZRANGEBYSCORE", ML.idx(lg), Date.now() - TTL * 1000, Date.now() - 3 * 3600_000])) as string[]) ?? [];
+  let n = 0;
+  for (const id of ids) {
+    const ev = await getEv(lg, id);
+    if (!ev || ev.final) continue;
+    const day = new Date(ev.start).toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" }).replaceAll("-", "");
+    let raw = (await redis(["GET", ML.sb(lg, day)])) as string | null;
+    if (!raw) {
+      try {
+        raw = JSON.stringify(parseFinals(await getJson(`${base(c)}/scoreboard?dates=${day}&limit=300${c.groups ? `&groups=${c.groups}` : ""}`)));
+        await redis(["SET", ML.sb(lg, day), raw, "EX", 1800]);
+      } catch {
+        continue;
+      }
+    }
+    const finals = JSON.parse(raw) as ReturnType<typeof parseFinals>;
+    const meta = await metaMap(lg);
+    const nm = (a: string) => nickOf(meta[a]?.name ?? a);
+    const f = finals.find((x) => (x.h === ev.homeAbbr && x.a === ev.awayAbbr) || (nm(x.h) === nickOf(ev.home) && nm(x.a) === nickOf(ev.away)));
+    if (!f || !f.final) continue;
+    ev.final = { hs: f.hs, as: f.as, espnId: f.id };
+    ev.graded = gradeLean(ev, f);
+    await putEv(ev);
+    n++;
+  }
+  return n;
+}
+
+export type MoneyView = {
+  at: string | null;
+  upcoming: ReturnType<typeof moneyBoard>;
+  graded: MlEvent[];
+  tally: Record<string, { won: number; lost: number; push: number }>;
+};
+
+export async function moneyView(lg: string): Promise<MoneyView | null> {
+  if (!chatEnabled() || !dkSplitsOn()) return null;
+  const ids = ((await redis(["ZRANGEBYSCORE", ML.idx(lg), Date.now() - TTL * 1000, "+inf"])) as string[]) ?? [];
+  const evs = (await Promise.all(ids.map((id) => getEv(lg, id)))).filter((e): e is MlEvent => !!e && e.snaps.length > 0);
+  const now = Date.now();
+  const upcoming = moneyBoard(evs.filter((e) => Date.parse(e.start) > now - 4 * 3600_000 && !e.final));
+  const graded = evs.filter((e) => e.final && e.graded?.length).sort((a, b) => b.start.localeCompare(a.start));
+  const tally: MoneyView["tally"] = {};
+  for (const e of graded) for (const g of e.graded ?? []) {
+    const t = (tally[g.market] ??= { won: 0, lost: 0, push: 0 });
+    t[g.result]++;
+  }
+  const at = evs.reduce<string | null>((m, e) => { const t = e.snaps[e.snaps.length - 1]?.t; return t && (!m || t > m) ? t : m; }, null);
+  return { at, upcoming, graded: graded.slice(0, 30), tally };
 }

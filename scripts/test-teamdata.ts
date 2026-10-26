@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
-import { boards, parseDkOdds, parseDkSplits, summarize, tdLeague, type TdGame } from "../src/lib/teamDataCore";
+import { dkWhen, gradeLean, moneyBoard, sideTeam, snapOf, boards, parseDkOdds, parseDkSplits, summarize, tdLeague, type TdGame } from "../src/lib/teamDataCore";
 
 const nba = tdLeague("nba")!;
 const g = (id: string, d: string, h: string, a: string, hs: number, as: number, sp: number | null, tot: number | null): TdGame => ({ id, d, h, a, hs, as, hq: [25, 25, 25, hs - 75], aq: [25, 25, 25, as - 75], sp, tot });
@@ -45,4 +45,24 @@ if (existsSync(fx)) {
   for (const m of e.markets) for (const r of m.rows) assert.ok(r.bets >= 0 && r.bets <= 100 && r.handle >= 0 && r.handle <= 100);
   console.log("dk splits:", e.title, JSON.stringify(e.markets[1]));
 }
+// money lean
+assert.equal(dkWhen("10/25, 08:22PM", new Date("2026-10-25T12:00:00Z")), "2026-10-26T00:22:00.000Z", "EDT");
+assert.equal(dkWhen("12/01, 01:00PM", new Date("2026-11-25T12:00:00Z")), "2026-12-01T18:00:00.000Z", "EST");
+assert.equal(dkWhen("01/03, 01:00PM", new Date("2026-12-25T12:00:00Z")), "2027-01-03T18:00:00.000Z", "year rollover");
+const mev = { id: "1", lg: "nfl", title: "KC Chiefs @ SEA Seahawks", away: "KC Chiefs", home: "SEA Seahawks", awayAbbr: "KC", homeAbbr: "SEA", start: "2026-10-26T00:20:00.000Z", snaps: [
+  snapOf({ id: "1", title: "", away: "", home: "", awayAbbr: null, homeAbbr: null, when: "", markets: [
+    { name: "Moneyline", rows: [{ side: "SEA Seahawks", odds: "-162", handle: 22, bets: 29 }, { side: "KC Chiefs", odds: "+136", handle: 78, bets: 71 }] },
+    { name: "Spread", rows: [{ side: "SEA Seahawks -3", odds: "-110", handle: 57, bets: 30 }, { side: "KC Chiefs +3", odds: "-110", handle: 43, bets: 70 }] },
+    { name: "Total", rows: [{ side: "Over 43.5", odds: "-102", handle: 59, bets: 76 }, { side: "Under 43.5", odds: "-118", handle: 41, bets: 24 }] },
+  ] }, "2026-10-25T23:00:00.000Z"),
+] };
+assert.equal(sideTeam("SEA Seahawks -3", mev), "home");
+assert.equal(sideTeam("KC Chiefs", mev), "away");
+// SEA wins 24-20: ML money (KC) lost, spread money (SEA -3) covered (+4), total 44 > 43.5 over won
+const gr = gradeLean(mev, { hs: 24, as: 20 });
+assert.deepEqual(gr.map((x) => [x.market, x.result]), [["Moneyline", "lost"], ["Spread", "won"], ["Total", "won"]]);
+assert.deepEqual(gradeLean(mev, { hs: 23, as: 20 }).find((x) => x.market === "Spread")!.result, "push");
+const mb = moneyBoard([mev]);
+assert.equal(mb[0].lopsided, 78);
+assert.equal(mb[0].gap!.gap, 27, "SEA -3: 57% money vs 30% bets");
 console.log("teamdata ok");

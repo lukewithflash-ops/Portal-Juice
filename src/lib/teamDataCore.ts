@@ -377,7 +377,7 @@ export function parseDkOdds(data: unknown): DkLine | null {
 /* ---------- DraftKings Network public betting splits ---------- */
 
 export type DkSplitRow = { side: string; odds: string; handle: number; bets: number };
-export type DkSplitEvent = { title: string; away: string; home: string; awayAbbr: string | null; homeAbbr: string | null; when: string; markets: { name: string; rows: DkSplitRow[] }[] };
+export type DkSplitEvent = { id: string | null; title: string; away: string; home: string; awayAbbr: string | null; homeAbbr: string | null; when: string; markets: { name: string; rows: DkSplitRow[] }[] };
 
 const strip = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#0?38;/g, "&").replace(/\s+/g, " ").trim();
 
@@ -406,7 +406,108 @@ export function parseDkSplits(html: string): DkSplitEvent[] {
       }
       if (name && rows.length) markets.push({ name, rows });
     }
-    out.push({ title, away, home, awayAbbr: logos[0] ?? null, homeAbbr: logos[1] ?? null, when, markets });
+    const dkId = (tm[1].match(/\/event\/(\d+)/) ?? [])[1] ?? null;
+    out.push({ id: dkId, title, away, home, awayAbbr: logos[0] ?? null, homeAbbr: logos[1] ?? null, when, markets });
   }
   return out;
+}
+
+/* ---------- Money lean: snapshots, board rows, closing-lean grading ---------- */
+
+export type MlRow = { side: string; odds: string; h: number; b: number };
+export type MlSnap = { t: string; m: Record<string, MlRow[]> };
+export type MlFinal = { hs: number; as: number; espnId: string };
+export type MlEvent = { id: string; lg: string; title: string; away: string; home: string; awayAbbr: string | null; homeAbbr: string | null; start: string; snaps: MlSnap[]; final?: MlFinal | null; graded?: MlGrade | null };
+export type MlGrade = { market: string; side: string; money: number; bets: number; result: "won" | "lost" | "push" }[];
+
+/** DK Network shows times like "10/25, 08:22PM" in US Eastern. Returns ISO, or null. */
+export function dkWhen(when: string, now = new Date()): string | null {
+  const m = when.match(/(\d{1,2})\/(\d{1,2}),?\s*(\d{1,2}):(\d{2})\s*([AP]M)/i);
+  if (!m) return null;
+  let h = Number(m[3]) % 12;
+  if (/p/i.test(m[5])) h += 12;
+  const mo = Number(m[1]);
+  let y = now.getUTCFullYear();
+  if (mo < now.getUTCMonth() + 1 - 6) y++; // Dec -> Jan rollover
+  // Eastern offset: -4 in DST (2nd Sun Mar to 1st Sun Nov), else -5
+  const probe = new Date(Date.UTC(y, mo - 1, Number(m[2]), 12));
+  const tzName = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", timeZoneName: "short" }).format(probe);
+  const off = /EDT/.test(tzName) ? 4 : 5;
+  return new Date(Date.UTC(y, mo - 1, Number(m[2]), h + off, Number(m[4]))).toISOString();
+}
+
+export function snapOf(ev: DkSplitEvent, t: string): MlSnap {
+  const m: Record<string, MlRow[]> = {};
+  for (const mk of ev.markets) m[mk.name] = mk.rows.map((r) => ({ side: r.side, odds: r.odds, h: r.handle, b: r.bets }));
+  return { t, m };
+}
+
+/** Trailing line number on a side label ("SEA Seahawks -3", "Over 43.5"). */
+export const sideLine = (side: string): number | null => {
+  const x = side.replace("−", "-").match(/([+-]?\d+(?:\.\d+)?)\s*$/);
+  return x ? Number(x[1]) : null;
+};
+
+/** Which team a side label names: "home", "away" or null (totals). */
+export function sideTeam(side: string, ev: Pick<MlEvent, "home" | "away">): "home" | "away" | null {
+  const s = side.toLowerCase();
+  const name = (x: string) => x.toLowerCase().replace(/\s*[+-]?\d+(\.\d+)?\s*$/, "").trim();
+  if (s.startsWith(name(ev.home))) return "home";
+  if (s.startsWith(name(ev.away))) return "away";
+  return null;
+}
+
+/** Closing lean = last snapshot before kickoff; the money side is the side with the larger % of handle. */
+export function closingSnap(ev: MlEvent): MlSnap | null {
+  const pre = ev.snaps.filter((s) => s.t <= ev.start);
+  return pre[pre.length - 1] ?? null;
+}
+
+export function gradeLean(ev: MlEvent, f: { hs: number; as: number }): MlGrade {
+  const c = closingSnap(ev);
+  if (!c) return [];
+  const out: MlGrade = [];
+  for (const [market, rows] of Object.entries(c.m)) {
+    if (rows.length !== 2 || rows[0].h === rows[1].h) continue;
+    const top = rows[0].h > rows[1].h ? rows[0] : rows[1];
+    let res: "won" | "lost" | "push" | null = null;
+    if (/total/i.test(market)) {
+      const ln = sideLine(top.side);
+      if (ln == null) continue;
+      const d = f.hs + f.as - ln;
+      const over = /^over/i.test(top.side);
+      res = d === 0 ? "push" : (d > 0) === over ? "won" : "lost";
+    } else {
+      const who = sideTeam(top.side, ev);
+      if (!who) continue;
+      const margin = who === "home" ? f.hs - f.as : f.as - f.hs;
+      if (/spread|puck|run line/i.test(market)) {
+        const ln = sideLine(top.side);
+        if (ln == null) continue;
+        const d = margin + ln;
+        res = d > 0 ? "won" : d < 0 ? "lost" : "push";
+      } else res = margin > 0 ? "won" : margin < 0 ? "lost" : "push";
+    }
+    out.push({ market, side: top.side, money: top.h, bets: top.b, result: res });
+  }
+  return out;
+}
+
+export type MlBoardRow = { ev: MlEvent; lopsided: number; gap: { market: string; side: string; gap: number } | null };
+/** Rank by the most lopsided money % across markets; note the biggest money-vs-tickets gap. */
+export function moneyBoard(evs: MlEvent[]): MlBoardRow[] {
+  return evs
+    .map((ev) => {
+      const s = ev.snaps[ev.snaps.length - 1];
+      let lopsided = 0;
+      let gap: MlBoardRow["gap"] = null;
+      for (const [market, rows] of Object.entries(s?.m ?? {}))
+        for (const r of rows) {
+          lopsided = Math.max(lopsided, r.h);
+          const g = r.h - r.b;
+          if (!gap || Math.abs(g) > Math.abs(gap.gap)) gap = { market, side: r.side, gap: g };
+        }
+      return { ev, lopsided, gap };
+    })
+    .sort((a, b) => b.lopsided - a.lopsided);
 }
