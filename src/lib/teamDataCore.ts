@@ -233,16 +233,16 @@ export function reasons(cfg: TdLeagueCfg, s: Omit<TeamSummary, "reasons">, min =
     if (r.atsN >= min) {
       const p = pct(r.ats[0], r.ats[0] + r.ats[1]);
       if (p >= 65 || p <= 35)
-        out.push({ score: Math.abs(p - 50) * Math.sqrt(r.atsN), text: `${p >= 65 ? "Covered" : "Failed to cover"} in ${p >= 65 ? r.ats[0] : r.ats[1]} of ${r.atsN} games (${sp.label}), ATS ${fmtAts(r)}.` });
+        out.push({ score: Math.abs(p - 50) * Math.sqrt(r.atsN), text: `${p >= 65 ? "Covered" : "Failed to cover"} in ${p >= 65 ? r.ats[0] : r.ats[1]} of ${r.atsN} games (${/^[A-Z][a-z]{2}$/.test(sp.label) ? `${sp.label} games` : sp.label}), ATS ${fmtAts(r)}.` });
     }
     if (r.n >= min) {
       const p = pct(r.w, r.n);
       if (p >= 70 || p <= 30)
-        out.push({ score: Math.abs(p - 50) * Math.sqrt(r.n) * 0.6, text: `${fmtRec(r)} straight up (${sp.label}), average margin ${signed(r.margin / r.n)} ${ptsWord}.` });
+        out.push({ score: Math.abs(p - 50) * Math.sqrt(r.n) * 0.6, text: `${fmtRec(r)} straight up (${/^[A-Z][a-z]{2}$/.test(sp.label) ? `${sp.label} games` : sp.label}), average margin ${signed(r.margin / r.n)} ${ptsWord}.` });
     }
     if (r.ouN >= min) {
       const p = pct(r.ou[0], r.ou[0] + r.ou[1]);
-      if (p >= 70 || p <= 30) out.push({ score: Math.abs(p - 50) * Math.sqrt(r.ouN) * 0.8, text: `${p >= 70 ? "Over" : "Under"} hit in ${p >= 70 ? r.ou[0] : r.ou[1]} of ${r.ouN} (${sp.label}), O/U ${fmtOu(r)}.` });
+      if (p >= 70 || p <= 30) out.push({ score: Math.abs(p - 50) * Math.sqrt(r.ouN) * 0.8, text: `${p >= 70 ? "Over" : "Under"} hit in ${p >= 70 ? r.ou[0] : r.ou[1]} of ${r.ouN} (${/^[A-Z][a-z]{2}$/.test(sp.label) ? `${sp.label} games` : sp.label}), O/U ${fmtOu(r)}.` });
     }
   }
   const lastName = cfg.lastLabel;
@@ -250,7 +250,18 @@ export function reasons(cfg: TdLeagueCfg, s: Omit<TeamSummary, "reasons">, min =
     out.push({ score: 60, text: `${s.per10.last > 0 ? "Outscored" : "Was outscored by"} opponents by ${one(Math.abs(s.per10.last))} ${ptsWord} per game in the ${lastName} over the last ${s.per10.n}.` });
   if (s.per.n >= min && Math.abs(s.per.h2 - s.per.h1) >= (cfg.id === "nhl" || cfg.id === "mlb" ? 0.4 : 3))
     out.push({ score: 50, text: `Averages ${signed(s.per.h1)} ${ptsWord} in the first half and ${signed(s.per.h2)} in the second half (${s.per.n} games).` });
-  return out.sort((a, b) => b.score - a.score).slice(0, 5).map((x) => x.text);
+  // Same games under two labels (e.g. every game was a favorite and a conference game): keep one.
+  const seen = new Set<string>();
+  return out
+    .sort((a, b) => b.score - a.score)
+    .filter((x) => {
+      const k = x.text.replace(/\(.*?\)/, "");
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .slice(0, 5)
+    .map((x) => x.text);
 }
 
 export function summarize(cfg: TdLeagueCfg, games: TdGame[], team: string, divOf?: (a: string) => string | null): TeamSummary {

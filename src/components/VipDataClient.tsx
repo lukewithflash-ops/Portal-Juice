@@ -73,7 +73,7 @@ function Locked({ h, extra }: { h: Head; extra?: string[] }) {
           <div className="mt-1 text-[17px] font-black text-white">VIP Data</div>
           <p className="mt-1 text-[13px] text-zinc-300">
             {h.games ? `${h.games} real finals, ${h.withLines} with DraftKings closing lines.` : "Records against the spread, moneylines, totals and trends."}
-            {extra?.length ? ` Includes ${extra.slice(0, 3).join(", ").toLowerCase()} and more.` : ""}
+            {extra?.length ? ` ${extra.length} trend leaderboards, team splits, today’s matchups, line moves and money lean.` : ""}
           </p>
           <Link href="/vip" className="mt-3 inline-block rounded-full bg-[color:var(--gold)] px-4 py-2 text-[13px] font-black text-black">Unlock with VIP</Link>
         </div>
@@ -324,7 +324,7 @@ export function VipTeamData({ lg, team, season }: { lg: string; team: string; se
           <div><div className="text-zinc-500">2nd half</div><div className="font-black text-white tabular">{one(t.per.h2)}</div></div>
           <div><div className="text-zinc-500">{lg === "nhl" ? "3rd period" : lg === "mlb" ? "Inn. 7-9" : "4th qtr"}</div><div className="font-black text-white tabular">{one(t.per.last)}</div><div className="text-[10px] text-zinc-500">won {t.per.lastWon}/{t.per.n}</div></div>
         </div>
-        <p className="mt-1 text-[11px] text-zinc-500">Average margin per game, {t.per.n} games with full linescores. Last 10: {one(t.per10.last)} in the final period.</p>
+        <p className="mt-1 text-[11px] text-zinc-500">Average margin per game, {t.per.n} games with full linescores. Last {t.per10.n}: {one(t.per10.last)} in the final period.</p>
       </section>
       {groups.map((gname) => (
         <section key={gname} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
