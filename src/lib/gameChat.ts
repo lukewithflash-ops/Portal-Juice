@@ -14,8 +14,9 @@ import { SPORT_ORDER, type Sport } from "@/lib/types";
  * Live game chat: one public room per game (every league, every event). Names come from the account handle with
  * equipped cosmetics. Account ids stay on the server. Rooms expire 3 days after the last message, 24h after the final.
  */
+import { cleanPos, type SharedPos } from "@/lib/sharePos";
 export type SharedPick = { subject: string; line: number; market: string | null; selection: "Over" | "Under" | null; sport: Sport; plus?: boolean };
-export type GcMsg = { id: string; handle: string; text: string; ts: number; kind: "msg" | "sys"; mentions: string[]; rx: Record<string, number>; look?: Look; pick?: SharedPick; mine?: boolean; squad?: boolean; atMe?: boolean };
+export type GcMsg = { id: string; handle: string; text: string; ts: number; kind: "msg" | "sys"; mentions: string[]; rx: Record<string, number>; look?: Look; pick?: SharedPick; pos?: SharedPos; mine?: boolean; squad?: boolean; atMe?: boolean };
 type Stored = Omit<GcMsg, "rx" | "mine" | "squad" | "atMe"> & { uid?: string };
 
 const ROOM_TTL = 3 * 86400;
@@ -137,11 +138,12 @@ function cleanPick(p: unknown): SharedPick | undefined {
   return { subject, line, market, selection, sport, plus: o.plus === true || undefined };
 }
 
-export async function post(room: string, uid: string, body: { text?: unknown; pick?: unknown }) {
+export async function post(room: string, uid: string, body: { text?: unknown; pick?: unknown; pos?: unknown }) {
   const ttl = Number(await redis(["TTL", K.mute(uid)]));
   if (ttl > 0 || ttl === -1) return { ok: false as const, status: 403, error: "You're muted in chat for now." };
   const pick = cleanPick(body.pick);
-  const t = cleanText(typeof body.text === "string" && body.text.trim() ? body.text : pick ? "Sharing my pick" : body.text);
+  const pos = cleanPos(body.pos, (x) => cleanText(x).ok);
+  const t = cleanText(typeof body.text === "string" && body.text.trim() ? body.text : pos ? "Sharing my position" : pick ? "Sharing my pick" : body.text);
   if (!t.ok) return { ok: false as const, status: 400, error: t.error };
   if ((await redis(["SET", `pj:rl:gc:${uid}`, "1", "NX", "EX", 2])) !== "OK") return { ok: false as const, status: 429, error: "One message every 2 seconds." };
   const mk = `pj:rl:gcm:${uid}`;
@@ -152,7 +154,7 @@ export async function post(room: string, uid: string, body: { text?: unknown; pi
   const tags = [...new Set([...t.text.matchAll(/@([A-Za-z0-9_]{3,16})/g)].map((m) => m[1]))].slice(0, 3);
   const mentions = (await Promise.all(tags.map(async (h) => ((await uidOf(h).catch(() => null)) ? h : null)))).filter(Boolean) as string[];
   const look = coinsOn() ? await lookOf(uid).catch(() => undefined) : undefined;
-  const m: Stored = { id: crypto.randomUUID(), uid, handle: prof.handle, text: t.text, ts: Date.now(), kind: "msg", mentions, look, pick };
+  const m: Stored = { id: crypto.randomUUID(), uid, handle: prof.handle, text: t.text, ts: Date.now(), kind: "msg", mentions, look, pick, pos };
   await redis(["LPUSH", K.list(room), JSON.stringify(m)]);
   await redis(["LTRIM", K.list(room), 0, KEEP - 1]);
   await touch(room);

@@ -11,9 +11,12 @@ import { alreadyInLog } from "@/lib/copyGuard";
 import { confirmAgain } from "@/lib/confirmAgain";
 import { haptic } from "@/lib/native";
 import type { Pick, Sport } from "@/lib/types";
+import { PosBubble, SharePosButton, SharePosSheet } from "@/components/SharedPosition";
+import type { SharedPos } from "@/lib/sharePos";
+import "@/components/squads.css";
 
 type SharedPick = { subject: string; line: number; market: string | null; selection: "Over" | "Under" | null; sport: Sport; plus?: boolean };
-type Msg = { id: string; handle: string; text: string; ts: number; kind: "msg" | "sys"; mentions: string[]; rx: Record<string, number>; look?: Look; pick?: SharedPick; mine?: boolean; squad?: boolean; atMe?: boolean };
+type Msg = { id: string; handle: string; text: string; ts: number; kind: "msg" | "sys"; mentions: string[]; rx: Record<string, number>; look?: Look; pick?: SharedPick; pos?: SharedPos; mine?: boolean; squad?: boolean; atMe?: boolean };
 
 /* Unread count shared between the floating button and the game's Chat tab. */
 let unreadN = 0;
@@ -38,10 +41,10 @@ export default function GameChatDock({ league, id, label }: { league: string; id
   const base = `/api/gamechat/${encodeURIComponent(league)}/${encodeURIComponent(id)}`;
   const seenKey = `pj-gc-seen:${league}:${id}`;
   const [open, setOpen] = useState(false);
+  const tailBusy = useRef(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const [msgs, setMsgs] = useState<Msg[] | null>(null);
-  const tailBusy = useRef(false);
   const [enabled, setEnabled] = useState(true);
   const [me, setMe] = useState<string | null>(null);
   const [signedIn, setSignedIn] = useState(false);
@@ -54,6 +57,7 @@ export default function GameChatDock({ league, id, label }: { league: string; id
   const [owned, setOwned] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [posOpen, setPosOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const atBottom = useRef(true);
@@ -213,16 +217,29 @@ export default function GameChatDock({ league, id, label }: { league: string; id
   async function tail(m: Msg) {
     if (!m.pick || tailBusy.current) return;
     const p = m.pick;
+    tailBusy.current = true;
+    setTimeout(() => (tailBusy.current = false), 1500);
+    if (alreadyInLog(getPicks(), [{ ...p, gameId: id }], m.handle) && !(await confirmAgain())) return;
     const now = new Date().toISOString();
     const row: Pick = { id: crypto.randomUUID(), sport: p.sport, subject: p.subject, line: p.line, odds: 0, stake: 0, book: `Tailed from @${m.handle}`, date: new Date().toLocaleDateString("en-CA"), status: "open", createdAt: now, league, gameId: id, market: p.market ?? undefined, selection: p.selection, tailFrom: m.handle, plus: p.plus };
     restorePicks([row]);
     haptic("success");
-    tailBusy.current = true;
-    setTimeout(() => (tailBusy.current = false), 1500);
-    if (alreadyInLog(getPicks(), [{ ...p, gameId: id }], m.handle) && !(await confirmAgain())) return;
     flash(`Tailed @${m.handle}: ${p.subject} is in your Log.`);
   }
 
+  async function sharePos(pos: SharedPos) {
+    setPosOpen(false);
+    const r = await postJson({ text: text.trim(), pos });
+    if (!r.ok) {
+      if (r.status === 401) setSignedIn(false);
+      setErr(r.j.error ?? "Didn't send.");
+      return;
+    }
+    setText("");
+    haptic("light");
+    atBottom.current = true;
+    load();
+  }
   const share = (p: Pick) => send(undefined, { subject: p.subject, line: p.line, market: p.market ?? null, selection: p.selection ?? null, sport: p.sport, plus: p.plus });
 
   if (!mounted) return null;
@@ -285,6 +302,7 @@ export default function GameChatDock({ league, id, label }: { league: string; id
                     <button type="button" onClick={() => setMenu(menu === m.id ? null : m.id)} className={`mt-0.5 rounded-2xl px-3 py-2 text-left text-[15px] leading-snug ${m.mine ? "bg-purple-600/40 text-white" : m.atMe ? "bg-[color:var(--portal-green)]/15 text-white ring-1 ring-[color:var(--portal-green)]/50" : "bg-white/[0.06] text-zinc-100"} ${fontClass(m.look)}`}>
                       {m.text.split(/(@[A-Za-z0-9_]{3,16})/g).map((p, i) => (p.startsWith("@") && m.mentions.some((h) => `@${h}`.toLowerCase() === p.toLowerCase()) ? <b key={i} className="text-[color:var(--portal-green)]">{p}</b> : p))}
                     </button>
+                    {m.pos ? <div className="mt-1"><PosBubble pos={m.pos} handle={m.handle} mine={m.mine} /></div> : null}
                     {m.pick ? (
                       <div className="gc-pick mt-1 flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-[12px]" data-testid="gamechat-pick">
                         <span className="font-bold text-white">🎟️ {pickLabel(m.pick)}</span>
@@ -335,11 +353,12 @@ export default function GameChatDock({ league, id, label }: { league: string; id
                 </div>
               ) : null}
               <div className="mb-1.5 flex gap-1 overflow-x-auto">
-                {myLegs.length ? <button type="button" onClick={() => setSharing(!sharing)} className="press shrink-0 rounded-full border border-[color:var(--portal-green)]/60 px-2.5 text-[12px] font-black text-[color:var(--portal-green)]" data-testid="gamechat-share">Share my pick</button> : null}
+                {myLegs.length ? <button type="button" onClick={() => setPosOpen(true)} className="press shrink-0 rounded-full border border-[color:var(--portal-green)]/60 px-2.5 text-[12px] font-black text-[color:var(--portal-green)]" data-testid="gamechat-share">Share my pick</button> : null}
                 {emotes.map((e) => <button key={e} type="button" onClick={() => setText((t) => `${t}${emoteGlyph(e)}`)} className="press h-8 w-8 shrink-0 rounded-lg bg-white/[0.04] text-[17px]" aria-label={`Insert ${e}`}><span className={emoteAnim(e) ? `emo-${emoteAnim(e)}` : ""}>{emoteGlyph(e)}</span></button>)}
                 <a href="/coins" className="press shrink-0 rounded-full border border-[color:var(--gold)]/50 px-2.5 text-[12px] font-black leading-8 text-[color:var(--gold)]" data-testid="gamechat-shop">+ Emotes</a>
               </div>
               <div className="flex items-end gap-2">
+                <span className="pb-[3px]"><SharePosButton onClick={() => setPosOpen(true)} /></span>
                 <textarea
                   ref={input}
                   value={text}
@@ -359,6 +378,7 @@ export default function GameChatDock({ league, id, label }: { league: string; id
                 <button type="submit" className="press h-10 rounded-full bg-purple-500 px-4 text-[14px] font-black text-white shadow-[0_0_14px_rgba(168,85,247,.6)]" data-testid="gamechat-send">Send</button>
               </div>
               {err ? <p className="mt-1 text-[12px] text-[color:var(--minus)]">{err}</p> : null}
+              {posOpen ? <SharePosSheet league={league} gameId={id} onShare={sharePos} onClose={() => setPosOpen(false)} /> : null}
               <p className="mt-1 text-[10px] text-zinc-500">Be cool. No hate, harassment, spam or betting promos. <Link href="/terms" className="underline">Rules</Link></p>
             </form>
           ) : enabled ? (

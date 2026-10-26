@@ -24,13 +24,13 @@ export async function POST(req: Request) {
   if (!(await sameOrigin(req))) return NextResponse.json({ error: "Bad origin." }, { status: 403 });
   const u = await currentUser().catch(() => null);
   if (!u) return NextResponse.json({ error: "Sign in to chat." }, { status: 401 });
-  const b = (await req.json().catch(() => ({}))) as { sq?: string; text?: string; react?: { id: string; emote: string } };
+  const b = (await req.json().catch(() => ({}))) as { sq?: string; text?: string; pos?: unknown; react?: { id: string; emote: string } };
   const sq = String(b.sq ?? "");
   if (b.react) {
     const r = await react(u.id, sq, String(b.react.id), String(b.react.emote));
     return NextResponse.json(r, { status: r.ok ? 200 : 400, headers: H });
   }
-  const r = await send(u.id, sq, b.text);
+  const r = await send(u.id, sq, b.text, b.pos);
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status, headers: H });
   return NextResponse.json({ ok: true }, { headers: H });
 }

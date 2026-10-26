@@ -7,7 +7,7 @@ import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { getPicks, getServerPicks, restorePicks, subscribe } from "@/lib/pickStore";
-import { groupViews, legViews } from "@/lib/myLive";
+import { gameKey, groupViews, legViews } from "@/lib/myLive";
 import { slipKeyOf, TONE_COLOR } from "@/lib/motivation";
 import { sideLine } from "@/lib/plusLegs";
 import { isVipHandle, usePositions, type LivePosition, type PosLeg } from "@/lib/positionsClient";
@@ -17,7 +17,7 @@ import { haptic } from "@/lib/native";
 import { alreadyInLog } from "@/lib/copyGuard";
 import { confirmAgain } from "@/lib/confirmAgain";
 
-const asPick = (s: PosLeg, owner: string): Pick => ({
+export const asPick = (s: PosLeg, owner: string): Pick => ({
   id: `${owner}:${s.id}`,
   sport: (s.sport ?? (s.league ?? "nba").toUpperCase()) as Sport,
   subject: s.subject,
@@ -92,7 +92,7 @@ export function PosChips({ handle }: { handle: string }) {
 const STATE: Record<string, string> = { hit: "Hit", missed: "Missed", push: "Push", waiting: "Not started", alive: "Alive", behind: "Behind", "no-match": "" };
 
 /** Live box snaps for a set of legs, refreshed every 20 s while visible. */
-function useSnaps(legs: PosLeg[]) {
+export function useSnaps(legs: PosLeg[]) {
   const [snaps, setSnaps] = useState<Record<string, LiveSnap>>({});
   const key = [...new Set(legs.filter((l) => l.league && l.gameId).map((l) => `${l.league}:${l.gameId}`))].slice(0, 16).join(",");
   useEffect(() => {
@@ -151,7 +151,7 @@ export function PositionGroup({ handle, legs: raw, snaps, onLeave, testid = "pos
       <ul className="divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
         {picks.map((p) => {
           const l = legs.find((x) => x.pickId === p.id);
-          const g = p.league && p.gameId ? snaps[`${p.league}:${p.gameId}`] : undefined;
+          const g = p.league && p.gameId ? snaps[gameKey(p.league, p.gameId)] : undefined;
           return (
             <li key={p.id} className="px-3 py-2.5" data-testid="pos-leg">
               <div className="flex items-center gap-2">

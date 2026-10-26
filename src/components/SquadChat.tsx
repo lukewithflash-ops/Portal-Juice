@@ -6,11 +6,13 @@ import { Avatar, StyledName, fontClass } from "@/components/Cosmetics";
 import { FREE_EMOTES, emoteGlyph, itemOf, type Look } from "@/lib/coinsCore";
 import { haptic } from "@/lib/native";
 import "@/components/squads.css";
+import { PosBubble, SharePosButton, SharePosSheet } from "@/components/SharedPosition";
+import type { SharedPos } from "@/lib/sharePos";
 
 /** Build-time copy of the PJ_COINS flag, so nothing extra runs in production while it is off. */
 export const COINS_ON = process.env.NEXT_PUBLIC_PJ_COINS === "1";
 
-type Msg = { id: string; handle: string; text: string; ts: number; mentions: string[]; rx: Record<string, number>; mine?: boolean; look?: Look };
+type Msg = { id: string; handle: string; text: string; ts: number; mentions: string[]; rx: Record<string, number>; mine?: boolean; look?: Look; pos?: SharedPos };
 export type SquadRow = { id: string; name: string; dm?: boolean; members: string[]; unread: number; mentions: number; last?: { handle: string; text: string; ts: number } | null };
 
 /** Squads with unread counts. null = feature off. */
@@ -53,6 +55,7 @@ export function SquadChatSheet({ squad, onClose }: { squad: { id: string; name: 
   const [members, setMembers] = useState<string[]>([]);
   const [seen, setSeen] = useState<string[]>([]);
   const [dm, setDm] = useState(false);
+  const [posOpen, setPosOpen] = useState(false);
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [mine, setMine] = useState<string[]>([]);
@@ -95,6 +98,15 @@ export function SquadChatSheet({ squad, onClose }: { squad: { id: string; name: 
       setText(t);
       return;
     }
+    haptic("light");
+    load();
+  }
+  async function sharePos(pos: SharedPos) {
+    setPosOpen(false);
+    setErr(null);
+    const r = await fetch("/api/squadchat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sq: squad.id, text: text.trim(), pos }) });
+    if (!r.ok) return setErr((await r.json().catch(() => ({}))).error ?? "Didn't send.");
+    setText("");
     haptic("light");
     load();
   }
@@ -143,6 +155,7 @@ export function SquadChatSheet({ squad, onClose }: { squad: { id: string; name: 
                     <button type="button" onClick={() => setPickFor(pickFor === m.id ? null : m.id)} className={`ig-bubble ${fontClass(m.look)}`} title={ago(m.ts)}>
                       {m.text.split(/(@[A-Za-z0-9_]{3,16})/g).map((p, k) => (p.startsWith("@") && m.mentions.some((h) => `@${h}`.toLowerCase() === p.toLowerCase()) ? <b key={k} className="text-[color:var(--portal-green)]">{p}</b> : p))}
                     </button>
+                    {m.pos ? <div className="mt-1"><PosBubble pos={m.pos} handle={m.handle} mine={m.mine} /></div> : null}
                     {Object.keys(m.rx).length ? (
                       <div className="ig-rx">
                         {Object.entries(m.rx).map(([e, n]) => (
@@ -168,7 +181,9 @@ export function SquadChatSheet({ squad, onClose }: { squad: { id: string; name: 
               {sugg.map((h) => <button key={h} type="button" onClick={() => { setText(text.replace(/@[A-Za-z0-9_]*$/, `@${h} `)); input.current?.focus(); }} className="rounded-full border border-purple-400/50 px-2.5 py-1 text-[13px] font-bold text-purple-100">@{h}</button>)}
             </div>
           ) : null}
-          <div className="ig-composer">
+          <div className="flex items-end gap-2">
+          <span className="pb-[5px]"><SharePosButton onClick={() => setPosOpen(true)} /></span>
+          <div className="ig-composer min-w-0 flex-1">
             <textarea ref={input} value={text} onChange={(e) => setText(e.target.value.slice(0, 280))} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} rows={1} placeholder="Message…" className="chat-input" aria-label="Message" enterKeyHint="send" data-testid="squad-chat-input" />
             {text.trim() ? (
               <button type="submit" className="ig-send" data-testid="squad-chat-send">Send</button>
@@ -178,6 +193,8 @@ export function SquadChatSheet({ squad, onClose }: { squad: { id: string; name: 
               </span>
             )}
           </div>
+          </div>
+          {posOpen ? <SharePosSheet onShare={sharePos} onClose={() => setPosOpen(false)} /> : null}
           {err ? <p className="mt-1 text-[12px] font-bold text-[color:var(--minus)]" role="alert">{err}</p> : null}
         </form>
       </div>

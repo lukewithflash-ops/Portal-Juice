@@ -3,9 +3,10 @@ import { cleanText, redis } from "@/lib/chat";
 import { getProfile, getSquad, ensureProfile } from "@/lib/social";
 import { emotesOf, lookOf, markActivity } from "@/lib/coins";
 import { FREE_EMOTES, type Look } from "@/lib/coinsCore";
+import { cleanPos, type SharedPos } from "@/lib/sharePos";
 
 /** Squad chat: members only, names come from the account's handle (never typed in). */
-export type SquadMsg = { id: string; handle: string; text: string; ts: number; mentions: string[]; rx: Record<string, number>; mine?: boolean; look?: Look };
+export type SquadMsg = { id: string; handle: string; text: string; ts: number; mentions: string[]; rx: Record<string, number>; mine?: boolean; look?: Look; pos?: SharedPos };
 
 const K = {
   list: (sq: string) => `pj:sqc:${sq}`,
@@ -39,7 +40,7 @@ export async function messages(uid: string, sq: string): Promise<{ msgs: SquadMs
   for (const r of raw) {
     try {
       const m = JSON.parse(r) as SquadMsg & { uid: string };
-      msgs.push({ id: m.id, handle: m.handle, text: m.text, ts: m.ts, mentions: m.mentions, rx: rx.get(m.id) ?? {}, mine: m.handle === me });
+      msgs.push({ id: m.id, handle: m.handle, text: m.text, ts: m.ts, mentions: m.mentions, pos: m.pos, rx: rx.get(m.id) ?? {}, mine: m.handle === me });
     } catch {}
   }
   const members = await handles(s.members);
@@ -63,10 +64,11 @@ export async function messages(uid: string, sq: string): Promise<{ msgs: SquadMs
   return { msgs: msgs.reverse(), members, seen, dm: !!s.dm };
 }
 
-export async function send(uid: string, sq: string, raw: unknown) {
+export async function send(uid: string, sq: string, raw: unknown, posRaw?: unknown) {
   const s = await memberSquad(uid, sq);
   if (!s) return { ok: false as const, error: "Not in that squad.", status: 403 };
-  const t = cleanText(raw);
+  const pos = cleanPos(posRaw, (x) => cleanText(x).ok);
+  const t = cleanText(typeof raw === "string" && raw.trim() ? raw : pos ? "Sharing my position" : raw);
   if (!t.ok) return { ok: false as const, error: t.error, status: 400 };
   const rk = `pj:rl:sqc:${uid}`;
   const n = Number(await redis(["INCR", rk]));
@@ -75,7 +77,7 @@ export async function send(uid: string, sq: string, raw: unknown) {
   const prof = await ensureProfile(uid);
   const members = await handles(s.members);
   const mentions = [...new Set([...t.text.matchAll(/@([A-Za-z0-9_]{3,16})/g)].map((m) => m[1]).filter((h) => members.some((x) => x.toLowerCase() === h.toLowerCase())))];
-  const msg = { id: crypto.randomUUID(), uid, handle: prof.handle, text: t.text, ts: Date.now(), mentions };
+  const msg = { id: crypto.randomUUID(), uid, handle: prof.handle, text: t.text, ts: Date.now(), mentions, pos };
   await redis(["LPUSH", K.list(sq), JSON.stringify(msg)]);
   await redis(["LTRIM", K.list(sq), 0, 299]);
   await redis(["SET", K.last(sq), msg.ts]);
