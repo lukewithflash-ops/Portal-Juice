@@ -380,7 +380,7 @@ function SplitRow({ s }: { s: Split }) {
   );
 }
 
-type MoneyV = { at: string | null; upcoming: { ev: MlEvent; lopsided: number; gap: { market: string; side: string; gap: number } | null }[]; graded: MlEvent[]; tally: Record<string, { won: number; lost: number; push: number }> };
+type MoneyV = { at: string | null; upcoming: { ev: MlEvent; lopsided: number; early?: boolean; gap: { market: string; side: string; gap: number } | null }[]; graded: MlEvent[]; tally: Record<string, { won: number; lost: number; push: number }> };
 
 function Money({ d }: { d: (Head & { splitsOn?: boolean; money?: MoneyV | null }) | null }) {
   if (!d) return <div className="skel h-48 rounded-2xl" />;
@@ -433,6 +433,7 @@ function MoneyGame({ r, rank }: { r: MoneyV["upcoming"][number]; rank: number })
         <span className="min-w-0 flex-1 truncate text-[14px] font-black text-white">{ev.title}</span>
         <span className="text-[11px] text-zinc-400">{pt(ev.start)}</span>
       </div>
+      {r.early ? <div className="mt-2 text-[11px] text-zinc-400">Early market: DraftKings shows only one-sided action so far, so this game is listed below the ranked ones.</div> : null}
       {r.gap && Math.abs(r.gap.gap) >= 15 ? (
         <div className="mt-2 rounded-lg border border-[color:var(--gold)]/50 bg-[color:var(--gold)]/10 px-2 py-1 text-[12px] text-[color:var(--gold)]">
           Money vs tickets gap: {r.gap.side} ({r.gap.market}) has {r.gap.gap > 0 ? `${r.gap.gap} pts more money than tickets` : `${-r.gap.gap} pts more tickets than money`}.

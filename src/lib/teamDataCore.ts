@@ -493,7 +493,7 @@ export function gradeLean(ev: MlEvent, f: { hs: number; as: number }): MlGrade {
   return out;
 }
 
-export type MlBoardRow = { ev: MlEvent; lopsided: number; gap: { market: string; side: string; gap: number } | null };
+export type MlBoardRow = { ev: MlEvent; lopsided: number; early: boolean; gap: { market: string; side: string; gap: number } | null };
 /** Rank by the most lopsided money % across markets; note the biggest money-vs-tickets gap. */
 export function moneyBoard(evs: MlEvent[]): MlBoardRow[] {
   return evs
@@ -503,11 +503,12 @@ export function moneyBoard(evs: MlEvent[]): MlBoardRow[] {
       let gap: MlBoardRow["gap"] = null;
       for (const [market, rows] of Object.entries(s?.m ?? {}))
         for (const r of rows) {
+          if (rows.some((x) => x.b >= 100 || x.h >= 100)) continue; // one-sided early market: too few bets to rank
           lopsided = Math.max(lopsided, r.h);
           const g = r.h - r.b;
           if (!gap || Math.abs(g) > Math.abs(gap.gap)) gap = { market, side: r.side, gap: g };
         }
-      return { ev, lopsided, gap };
+      return { ev, lopsided, early: lopsided === 0, gap };
     })
-    .sort((a, b) => b.lopsided - a.lopsided);
+    .sort((a, b) => Number(a.early) - Number(b.early) || b.lopsided - a.lopsided);
 }
