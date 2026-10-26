@@ -118,7 +118,9 @@ export async function runTeamData(opts: { budgetMs?: number; leagues?: string[] 
         const todo = units(c, s, today).filter((u) => !done.has(u.key));
         // newest first so the current season fills before the deep backfill
         todo.reverse().slice(0, 40).forEach((u) => work.push({ c, s, u }));
-        if (!done.size || todo.length) touched.add(`${c.id}:${s.key}`);
+        const prev = (await redis(["GET", K.out(c.id, s.key)])) as string | null;
+        const stale = !prev || Date.now() - Date.parse((JSON.parse(prev) as LeagueOut).at) > 12 * 3600_000;
+        if (!done.size || todo.length || stale) touched.add(`${c.id}:${s.key}`);
       }
     }
     // round-robin across league-seasons
