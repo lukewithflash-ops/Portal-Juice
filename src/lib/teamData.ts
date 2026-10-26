@@ -219,7 +219,8 @@ export async function recompute(lg: string, season: string): Promise<LeagueOut |
   const meta = await metaMap(lg);
   const teams = [...new Set(games.flatMap((g) => [g.h, g.a]))];
   // NCAAF: only FBS teams that played 3+ tracked games get a page
-  const sums: TeamSummary[] = teams.map((t) => summarize(c, games, t, divOf)).filter((x) => c.id !== "ncaaf" || x.all.n >= 3);
+  const sums: TeamSummary[] = teams.map((t) => summarize(c, games, t, divOf)).filter((x) => (c.id === "ncaaf" ? x.all.n >= 3 : !Object.keys(div).length || !!div[x.team]));
+  // (pro leagues: only teams in ESPN standings, which drops All-Star and exhibition sides)
   const ds = games.map((g) => g.d).sort();
   const out: LeagueOut = {
     league: lg,
