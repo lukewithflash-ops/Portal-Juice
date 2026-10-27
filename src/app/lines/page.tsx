@@ -11,6 +11,10 @@ import { nextSlate } from "@/lib/nextSlateServer";
 import { PortalPickPanel } from "@/components/PortalPickPanel";
 import VipStrip from "@/components/VipStrip";
 import { portalPickToday } from "@/lib/portalPickStore";
+import { OwnerPickPanel } from "@/components/OwnerPickPanel";
+import { ownerSlot } from "@/lib/ownerPickStore";
+import { currentUser } from "@/lib/auth";
+import { vipState } from "@/lib/vipAccess";
 import { sportsDate } from "@/lib/slate";
 import { getSnapshot } from "@/lib/feed";
 import { isStale } from "@/lib/move";
@@ -28,11 +32,17 @@ export default async function LinesPage() {
   const now = Date.now();
   const staleIds = snap.rows.filter((r) => isStale(r, now)).map((r) => r.id);
   const portal = await portalPickToday(slate.games, sportsDate());
+  const [opFree, opVip, me] = await Promise.all([ownerSlot("free", sportsDate()), ownerSlot("vip", sportsDate()), currentUser().catch(() => null)]);
+  const isVip = (await vipState(me).catch(() => null))?.vip ?? false;
   // Slate over: put the next slate that has a real number on top of the finals.
   const next = await nextSlate(slate).catch(() => null);
   return (
     <>
 <PageHeader title="Lines" sub="Where the number moved. Tap one for its history." />
+      <div className="mb-4 grid gap-3 sm:grid-cols-2">
+        <OwnerPickPanel slot="free" view={opFree} />
+        <OwnerPickPanel slot="vip" view={opVip} locked={!isVip} />
+      </div>
       <div className="mb-4">
         <PortalPickPanel pick={portal.pick} record={portal.record} tracked={portal.tracked} compact />
       </div>

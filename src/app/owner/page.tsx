@@ -3,6 +3,7 @@ import PageHeader from "@/components/PageHeader";
 import { currentUser } from "@/lib/auth";
 import { isOwner } from "@/lib/vipAccess";
 import { dashboard } from "@/lib/metrics";
+import { DAILY_PICK_NAME } from "@/lib/ownerPick";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Owner", robots: { index: false } };
@@ -18,6 +19,7 @@ export default async function OwnerPage() {
   return (
     <>
       <PageHeader title="Owner" sub={since ? `Collecting since ${since}. Real counts only, nothing before that.` : "Collecting starts with the next app open."} />
+      <a href="/owner/pick" className="mb-3 block rounded-xl bg-[color:var(--gold)] px-3 py-2 text-center text-sm font-black text-black">Post {DAILY_PICK_NAME}</a>
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="owner-totals">
         {[["Opens (device-days)", sum("active")], ["New devices/accounts", sum("fresh")], ["Picks logged", sum("picks")], ["Avg D1 / D7", `${avg("d1")} / ${avg("d7")}`]].map(([k, v]) => (
           <div key={String(k)} className="foil-tile rounded-2xl p-3">
