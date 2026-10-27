@@ -127,7 +127,7 @@ export default function WhyPanel({ league, id }: { league: string; id: string })
         {w.similar.map((r) => (
           <li key={r.label} className="flex justify-between gap-2">
             <span className="text-zinc-300">{r.label}</span>
-            <span className="tabular font-bold text-zinc-100">
+            <span className="tabular shrink-0 whitespace-nowrap font-bold text-zinc-100">
               {r.n ? `${r.w}-${r.l}${r.p ? `-${r.p}` : ""}` : "—"}
               {r.note ? <span className="ml-1.5 text-[10px] font-semibold text-zinc-500">{r.note}</span> : null}
             </span>

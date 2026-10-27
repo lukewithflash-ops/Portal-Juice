@@ -176,7 +176,7 @@ export type SimPick = {
 
 export type SimRow = { label: string; w: number; l: number; p: number; n: number; note: string };
 
-export const bandOf = (x: number) => (x < 3 ? "under 3" : x < 7 ? "3 to 6.5" : x < 10 ? "7 to 9.5" : "10+");
+export const bandOf = (x: number) => (x < 3 ? "<3" : x < 7 ? "3–6.5" : x < 10 ? "7–9.5" : "10+");
 
 export function sampleNote(n: number): string {
   return n === 0 ? "No graded picks yet" : n < 10 ? "Small sample" : n < 30 ? "Building sample" : "";
@@ -197,7 +197,7 @@ export function similarRecord(all: SimPick[], g: { league: string; home: string;
   if (g.spreadHome != null && g.spreadHome !== 0) {
     const b = bandOf(Math.abs(g.spreadHome));
     const homeFav = g.spreadHome < 0;
-    const spot = (atHome: boolean, fav: boolean) => `${atHome ? "Home" : "Road"} ${fav ? "favorites" : "dogs"}, ${b} pts (${g.lg} spread)`;
+    const spot = (atHome: boolean, fav: boolean) => `${atHome ? "Home" : "Road"} ${fav ? "fav" : "dog"} ${fav ? "-" : "+"}${b} spread`;
     const sp = ps.filter((p) => p.kind === "spread" && p.num != null && bandOf(p.num) === b);
     out.push(row(spot(true, homeFav), sp.filter((p) => p.atHome === true && p.fav === homeFav)));
     out.push(row(spot(false, !homeFav), sp.filter((p) => p.atHome === false && p.fav === !homeFav)));

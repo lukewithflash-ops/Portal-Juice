@@ -35,9 +35,9 @@ const rows = similarRecord([sp({}), sp({ result: "L" }), sp({ home: "Y", away: "
 const by = Object.fromEntries(rows.map((r) => [r.label, r]));
 assert.equal(by["Games with MIN"].n, 3);
 assert.equal(by["Games with LAL"].note, "No graded picks yet");
-assert.equal(by["Home favorites, 3 to 6.5 pts (NBA spread)"].w, 1);
-assert.equal(by["Home favorites, 3 to 6.5 pts (NBA spread)"].l, 1);
-assert.equal(by["Home favorites, 3 to 6.5 pts (NBA spread)"].note, "Small sample");
+assert.equal(by["Home fav -3–6.5 spread"].w, 1);
+assert.equal(by["Home fav -3–6.5 spread"].l, 1);
+assert.equal(by["Home fav -3–6.5 spread"].note, "Small sample");
 assert.equal(by["NBA totals"].n, 1);
 assert.equal(by["All NBA Portal picks"].n, 4);
 console.log("why ok");
