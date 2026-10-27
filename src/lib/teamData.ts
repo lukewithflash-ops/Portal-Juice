@@ -16,6 +16,11 @@ import {
   gradeLean,
   moneyBoard,
   snapOf,
+  compactSnaps,
+  gapRows,
+  moneyRates,
+  type GapRow,
+  type MlRates,
   type MlEvent,
   type TdGame,
   type TdLeagueCfg,
@@ -360,13 +365,23 @@ const ML = {
   gate: (l: string) => `pj:ml:gate:${l}`,
   sb: (l: string, d: string) => `pj:ml:sb:${l}:${d}`,
 };
-const TTL = 10 * 86400;
+const TTL = 10 * 86400; // full 20-min snapshots for games not yet graded
+const LONG = 130 * 86400; // graded games: open, close and hourly snapshots only
 
 async function getEv(lg: string, id: string): Promise<MlEvent | null> {
   const raw = (await redis(["GET", ML.ev(lg, id)])) as string | null;
   return raw ? (JSON.parse(raw) as MlEvent) : null;
 }
-const putEv = (e: MlEvent) => redis(["SET", ML.ev(e.lg, e.id), JSON.stringify(e), "EX", TTL]);
+const putEv = (e: MlEvent) =>
+  e.final ? redis(["SET", ML.ev(e.lg, e.id), JSON.stringify({ ...e, snaps: compactSnaps(e) }), "EX", LONG]) : redis(["SET", ML.ev(e.lg, e.id), JSON.stringify(e), "EX", TTL]);
+async function getEvs(lg: string, ids: string[]): Promise<MlEvent[]> {
+  const out: MlEvent[] = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const raws = ((await redis(["MGET", ...ids.slice(i, i + 200).map((id) => ML.ev(lg, id))])) as (string | null)[]) ?? [];
+    for (const r of raws) if (r) try { out.push(JSON.parse(r) as MlEvent); } catch {}
+  }
+  return out;
+}
 
 /** Every ~20 min per league: store DraftKings Network splits + lines for each upcoming game (pre-kickoff only). Then grade finished ones. */
 export async function snapMoney(): Promise<Record<string, { snapped: number; graded: number } | string>> {
@@ -394,7 +409,7 @@ export async function snapMoney(): Promise<Record<string, { snapped: number; gra
         await redis(["ZADD", ML.idx(lg), Date.parse(start), e.id]);
         snapped++;
       }
-      await redis(["ZREMRANGEBYSCORE", ML.idx(lg), 0, Date.now() - TTL * 1000]);
+      await redis(["ZREMRANGEBYSCORE", ML.idx(lg), 0, Date.now() - LONG * 1000]);
     }
     out[lg] = { snapped, graded: await gradeMoney(lg).catch(() => 0) };
   }
@@ -440,14 +455,34 @@ export type MoneyView = {
   upcoming: ReturnType<typeof moneyBoard>;
   graded: MlEvent[];
   tally: Record<string, { won: number; lost: number; push: number }>;
+  gaps: GapRow[];
+  rates: MlRates;
+  ratesAll: MlRates;
+  keptDays: { full: number; summary: number };
 };
+
+/** Follow-the-money / fade-the-tickets rates across every league, cached 10 min. */
+async function allRates(): Promise<MlRates> {
+  const k = "pj:ml:rates:v1";
+  const hit = (await redis(["GET", k]).catch(() => null)) as string | null;
+  if (hit) return JSON.parse(hit) as MlRates;
+  const evs: MlEvent[] = [];
+  for (const lg of Object.keys(DK_EG)) {
+    const ids = ((await redis(["ZRANGEBYSCORE", ML.idx(lg), Date.now() - LONG * 1000, Date.now() - 3 * 3600_000])) as string[]) ?? [];
+    evs.push(...(await getEvs(lg, ids)).filter((e) => e.final));
+  }
+  const r = moneyRates(evs);
+  await redis(["SET", k, JSON.stringify(r), "EX", 600]).catch(() => {});
+  return r;
+}
 
 export async function moneyView(lg: string): Promise<MoneyView | null> {
   if (!chatEnabled() || !dkSplitsOn()) return null;
-  const ids = ((await redis(["ZRANGEBYSCORE", ML.idx(lg), Date.now() - TTL * 1000, "+inf"])) as string[]) ?? [];
-  const evs = (await Promise.all(ids.map((id) => getEv(lg, id)))).filter((e): e is MlEvent => !!e && e.snaps.length > 0);
+  const ids = ((await redis(["ZRANGEBYSCORE", ML.idx(lg), Date.now() - LONG * 1000, "+inf"])) as string[]) ?? [];
+  const evs = (await getEvs(lg, ids)).filter((e) => e.snaps.length > 0);
   const now = Date.now();
-  const upcoming = moneyBoard(evs.filter((e) => Date.parse(e.start) > now - 4 * 3600_000 && !e.final));
+  const live = evs.filter((e) => Date.parse(e.start) > now - 4 * 3600_000 && !e.final);
+  const upcoming = moneyBoard(live);
   const graded = evs.filter((e) => e.final && e.graded?.length).sort((a, b) => b.start.localeCompare(a.start));
   const tally: MoneyView["tally"] = {};
   for (const e of graded) for (const g of e.graded ?? []) {
@@ -455,5 +490,11 @@ export async function moneyView(lg: string): Promise<MoneyView | null> {
     t[g.result]++;
   }
   const at = evs.reduce<string | null>((m, e) => { const t = e.snaps[e.snaps.length - 1]?.t; return t && (!m || t > m) ? t : m; }, null);
-  return { at, upcoming, graded: graded.slice(0, 30), tally };
+  return { at, upcoming, graded: graded.slice(0, 30), tally, gaps: gapRows(live.filter((e) => Date.parse(e.start) > now)), rates: moneyRates(graded), ratesAll: await allRates(), keptDays: { full: TTL / 86400, summary: LONG / 86400 } };
+}
+
+/** Stored snapshots for one DK Network event (for the Why panel trend). */
+export async function moneyEvent(lg: string, id: string): Promise<MlEvent | null> {
+  if (!chatEnabled() || !dkSplitsOn()) return null;
+  return getEv(lg, id).catch(() => null);
 }

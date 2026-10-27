@@ -418,7 +418,8 @@ export type MlRow = { side: string; odds: string; h: number; b: number };
 export type MlSnap = { t: string; m: Record<string, MlRow[]> };
 export type MlFinal = { hs: number; as: number; espnId: string };
 export type MlEvent = { id: string; lg: string; title: string; away: string; home: string; awayAbbr: string | null; homeAbbr: string | null; start: string; snaps: MlSnap[]; final?: MlFinal | null; graded?: MlGrade | null };
-export type MlGrade = { market: string; side: string; money: number; bets: number; result: "won" | "lost" | "push" }[];
+/** Per market: the money side (more % of handle) and, when graded after Oct 27 2026, the ticket side (more % of bets). */
+export type MlGrade = { market: string; side: string; money: number; bets: number; result: "won" | "lost" | "push"; tSide?: string; tMoney?: number; tBets?: number; tResult?: "won" | "lost" | "push" }[];
 
 /** DK Network shows times like "10/25, 08:22PM" in US Eastern. Returns ISO, or null. */
 export function dkWhen(when: string, now = new Date()): string | null {
@@ -463,6 +464,29 @@ export function closingSnap(ev: MlEvent): MlSnap | null {
   return pre[pre.length - 1] ?? null;
 }
 
+type Res = "won" | "lost" | "push";
+/** Did one side of a market win/cover/hit against the final? null when the side can't be read. */
+export function gradeSide(ev: Pick<MlEvent, "home" | "away">, market: string, side: string, f: { hs: number; as: number }): Res | null {
+  if (/total/i.test(market)) {
+    const ln = sideLine(side);
+    if (ln == null) return null;
+    const d = f.hs + f.as - ln;
+    const over = /^over/i.test(side);
+    return d === 0 ? "push" : (d > 0) === over ? "won" : "lost";
+  }
+  const who = sideTeam(side, ev);
+  if (!who) return null;
+  const margin = who === "home" ? f.hs - f.as : f.as - f.hs;
+  if (/spread|puck|run line/i.test(market)) {
+    const ln = sideLine(side);
+    if (ln == null) return null;
+    const d = margin + ln;
+    return d > 0 ? "won" : d < 0 ? "lost" : "push";
+  }
+  return margin > 0 ? "won" : margin < 0 ? "lost" : "push";
+}
+
+/** Grade the closing money side and the closing ticket side of every two-way market. */
 export function gradeLean(ev: MlEvent, f: { hs: number; as: number }): MlGrade {
   const c = closingSnap(ev);
   if (!c) return [];
@@ -470,27 +494,88 @@ export function gradeLean(ev: MlEvent, f: { hs: number; as: number }): MlGrade {
   for (const [market, rows] of Object.entries(c.m)) {
     if (rows.length !== 2 || rows[0].h === rows[1].h) continue;
     const top = rows[0].h > rows[1].h ? rows[0] : rows[1];
-    let res: "won" | "lost" | "push" | null = null;
-    if (/total/i.test(market)) {
-      const ln = sideLine(top.side);
-      if (ln == null) continue;
-      const d = f.hs + f.as - ln;
-      const over = /^over/i.test(top.side);
-      res = d === 0 ? "push" : (d > 0) === over ? "won" : "lost";
-    } else {
-      const who = sideTeam(top.side, ev);
-      if (!who) continue;
-      const margin = who === "home" ? f.hs - f.as : f.as - f.hs;
-      if (/spread|puck|run line/i.test(market)) {
-        const ln = sideLine(top.side);
-        if (ln == null) continue;
-        const d = margin + ln;
-        res = d > 0 ? "won" : d < 0 ? "lost" : "push";
-      } else res = margin > 0 ? "won" : margin < 0 ? "lost" : "push";
+    const res = gradeSide(ev, market, top.side, f);
+    if (!res) continue;
+    const g: MlGrade[number] = { market, side: top.side, money: top.h, bets: top.b, result: res };
+    if (rows[0].b !== rows[1].b) {
+      const tk = rows[0].b > rows[1].b ? rows[0] : rows[1];
+      const tr = gradeSide(ev, market, tk.side, f);
+      if (tr) Object.assign(g, { tSide: tk.side, tMoney: tk.h, tBets: tk.b, tResult: tr });
     }
-    out.push({ market, side: top.side, money: top.h, bets: top.b, result: res });
+    out.push(g);
   }
   return out;
+}
+
+/** Long-term shape: open (first seen), close (last before kickoff) and one snapshot per hour in between. */
+export function compactSnaps(ev: Pick<MlEvent, "snaps" | "start">): MlSnap[] {
+  const pre = ev.snaps.filter((s) => s.t <= ev.start);
+  if (pre.length <= 2) return pre;
+  const out: MlSnap[] = [pre[0]];
+  let hr = Math.floor(Date.parse(pre[0].t) / 3600_000);
+  for (let i = 1; i < pre.length - 1; i++) {
+    const h = Math.floor(Date.parse(pre[i].t) / 3600_000);
+    if (h > hr) { out.push(pre[i]); hr = h; }
+  }
+  out.push(pre[pre.length - 1]);
+  return out;
+}
+
+export type MlTrend = { market: string; side: string; from: number; to: number; betsFrom: number; betsTo: number; hours: number; text: string };
+/** Money % movement on the side that holds more money now, from first-seen to latest pre-kickoff snapshot. */
+export function splitTrend(ev: Pick<MlEvent, "snaps" | "start">, market: string): MlTrend | null {
+  const pre = ev.snaps.filter((s) => s.t <= ev.start && s.m[market]?.length === 2);
+  if (pre.length < 2) return null;
+  const a = pre[0], z = pre[pre.length - 1];
+  const zr = z.m[market];
+  const i = zr[0].h >= zr[1].h ? 0 : 1;
+  const ar = a.m[market][i];
+  if (zr.some((r) => r.h >= 100 || r.b >= 100) || a.m[market].some((r) => r.h >= 100 || r.b >= 100)) return null;
+  const hours = Math.max(0, (Date.parse(z.t) - Date.parse(a.t)) / 3600_000);
+  const span = hours < 1 ? `${Math.max(1, Math.round(hours * 60))}m` : hours < 48 ? `${Math.round(hours)}h` : `${Math.round(hours / 24)}d`;
+  const name = zr[i].side.replace(/\s*[+-]?\d+(\.\d+)?$/, "");
+  const d = zr[i].h - ar.h;
+  const text = d === 0 ? `${name}: money steady at ${zr[i].h}% over ${span}` : `${name}: money ${ar.h}% → ${zr[i].h}% in ${span} (bets ${ar.b}% → ${zr[i].b}%)`;
+  return { market, side: zr[i].side, from: ar.h, to: zr[i].h, betsFrom: ar.b, betsTo: zr[i].b, hours, text };
+}
+
+export type GapRow = { ev: MlEvent; market: string; side: string; money: number; bets: number; gap: number; trend: MlTrend | null };
+/** One row per two-way market in the latest snapshot: the side with more money than tickets. Sorted by |gap|. */
+export function gapRows(evs: MlEvent[]): GapRow[] {
+  const out: GapRow[] = [];
+  for (const ev of evs) {
+    const s = ev.snaps[ev.snaps.length - 1];
+    for (const [market, rows] of Object.entries(s?.m ?? {})) {
+      if (rows.length !== 2 || rows.some((x) => x.b >= 100 || x.h >= 100)) continue;
+      const r = rows[0].h - rows[0].b >= rows[1].h - rows[1].b ? rows[0] : rows[1];
+      out.push({ ev, market, side: r.side, money: r.h, bets: r.b, gap: r.h - r.b, trend: splitTrend(ev, market) });
+    }
+  }
+  return out.sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap) || a.ev.start.localeCompare(b.ev.start));
+}
+
+export type WLP = { w: number; l: number; p: number };
+export type RateSet = { follow: WLP; fade: WLP };
+export type MlRates = { all: RateSet; byLeague: Record<string, RateSet>; byMarket: Record<string, RateSet>; since: string | null; games: number };
+const mkKind = (m: string) => (/total/i.test(m) ? "Total" : /spread|puck|run line/i.test(m) ? "Spread" : /money/i.test(m) ? "Moneyline" : m);
+/** Follow the money = closing money side's result. Fade the tickets = the opposite of the closing ticket side. */
+export function moneyRates(evs: MlEvent[]): MlRates {
+  const z = (): RateSet => ({ follow: { w: 0, l: 0, p: 0 }, fade: { w: 0, l: 0, p: 0 } });
+  const r: MlRates = { all: z(), byLeague: {}, byMarket: {}, since: null, games: 0 };
+  const add = (w: WLP, x: Res) => { if (x === "won") w.w++; else if (x === "lost") w.l++; else w.p++; };
+  for (const e of evs) {
+    if (!e.final || !e.graded?.length) continue;
+    r.games++;
+    if (!r.since || e.start < r.since) r.since = e.start;
+    for (const g of e.graded) {
+      const sets = [r.all, (r.byLeague[e.lg] ??= z()), (r.byMarket[mkKind(g.market)] ??= z())];
+      for (const s of sets) {
+        add(s.follow, g.result);
+        if (g.tResult) add(s.fade, g.tResult === "won" ? "lost" : g.tResult === "lost" ? "won" : "push");
+      }
+    }
+  }
+  return r;
 }
 
 export type MlBoardRow = { ev: MlEvent; lopsided: number; early: boolean; gap: { market: string; side: string; gap: number } | null };

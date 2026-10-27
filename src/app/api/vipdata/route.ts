@@ -10,7 +10,7 @@ export const maxDuration = 60;
 const SOURCES = {
   results: "ESPN finals and linescores (site.api.espn.com)",
   lines: "DraftKings closing lines via ESPN odds feed (provider: DraftKings)",
-  splits: { label: "DraftKings Network public betting splits", url: DK_SPLITS_URL },
+  splits: { label: "DraftKings (via DraftKings Network) public betting splits", url: DK_SPLITS_URL },
 };
 
 /** VIP Data. Non-VIP get a locked teaser with counts only. */

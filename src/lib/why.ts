@@ -1,12 +1,12 @@
 import "server-only";
 import { getGameDetail } from "@/lib/espn";
 import { portalPickHistory } from "@/lib/portalPickStore";
-import { defaultSeason, dkSplits, teamOut } from "@/lib/teamData";
-import { sideTeam, tdLeague, type DkSplitEvent } from "@/lib/teamDataCore";
+import { defaultSeason, dkSplits, moneyEvent, teamOut } from "@/lib/teamData";
+import { sideTeam, splitTrend, tdLeague, type DkSplitEvent, type MlEvent } from "@/lib/teamDataCore";
 import { vipHistory } from "@/lib/vipStore";
 import { findSplits, marketKind, moveToward, similarRecord, trendOf, whyInjuries, type Move, type SimPick, type SimRow, type Trend, type WhyInjury } from "@/lib/whyCore";
 
-export type WhySplit = { market: string; rows: { side: string; handle: number; bets: number }[]; rlm: string | null };
+export type WhySplit = { market: string; rows: { side: string; handle: number; bets: number }[]; rlm: string | null; trend: string | null };
 export type Why = {
   league: string;
   home: string;
@@ -42,7 +42,7 @@ export async function simPicks(): Promise<SimPick[]> {
   return out;
 }
 
-function splitView(ev: DkSplitEvent | null, move: Move | null): WhySplit[] | null {
+function splitView(ev: DkSplitEvent | null, move: Move | null, hist: MlEvent | null): WhySplit[] | null {
   if (!ev) return null;
   return ev.markets.map((m) => {
     const k = marketKind(m.name);
@@ -55,7 +55,7 @@ function splitView(ev: DkSplitEvent | null, move: Move | null): WhySplit[] | nul
       const mv = leg ? moveToward(leg, move) : null;
       if (mv != null && rows[top].handle >= 60 && mv <= -0.5) rlm = `Reverse line move: ${rows[top].handle}% of money on ${rows[top].side}, line moved the other way`;
     }
-    return { market: m.name, rows, rlm };
+    return { market: m.name, rows, rlm, trend: hist ? splitTrend(hist, m.name)?.text ?? null : null };
   });
 }
 
@@ -72,6 +72,7 @@ export async function buildWhy(league: string, id: string, vip: boolean): Promis
   const base = { league, home: g.home.abbr, away: g.away.abbr, state: g.state, injuries, move, provider: p?.provider ?? null, similar };
   if (!vip) return { ...base, splits: null, splitsAt: null, trends: null, locked: true };
   const ev = sp ? findSplits(sp.events, { homeAbbr: g.home.abbr, awayAbbr: g.away.abbr, homeName: g.home.name, awayName: g.away.name }) : null;
+  const hist = ev?.id ? await moneyEvent(league, ev.id) : null;
   let trends: Trend[] | null = null;
   if (cfg && season) {
     const [hs, as] = await Promise.all([teamOut(league, season, g.home.abbr).catch(() => null), teamOut(league, season, g.away.abbr).catch(() => null)]);
@@ -79,5 +80,5 @@ export async function buildWhy(league: string, id: string, vip: boolean): Promis
     trends = [as ? trendOf(as, false, rest(as)) : null, hs ? trendOf(hs, true, rest(hs)) : null].filter((x): x is Trend => !!x);
     if (!trends.length) trends = null;
   }
-  return { ...base, splits: splitView(ev, move), splitsAt: ev ? sp?.at ?? null : null, trends, locked: false };
+  return { ...base, splits: splitView(ev, move, hist), splitsAt: ev ? sp?.at ?? null : null, trends, locked: false };
 }

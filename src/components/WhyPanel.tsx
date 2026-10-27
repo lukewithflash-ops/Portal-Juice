@@ -58,8 +58,15 @@ export default function WhyPanel({ league, id }: { league: string; id: string })
 
       <H>Line move{w.provider ? ` · ${w.provider}` : ""}</H>
       <p className="mt-1 text-[13px] text-zinc-200">{moves.length ? moves.join(" · ") : "No move since open."}</p>
+      {!w.locked && w.splits?.some((s) => s.trend) ? (
+        <div className="mt-1 space-y-0.5" data-testid="why-split-trend">
+          {w.splits.filter((s) => s.trend).map((s) => (
+            <p key={s.market} className="text-[11px] text-cyan-200">Money trend · {s.market}: {s.trend}</p>
+          ))}
+        </div>
+      ) : null}
 
-      <H>Money splits · DraftKings</H>
+      <H>Money splits · Source: DraftKings (via DraftKings Network)</H>
       {w.locked ? (
         <p className="mt-1 text-[13px] text-zinc-400">
           <Link href="/vip" className="font-bold text-purple-200">VIP</Link> shows where the money and tickets are.

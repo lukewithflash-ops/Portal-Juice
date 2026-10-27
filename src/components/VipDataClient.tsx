@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { sideLine, type Board, type DkLine, type DkSplitEvent, type MlEvent, type MlSnap, type Rec, type Split, type TeamGame } from "@/lib/teamDataCore";
+import { sideLine, splitTrend, type GapRow, type MlRates, type RateSet, type WLP, type Board, type DkLine, type DkSplitEvent, type MlEvent, type MlSnap, type Rec, type Split, type TeamGame } from "@/lib/teamDataCore";
 
 type Head = {
   leagues: { id: string; label: string }[];
@@ -380,7 +380,81 @@ function SplitRow({ s }: { s: Split }) {
   );
 }
 
-type MoneyV = { at: string | null; upcoming: { ev: MlEvent; lopsided: number; early?: boolean; gap: { market: string; side: string; gap: number } | null }[]; graded: MlEvent[]; tally: Record<string, { won: number; lost: number; push: number }> };
+type MoneyV = { at: string | null; upcoming: { ev: MlEvent; lopsided: number; early?: boolean; gap: { market: string; side: string; gap: number } | null }[]; graded: MlEvent[]; tally: Record<string, { won: number; lost: number; push: number }>; gaps?: GapRow[]; rates?: MlRates; ratesAll?: MlRates; keptDays?: { full: number; summary: number } };
+
+const SRC = "Source: DraftKings (via DraftKings Network)";
+const LG_NAME: Record<string, string> = { nfl: "NFL", ncaaf: "College FB", nba: "NBA", nhl: "NHL", mlb: "MLB" };
+const wlp = (x: WLP) => `${x.w}-${x.l}${x.p ? `-${x.p}` : ""}`;
+const hit = (x: WLP) => (x.w + x.l ? `${Math.round((100 * x.w) / (x.w + x.l))}%` : "–");
+
+export function GapBoard({ rows }: { rows: GapRow[] }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? rows : rows.filter((r) => Math.abs(r.gap) >= 15);
+  return (
+    <section className="rounded-2xl border border-[color:var(--gold)]/40 bg-white/[0.03] p-3" data-testid="moneylean-gaps">
+      <div className="flex items-center gap-2">
+        <h3 className="flex-1 text-[12px] font-black uppercase tracking-[0.12em] text-[color:var(--gold)]">Money vs tickets gap</h3>
+        <button type="button" onClick={() => setAll((v) => !v)} className="rounded-full bg-white/[0.08] px-2.5 py-1 text-[11px] font-bold text-zinc-200" data-testid="gap-toggle">
+          {all ? "Only 15+ pts" : `Show all (${rows.length})`}
+        </button>
+      </div>
+      <p className="mt-1 text-[11px] text-zinc-500">Gap = % of money minus % of bets on a side. Sorted by the biggest gap. {all ? "Showing every market." : "Hiding gaps under 15 pts."}</p>
+      {shown.length ? (
+        <div className="mt-2">
+          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 text-[10px] font-bold uppercase tracking-wider text-zinc-500"><span>Side</span><span className="text-right">Money</span><span className="text-right">Bets</span><span className="text-right">Gap</span></div>
+          {shown.map((r) => (
+            <div key={r.ev.id + r.market} className="border-t border-white/5 py-1.5 text-[12px]">
+              <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 tabular">
+                <span className="min-w-0 truncate"><span className="font-bold text-white">{r.side}</span> <span className="text-zinc-500">{r.market} · {r.ev.awayAbbr ?? r.ev.away} @ {r.ev.homeAbbr ?? r.ev.home}</span></span>
+                <span className="text-right text-[color:var(--plus)]">{r.money}%</span>
+                <span className="text-right text-[color:var(--neon-violet)]">{r.bets}%</span>
+                <span className={"text-right font-black " + (Math.abs(r.gap) >= 15 ? "text-[color:var(--gold)]" : "text-zinc-300")}>{r.gap > 0 ? "+" : ""}{r.gap}</span>
+              </div>
+              {r.trend ? <div className="text-[10px] text-cyan-200">Trend: {r.trend.text}</div> : null}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 text-[12px] text-zinc-400">No upcoming market has a gap of 15 pts or more right now.</p>
+      )}
+      <p className="mt-2 text-[10px] text-zinc-500">{SRC}</p>
+    </section>
+  );
+}
+
+function RateRow({ label, r }: { label: string; r: RateSet }) {
+  return (
+    <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 border-t border-white/5 py-1.5 text-[12px] tabular">
+      <span className="text-zinc-300">{label}</span>
+      <span className="text-right"><b className="text-white">{hit(r.follow)}</b> <span className="text-zinc-500">{wlp(r.follow)}</span></span>
+      <span className="text-right"><b className="text-white">{hit(r.fade)}</b> <span className="text-zinc-500">{wlp(r.fade)}</span></span>
+    </div>
+  );
+}
+
+export function Rates({ lg, r, all }: { lg: string; r?: MlRates; all?: MlRates }) {
+  if (!r || !all) return null;
+  const n = (x: RateSet) => x.follow.w + x.follow.l + x.follow.p;
+  return (
+    <section className="rounded-2xl border border-[color:var(--neon-purple)]/40 bg-white/[0.03] p-3" data-testid="moneylean-rates">
+      <h3 className="text-[12px] font-black uppercase tracking-[0.12em] text-purple-200">Follow the money vs fade the tickets</h3>
+      <p className="mt-1 text-[11px] text-zinc-500">Graded at the last snapshot before kickoff against the ESPN final. Follow the money = the side with more % of money. Fade the tickets = against the side with more % of bets. Hit % leaves out pushes.</p>
+      {all.games ? (
+        <>
+          <div className="mt-2 grid grid-cols-[1fr_auto_auto] gap-x-4 text-[10px] font-bold uppercase tracking-wider text-zinc-500"><span>Sample</span><span className="text-right">Follow money</span><span className="text-right">Fade tickets</span></div>
+          <RateRow label={`All leagues (${all.games} games)`} r={all.all} />
+          {r.games ? <RateRow label={`${LG_NAME[lg] ?? lg} (${r.games} games)`} r={r.all} /> : null}
+          {Object.entries(r.byMarket).map(([k, v]) => <RateRow key={k} label={`${LG_NAME[lg] ?? lg} ${k} (${n(v)})`} r={v} />)}
+          {Object.entries(all.byLeague).filter(([k]) => k !== lg).map(([k, v]) => <RateRow key={k} label={`${LG_NAME[k] ?? k} (${n(v)} markets)`} r={v} />)}
+          <p className="mt-2 text-[10px] text-zinc-500">Collecting since {all.since ? new Date(all.since).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/Los_Angeles" }) : "–"}. {all.games < 50 ? "Small sample, so treat these as early numbers." : ""} Ticket-side grading started Oct 27, 2026, so older games count toward Follow the money only.</p>
+        </>
+      ) : (
+        <p className="mt-2 text-[12px] text-zinc-400">No graded games yet. Rates fill in as games finish.</p>
+      )}
+      <p className="mt-1 text-[10px] text-zinc-500">{SRC} · results from ESPN</p>
+    </section>
+  );
+}
 
 function Money({ d }: { d: (Head & { splitsOn?: boolean; money?: MoneyV | null }) | null }) {
   if (!d) return <div className="skel h-48 rounded-2xl" />;
@@ -389,7 +463,10 @@ function Money({ d }: { d: (Head & { splitsOn?: boolean; money?: MoneyV | null }
   if (!m || (!m.upcoming.length && !m.graded.length)) return <p className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-[13px] text-zinc-400">No DraftKings splits saved for this league yet. Snapshots are taken about every 20 minutes before kickoff.</p>;
   return (
     <div className="space-y-3" data-testid="moneylean">
-      <p className="px-1 text-[12px] text-zinc-400">Ranked by the most one-sided % of money on any market. “Money vs tickets gap” is % of money minus % of bets on a side.</p>
+      <p className="px-1 text-[11px] font-bold text-zinc-300" data-testid="moneylean-source">{SRC}</p>
+      {m.gaps ? <GapBoard rows={m.gaps} /> : null}
+      <Rates lg={d.league} r={m.rates} all={m.ratesAll} />
+      <p className="px-1 text-[12px] text-zinc-400">Games ranked by the most one-sided % of money on any market.</p>
       {m.upcoming.map((r, i) => <MoneyGame key={r.ev.id} r={r} rank={i + 1} />)}
       {m.graded.length ? (
         <section className="rounded-2xl border border-[color:var(--gold)]/30 bg-white/[0.03] p-3" data-testid="moneylean-graded">
@@ -406,7 +483,7 @@ function Money({ d }: { d: (Head & { splitsOn?: boolean; money?: MoneyV | null }
                 <div className="flex justify-between"><span className="font-bold text-white">{e.title}</span><span className="tabular text-zinc-400">Final {e.final!.as}-{e.final!.hs}</span></div>
                 {e.graded!.map((g) => (
                   <div key={g.market} className="flex justify-between tabular">
-                    <span className="text-zinc-400">{g.market}: {g.side} <span className="text-zinc-500">({g.money}% money, {g.bets}% bets)</span></span>
+                    <span className="text-zinc-400">{g.market}: {g.side} <span className="text-zinc-500">({g.money}% money, {g.bets}% bets)</span>{g.tSide ? <span className="block text-[11px] text-zinc-500">Tickets: {g.tSide} ({g.tBets}% bets) {g.tResult === "won" ? "covered, fade missed" : g.tResult === "lost" ? "missed, fade hit" : "push"}</span> : null}</span>
                     <span className={"font-black " + (g.result === "won" ? "text-[color:var(--plus)]" : g.result === "lost" ? "text-[color:var(--minus)]" : "text-zinc-300")}>{g.result === "won" ? (/total/i.test(g.market) ? "Hit" : /moneyline/i.test(g.market) ? "Won" : "Covered") : g.result === "lost" ? "Missed" : "Push"}</span>
                   </div>
                 ))}
@@ -416,7 +493,7 @@ function Money({ d }: { d: (Head & { splitsOn?: boolean; money?: MoneyV | null }
         </section>
       ) : null}
       <p className="px-1 text-[11px] text-zinc-500">
-        Source: <a className="underline" href={d.sources.splits.url} target="_blank" rel="noreferrer">{d.sources.splits.label}</a> (lines and splits), results from ESPN. Last snapshot {pt(m.at)}. Snapshots kept 10 days. Past and public data only, not a pick.
+        {SRC}: <a className="underline" href={d.sources.splits.url} target="_blank" rel="noreferrer">{d.sources.splits.label}</a> (lines and splits), results from ESPN. Last snapshot {pt(m.at)}. Every snapshot kept {m.keptDays?.full ?? 10} days; open, close and hourly splits kept {m.keptDays?.summary ?? 10} days for grading. Past and public data only, not a pick.
       </p>
     </div>
   );
@@ -457,13 +534,14 @@ function MoneyGame({ r, rank }: { r: MoneyV["upcoming"][number]; rank: number })
               ))}
               <Spark snaps={ev.snaps} market={market} start={ev.start} />
               <div className="text-[10px] text-zinc-500">
+                {splitTrend(ev, market) ? <span className="block text-cyan-200">Trend: {splitTrend(ev, market)!.text}</span> : null}
                 {n.side.replace(/\s*[+-]?\d+(\.\d+)?$/, "")}: {ev.snaps.length} snapshots{lnThen != null && String(lnThen) !== String(lnNow) ? `, line ${lnThen} → ${lnNow}` : ", line unchanged"}
               </div>
             </div>
           );
         })}
       </div>
-      <div className="mt-2 text-[10px] text-zinc-500">DraftKings, updated {pt(last.t)}</div>
+      <div className="mt-2 text-[10px] text-zinc-500">{SRC}, updated {pt(last.t)}</div>
     </section>
   );
 }
