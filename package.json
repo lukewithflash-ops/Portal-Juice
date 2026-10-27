@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx scripts/test-board.ts && tsx scripts/test-booksync.ts && tsx scripts/test-twopa.ts && tsx scripts/test-copyguard.ts && tsx scripts/test-teamdata.ts && tsx scripts/test-dnb.ts && tsx scripts/test-parlayrec.ts && tsx scripts/test-ownerpick.ts",
+    "test": "tsx scripts/test-board.ts && tsx scripts/test-booksync.ts && tsx scripts/test-twopa.ts && tsx scripts/test-copyguard.ts && tsx scripts/test-teamdata.ts && tsx scripts/test-dnb.ts && tsx scripts/test-parlayrec.ts && tsx scripts/test-why.ts && tsx scripts/test-ownerpick.ts",
     "cap:sync": "cap sync ios",
     "cap:open": "cap open ios"
   },

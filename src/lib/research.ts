@@ -278,6 +278,7 @@ export async function researchGame(leagueId: string, id: string): Promise<GameRe
     home,
     away,
     pitchers,
+    leaders: detail.leaders.map((l) => ({ team: l.team, name: l.name })),
   };
 }
 

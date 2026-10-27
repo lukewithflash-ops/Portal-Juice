@@ -6,6 +6,10 @@ import type { Game } from "@/lib/slate";
 
 const KEY = "pj:portalpick";
 
+export async function portalPickHistory(): Promise<PortalPick[]> {
+  return all();
+}
+
 async function all(): Promise<PortalPick[]> {
   const raw = (await redis(["HGETALL", KEY])) as string[] | null;
   const out: PortalPick[] = [];

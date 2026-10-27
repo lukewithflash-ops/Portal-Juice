@@ -6,6 +6,7 @@
 import { statLabel, type LegInput, type LegReport } from "@/lib/breakdown";
 import { pregameChance } from "@/lib/chance";
 import { lineOk } from "@/lib/lineSanity";
+import { factorCheck, type FactorCtx } from "@/lib/whyCore";
 
 export const VIP_NOTE = "Not a guarantee.";
 export const VIP_PRICE = { monthly: "$9.99/month", yearly: "$59.99/year" } as const;
@@ -53,6 +54,8 @@ export type Candidate = {
   report: LegReport;
   recent: { hits: number; games: number; what: string } | null;
   game: { label: string; start: string; home: string; away: string; state: "pre" | "in" | "post"; provider: string | null };
+  /** Injuries (ESPN), line move since open, DK Network money splits. */
+  ctx?: FactorCtx | null;
 };
 
 export type Verdict = { ok: true; chance: number; source: string; tier: Tier } | { ok: false; why: string };
@@ -65,6 +68,8 @@ export function qualifies(c: Candidate, now = Date.now()): Verdict {
   if (!Number.isFinite(start) || start - now < VIP_MIN_LEAD_MS) return { ok: false, why: "too close to start" };
   if (start - now > 36 * 3600 * 1000) return { ok: false, why: "too far out" };
   if (r.lean !== "strong") return { ok: false, why: "lean not strong" };
+  const fx = factorCheck(c.leg, c.ctx);
+  if (fx.skip) return { ok: false, why: fx.skip };
   if (r.pros.length < 3) return { ok: false, why: "fewer than 3 reasons" };
   if (r.cons.length * 2 > r.pros.length) return { ok: false, why: "too many reasons against" };
   if (c.leg.kind === "prop") {
@@ -80,7 +85,9 @@ export function qualifies(c: Candidate, now = Date.now()): Verdict {
   if (r.odds < -220) return { ok: false, why: "price too short" };
   const ch = pregameChance(r.odds, c.recent);
   if (!ch || ch.pct < 55) return { ok: false, why: "hit chance under 55%" };
-  const tier: Tier = ch.pct >= 64 && r.score >= 5 ? "Max" : ch.pct >= 59 && r.score >= 4 ? "High" : "Solid";
+  let tier: Tier = ch.pct >= 64 && r.score >= 5 ? "Max" : ch.pct >= 59 && r.score >= 4 ? "High" : "Solid";
+  // Soft flags (key player questionable, public side) cap the tier; they never raise it.
+  if (fx.cons.length && tier === "Max") tier = "High";
   return { ok: true, chance: ch.pct, source: ch.source, tier };
 }
 
@@ -116,7 +123,11 @@ export function legKey(l: LegInput): string {
 export function toVip(c: Candidate, v: Extract<Verdict, { ok: true }>, date: string, now = new Date()): VipPick {
   const pros = [...c.report.pros].sort((a, b) => b.weight - a.weight).map((p) => p.text);
   const cons = [...c.report.cons].sort((a, b) => a.weight - b.weight).map((p) => p.text);
-  const reasons = c.recent && !pros.some((p) => p.includes(` of last ${c.recent!.games}`)) ? [c.recent.what, ...pros] : pros;
+  const fx = factorCheck(c.leg, c.ctx);
+  const base = c.recent && !pros.some((p) => p.includes(` of last ${c.recent!.games}`)) ? [c.recent.what, ...pros] : pros;
+  // Market/injury notes go second so the record line stays first.
+  const reasons = fx.pros.length ? [base[0], ...fx.pros.slice(0, 2), ...base.slice(1)].filter(Boolean) : base;
+  cons.unshift(...fx.cons);
   return {
     id: `${date}:${legKey(c.leg)}`.replace(/[^A-Za-z0-9:_-]/g, "_"),
     date,

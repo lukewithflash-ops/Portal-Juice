@@ -1,4 +1,5 @@
 /** "Our lean" for one game: the strongest of moneyline, spread, and total by the breakdown engine. Pure. */
+import { factorCheck, whyInjuries, type FactorCtx } from "@/lib/whyCore";
 import { analyzeLeg, type GameResearch, type LegInput, type LegReport } from "@/lib/breakdown";
 
 export type GameLean =
@@ -29,7 +30,19 @@ export function chooseLean(g: GameResearch | null): GameLean {
   if (!g) return { kind: "none", reason: "Not enough data. ESPN has no research for this game yet." };
   const legs = leanCandidates(g);
   if (!legs.length) return { kind: "none", reason: "Not enough data. No moneyline, spread, or total posted yet." };
-  const rows = legs.map((leg) => ({ leg, report: analyzeLeg(leg, g) }));
+  // Injuries (key = ESPN game leader) and open-to-now line move: a hard flag drops that side.
+  const o = g.odds;
+  const ctx: FactorCtx = {
+    injuries: whyInjuries([...g.home.injuries.map((i) => ({ ...i, team: g.home.abbr })), ...g.away.injuries.map((i) => ({ ...i, team: g.away.abbr }))], g.leaders ?? []),
+    move: o ? { spreadHome: o.spreadHome, spreadHomeOpen: o.spreadHomeOpen, total: o.total, totalOpen: o.totalOpen } : null,
+    splits: null,
+    home: g.home.abbr,
+    away: g.away.abbr,
+  };
+  const rows = legs
+    .map((leg) => ({ leg, report: analyzeLeg(leg, g), fx: factorCheck(leg, ctx) }))
+    .filter((r) => !r.fx.skip);
+  if (!rows.length) return { kind: "none", reason: "Skipped: injuries or line movement flag every side." };
   const n = (r: LegReport) => r.pros.length + r.cons.length;
   rows.sort((a, b) => b.report.score - a.report.score || n(b.report) - n(a.report));
   const best = rows[0];
@@ -38,6 +51,8 @@ export function chooseLean(g: GameResearch | null): GameLean {
   const points = [
     ...best.report.pros.map((p) => ({ ...p, pro: true })),
     ...best.report.cons.map((p) => ({ ...p, pro: false })),
+    ...best.fx.pros.map((text) => ({ text, weight: 1.5, pro: true })),
+    ...best.fx.cons.map((text) => ({ text, weight: -1.5, pro: false })),
   ]
     .sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight))
     .slice(0, 5);

@@ -107,6 +107,8 @@ export type GameResearch = {
   home: TeamResearch;
   away: TeamResearch;
   pitchers: { home: PitcherResearch | null; away: PitcherResearch | null } | null;
+  /** ESPN game leaders (team abbr + name): used to flag key players on the injury report. */
+  leaders?: { team: string; name: string }[];
 };
 
 export type Fact = { label: string; value: string };

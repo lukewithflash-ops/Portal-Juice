@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const v = await loadShare((await params).id).catch(() => null);
   if (!v) return { title: "Pick" };
   const t = `${v.handle ? `@${v.handle}` : "A bettor"}: ${v.parlay ? `${v.legs.length}-leg parlay` : `${v.legs[0].subject} ${v.legs[0].side}`} · ${WORD[v.result]}`;
-  return { title: t, description: `Logged record ${rec(v.record)} on Portal Juice.`, openGraph: { title: t }, twitter: { card: "summary_large_image", title: t } };
+  return { title: t, description: `Logged record ${rec(v.record)} on Portal Juice.`, openGraph: { title: t }, twitter: { title: t } };
 }
 
 export default async function SharedPick({ params }: { params: Promise<{ id: string }> }) {

@@ -5,6 +5,10 @@ import { gradePick } from "@/lib/grade";
 import { pickFromLeg } from "@/lib/legPick";
 import { rankGames, sportsDate, type Game } from "@/lib/slate";
 import { gameLegRows } from "@/lib/topPicks";
+import type { GameResearch } from "@/lib/breakdown";
+import { dkSplits } from "@/lib/teamData";
+import { tdLeague, type DkSplitEvent } from "@/lib/teamDataCore";
+import { findSplits, whyInjuries, type FactorCtx } from "@/lib/whyCore";
 import { selectVip, toVip, legKey, VIP_MAX, VIP_MIN_LEAD_MS, vipRecord, type Candidate, type VipPick, type VipRecord } from "@/lib/vipCore";
 
 /**
@@ -20,6 +24,19 @@ const K = {
   drop: (d: string) => `pj:vip:drop:${d}`,
   lm: (league: string, id: string) => `pj:vip:lm:${league}:${id}`,
 };
+
+/** Injuries (ESPN), open-to-now line move and DK Network splits for one game, as VIP pick factors. */
+export function pickCtx(g: GameResearch, events: DkSplitEvent[]): FactorCtx {
+  const inj = [...g.home.injuries.map((i) => ({ ...i, team: g.home.abbr })), ...g.away.injuries.map((i) => ({ ...i, team: g.away.abbr }))];
+  const o = g.odds;
+  return {
+    injuries: whyInjuries(inj, g.leaders ?? []),
+    move: o ? { spreadHome: o.spreadHome, spreadHomeOpen: o.spreadHomeOpen, total: o.total, totalOpen: o.totalOpen } : null,
+    splits: findSplits(events, { homeAbbr: g.home.abbr, awayAbbr: g.away.abbr, homeName: g.home.name, awayName: g.away.name }),
+    home: g.home.abbr,
+    away: g.away.abbr,
+  };
+}
 
 const GAMES_PER_RUN = 10;
 const RECHECK_S = 3 * 3600;
@@ -90,13 +107,19 @@ export async function runVip(opts: { force?: boolean; now?: number } = {}): Prom
       if ((await redis(["SET", K.seen(g.league, g.id), "1", "NX", "EX", String(RECHECK_S)])) === "OK") batch.push(g);
     }
     const cands: Candidate[] = [];
+    const splitsBy = new Map<string, Promise<DkSplitEvent[]>>();
+    const splitsFor = (lg: string) => {
+      if (!splitsBy.has(lg)) splitsBy.set(lg, tdLeague(lg) ? dkSplits(lg).then((x) => x?.events ?? []).catch(() => []) : Promise.resolve([]));
+      return splitsBy.get(lg)!;
+    };
     for (let i = 0; i < batch.length; i += 4) {
       const part = await Promise.all(batch.slice(i, i + 4).map((g) => gameLegRows(g.league, g.id).catch(() => ({ g: null, rows: [] }))));
-      part.forEach(({ g, rows }) => {
-        if (!g) return;
+      for (const { g, rows } of part) {
+        if (!g) continue;
+        const ctx = pickCtx(g, await splitsFor(g.league));
         for (const r of rows)
-          cands.push({ leg: r.leg, report: r.report, recent: r.recent, game: { label: g.label, start: g.start, home: g.home.abbr, away: g.away.abbr, state: g.state, provider: g.odds?.provider ?? null } });
-      });
+          cands.push({ leg: r.leg, report: r.report, recent: r.recent, ctx, game: { label: g.label, start: g.start, home: g.home.abbr, away: g.away.abbr, state: g.state, provider: g.odds?.provider ?? null } });
+      }
     }
     const added: VipPick[] = [];
     const byDate = new Map<string, Candidate[]>();

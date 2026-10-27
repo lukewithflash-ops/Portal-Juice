@@ -11,6 +11,7 @@ import { getGameDetail } from "@/lib/espn";
 import { leagueById } from "@/lib/slate";
 import { Suspense } from "react";
 import LeanPanel from "@/components/LeanPanel";
+import WhyPanel from "@/components/WhyPanel";
 import WinBar from "@/components/WinBar";
 import { winPct } from "@/lib/winPct";
 
@@ -80,6 +81,12 @@ export default async function GamePage({ params }: { params: Promise<Params> }) 
           <Suspense fallback={<p className="foil-tile mt-4 p-4 text-sm text-zinc-400">Reading the numbers…</p>}>
             <LeanPanel league={league} id={id} />
           </Suspense>
+          <WhyPanel league={league} id={id} />
+        </div>
+      ) : null}
+      {game.state !== "pre" ? (
+        <div className="mb-4 max-w-xl">
+          <WhyPanel league={league} id={id} />
         </div>
       ) : null}
       {game.state !== "post" ? (
