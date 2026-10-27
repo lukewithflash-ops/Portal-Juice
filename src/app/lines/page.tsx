@@ -1,4 +1,3 @@
-import ShopEntry from "@/components/ShopEntry";
 import type { Metadata } from "next";
 import PageHeader from "@/components/PageHeader";
 import { BestStrip, BEST_NOTE } from "@/components/BestLists";
@@ -39,9 +38,6 @@ export default async function LinesPage() {
       </div>
       <div className="mb-4">
         <VipStrip />
-      </div>
-      <div className="mb-4">
-        <ShopEntry />
       </div>
       <section className="mb-6">
         <div className="mb-2 flex items-baseline justify-between">

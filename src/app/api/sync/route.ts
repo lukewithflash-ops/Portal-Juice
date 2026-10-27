@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUser, linkPush, sameOrigin } from "@/lib/auth";
 import { pushChanges, readDoc, resetCloud } from "@/lib/cloud";
+import { recordPicks } from "@/lib/metrics";
 import { LIST_COLS, type ListCol, type SyncPush } from "@/lib/syncCore";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,11 @@ export async function POST(req: Request) {
     if (Array.isArray(body.reset) && body.reset.length) doc = await resetCloud(u.id, body.reset.filter((c): c is ListCol => (LIST_COLS as readonly string[]).includes(c)));
     const p = body.push;
     const has = p && (Object.values(p.cols ?? {}).some((c) => c && (Object.keys(c.put ?? {}).length || Object.keys(c.del ?? {}).length)) || Object.keys(p.singles ?? {}).length);
+    if (has) {
+      const before = doc.cols.picks;
+      const fresh = Object.entries(p!.cols?.picks?.put ?? {}).filter(([id, st]) => !before?.items?.[id] && !before?.tomb?.[id] && Date.now() - Date.parse(String((st?.v as { createdAt?: string })?.createdAt ?? "")) < 36 * 3600_000).length;
+      if (!Array.isArray(body.reset) || !body.reset.length) await recordPicks(fresh).catch(() => {});
+    }
     if (has) doc = await pushChanges(u.id, { cols: p!.cols ?? {}, singles: p!.singles ?? {} });
     return NextResponse.json({ doc }, { headers: { "Cache-Control": "no-store" } });
   } catch {

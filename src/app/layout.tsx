@@ -5,6 +5,7 @@ import InstallCapture from "@/components/InstallCapture";
 import { NATIVE_BOOT } from "@/lib/native";
 import DeployWatch from "@/components/DeployWatch";
 import SyncAgent from "@/components/SyncAgent";
+import OpenBeacon from "@/components/OpenBeacon";
 import { PrefsProvider } from "@/components/Prefs";
 import NotifyBanner from "@/components/NotifyBanner";
 import SiteHeader from "@/components/SiteHeader";
@@ -76,6 +77,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <InstallCapture />
             <DeployWatch />
             <SyncAgent />
+          <OpenBeacon />
             <div className="pj-app flex flex-col">
               {/* One sticky stack: nav, live banner, then page bars (league chips). Solid, no gaps. */}
               <div className="top-stack">

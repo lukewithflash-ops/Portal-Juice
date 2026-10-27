@@ -15,6 +15,7 @@ import { TONE_COLOR, type Leg } from "@/lib/motivation";
 import { fmtLine } from "@/lib/odds";
 import { getPicks, getServerPicks, setStatus, subscribe } from "@/lib/pickStore";
 import { PickActions } from "@/components/PickEdit";
+import SharePickButton from "@/components/SharePickButton";
 import { shortDate } from "@/lib/time";
 import type { Pick, PickStatus } from "@/lib/types";
 
@@ -116,6 +117,7 @@ export default function LogRow({
                   Game
                 </Link>
               ) : null}
+              {pick.source !== "booksync" ? <SharePickButton pickId={pick.id} /> : null}
               <PickActions picks={[pick]} small />
               {pick.slipId ? <SlipActionsFor slipId={pick.slipId} /> : null}
             </div>
