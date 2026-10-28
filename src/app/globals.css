@@ -1240,3 +1240,39 @@ body { min-height: 0; }
 .top-stack { position: relative !important; flex: none; z-index: 50; }
 .top-stack-spacer { display: none; }
 .pj-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: clip; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding-bottom: var(--tabbar); background: transparent; }
+
+/* Portal Crew mini players (MiniCrew.tsx) */
+.pc-body{transform-box:fill-box;transform-origin:50% 100%;animation:pcBreathe 1.6s ease-in-out infinite}
+.pc-ring{transform-box:fill-box;transform-origin:center;animation:pcRing 2.4s linear infinite}
+.pc-jump{animation:pcJump .7s cubic-bezier(.3,1.6,.5,1) 2,pcBreathe 1.6s ease-in-out 1.4s infinite}
+.pc-hype{animation:pcJump .6s ease-out infinite}
+.pc-sad{animation:pcSad 2.2s ease-in-out infinite}
+.pc-run{animation:pcLead 1.2s ease-in-out infinite}
+.pc-throw .pc-arms,.pc-swing .pc-arms{transform-box:fill-box;transform-origin:50% 100%;animation:pcArm 1.8s ease-in-out infinite}
+.pc-flash{transform-box:fill-box;transform-origin:center;animation:pcFlash .7s ease-out both}
+.pc-burst{animation:pcFloat 1.8s ease-out both}
+.pc-ball{animation:pcShot .8s ease-in both}
+.pc-out{animation:pcShot .8s ease-in both,pcClank .5s .8s ease-out both}
+.pc-net{animation:pcNet .5s .8s ease-out both}
+.pc-pitch{animation:pcPitch .55s ease-in both}
+.pc-fireworks g{transform-box:fill-box;transform-origin:center;animation:pcBoom 1.4s ease-out 2 both}
+.pc-fireworks g:nth-child(2){animation-delay:.3s}.pc-fireworks g:nth-child(3){animation-delay:.6s}
+@keyframes pcBreathe{0%,100%{transform:translateY(0) scaleY(1)}50%{transform:translateY(-.4px) scaleY(1.04)}}
+@keyframes pcRing{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
+@keyframes pcJump{0%,100%{transform:translateY(0)}45%{transform:translateY(-3px) scale(1.08)}}
+@keyframes pcSad{0%,100%{transform:rotate(0)}50%{transform:rotate(-6deg) translateY(.3px)}}
+@keyframes pcLead{0%,100%{transform:translateX(0)}50%{transform:translateX(-1.2px)}}
+@keyframes pcArm{0%,70%,100%{transform:rotate(0)}80%{transform:rotate(-35deg)}}
+@keyframes pcFlash{0%{opacity:1;transform:scale(.3)}100%{opacity:0;transform:scale(1.6)}}
+@keyframes pcFloat{0%{opacity:0;transform:translateY(2px)}15%{opacity:1;transform:translateY(0)}75%{opacity:1}100%{opacity:0;transform:translateY(-4px)}}
+@keyframes pcShot{0%{transform:translate(var(--fx),var(--fy))}50%{transform:translate(calc((var(--fx) + var(--tx))/2),calc(min(var(--fy),var(--ty)) - 6px))}100%{transform:translate(var(--tx),var(--ty))}}
+@keyframes pcClank{0%{transform:translate(var(--tx),var(--ty))}100%{transform:translate(calc(var(--tx) + 4px),calc(var(--ty) + 3px));opacity:0}}
+@keyframes pcNet{0%{transform:scaleY(1)}50%{transform:scaleY(1.5)}100%{transform:scaleY(1)}}
+@keyframes pcPitch{0%{transform:translate(60px,41px) scale(.6)}100%{transform:translate(60px,64px) scale(1.2)}}
+@keyframes pcBoom{0%{opacity:0;transform:scale(.1)}30%{opacity:1}100%{opacity:0;transform:scale(1.4)}}
+.pc-newest .pc-body{filter:brightness(1.25)}
+.pc-run-bar{display:inline-flex;gap:2px;margin-left:6px}
+.pc-run-bar i{width:10px;height:5px;border-radius:2px;background:rgba(255,255,255,.12)}
+.pc-run-bar i.on{background:var(--team);box-shadow:0 0 6px var(--team)}
+.pc-runmeter{display:flex;align-items:center;justify-content:center;font-size:11px;letter-spacing:.14em;color:#fff;text-shadow:0 0 8px var(--team);padding:2px 0}
+@media (prefers-reduced-motion:reduce){.pc-crew *{animation:none!important}.pc-burst{opacity:1}}

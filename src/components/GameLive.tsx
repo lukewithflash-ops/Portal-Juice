@@ -20,6 +20,7 @@ import { CrowdToggle, EmoteLayer, SoundToggle } from "@/components/Emotes";
 import { charsOn, setChars } from "@/components/PlayViz";
 import { MomentumMeter, NextScoreCall } from "@/components/GameExtras";
 import DriveFeed from "@/components/DriveFeed";
+import { CourtCrew, DiamondCrew, RunMeter } from "@/components/MiniCrew";
 import { bigSwing, PitchMap, PlayPop, ShareFinal, ShotMap, Spotlight, SwingBanner, type Swing } from "@/components/GameGraphics";
 import { openGameChat, useGameChatUnread } from "@/components/GameChatDock";
 import { SweatPill } from "@/components/SweatMode";
@@ -34,7 +35,6 @@ import { POLL_ERROR_MS, pollDelay, usePoll } from "@/components/usePoll";
 import {
   currentDrive,
   isBigPlay,
-  isShotAttempt,
   leadChanged,
   playKind,
   playerFromText,
@@ -352,6 +352,7 @@ export default function GameLive({
             pop={popPlay && !vizNow ? <PlayPop play={popPlay} color={teamColor(snap, popPlay.teamId, awayColor, homeColor)} icon={ICON[playKind(popPlay)]} /> : null}
           />
           <MineChip league={league} play={vizNow} />
+          {snap ? <RunMeter snap={snap} awayColor={awayColor} homeColor={homeColor} /> : null}
           <GameFeel league={league} snap={snap} awayColor={awayColor} homeColor={homeColor} />
           {live?.state === "post" && live.plays.length > 3 ? (
             <div className="mt-2 flex items-center justify-between gap-2">
@@ -590,7 +591,7 @@ function Hero({
   );
 }
 
-function Diamond({ snap, awayColor, homeColor, children }: { snap: LiveSnap; awayColor: string; homeColor: string; children?: React.ReactNode }) {
+function Diamond({ snap, awayColor, homeColor, freshIds, children }: { snap: LiveSnap; awayColor: string; homeColor: string; freshIds: string[]; children?: React.ReactNode }) {
   const bug = snap.bug;
   const batting = bug?.half === "bottom" ? homeColor : awayColor;
   const base = (on: boolean | undefined, x: number, y: number, key: string) => (
@@ -615,6 +616,7 @@ function Diamond({ snap, awayColor, homeColor, children }: { snap: LiveSnap; awa
       {base(bug?.onThird, 38, 42, "3b")}
       {base(bug?.onFirst, 82, 42, "1b")}
       <path d="M57 64 h6 l-3 3 z" fill="#fff" />
+      <DiamondCrew snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} />
       {!bug ? (
         <text x="60" y="8" fontSize="4" textAnchor="middle" fill="rgba(255,255,255,0.6)">{last ? "" : "Waiting on the first pitch"}</text>
       ) : null}
@@ -642,7 +644,7 @@ function Surface({
   if (league === "nba" || league === "wnba" || league === "ncaam" || league === "ncaaw")
     return <Court snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds}>{children}</Court>;
   if (league === "nhl") return <Rink snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds}>{children}</Rink>;
-  if (league === "mlb") return <Diamond snap={snap} awayColor={awayColor} homeColor={homeColor}>{children}</Diamond>;
+  if (league === "mlb") return <Diamond snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds}>{children}</Diamond>;
   return <Pitch snap={snap} awayColor={awayColor} homeColor={homeColor}>{children}</Pitch>;
 }
 
@@ -867,7 +869,6 @@ function Court({
   freshIds: string[];
   children?: React.ReactNode;
 }) {
-  const shots = snap.plays.filter(isShotAttempt).slice(-24);
   const line = "rgba(255,255,255,0.4)";
   return (
     <svg viewBox="-1 -1 52 34" preserveAspectRatio="xMidYMax meet" aria-label="Shot chart">
@@ -884,25 +885,7 @@ function Court({
       <line x1="22" y1="4" x2="28" y2="4" stroke="#fff" strokeWidth="0.3" />
       <circle cx="25" cy="5.25" r="0.75" fill="none" stroke="#f97316" strokeWidth="0.3" />
       <path d="M19 32 A6 6 0 0 1 31 32" fill="none" stroke={line} strokeWidth="0.2" />
-      {shots.map((p) => {
-        const color = p.teamId === snap.homeId ? homeColor : awayColor;
-        const cx = Math.max(0.5, Math.min(49.5, p.x as number));
-        const cy = Math.max(0.5, Math.min(31.5, p.y as number));
-        const isNew = freshIds.includes(p.id);
-        return (
-          <g key={p.id}>
-            {isNew && p.scoring ? <circle className="dot-ring" cx={cx} cy={cy} r="1.4" stroke={color} strokeWidth="0.3" /> : null}
-            {p.scoring ? (
-              <circle className="dot-pop" cx={cx} cy={cy} r={p.points >= 3 ? 1.2 : 0.95} fill={color} stroke="#fff" strokeWidth="0.2" style={{ filter: `drop-shadow(0 0 1.2px ${color})` }} />
-            ) : (
-              <g className="dot-pop" stroke={color} strokeWidth="0.35" opacity="0.8">
-                <line x1={cx - 0.7} y1={cy - 0.7} x2={cx + 0.7} y2={cy + 0.7} />
-                <line x1={cx - 0.7} y1={cy + 0.7} x2={cx + 0.7} y2={cy - 0.7} />
-              </g>
-            )}
-          </g>
-        );
-      })}
+      <CourtCrew snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} />
       {children}
     </svg>
   );
