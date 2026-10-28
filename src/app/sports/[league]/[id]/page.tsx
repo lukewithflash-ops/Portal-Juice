@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { gameRoute } from "@/lib/gameRoute";
 import MatchRow from "@/components/MatchRow";
 import MatchFx from "@/components/MatchFx";
+import MatchStage from "@/components/MatchStage";
 import GameLive from "@/components/GameLive";
 import GameChatDock from "@/components/GameChatDock";
 import AutoRefresh from "@/components/AutoRefresh";
@@ -51,6 +52,7 @@ export default async function MatchPage({ params }: { params: Promise<Params> })
         </div>
       ) : null}
       <div className="max-w-xl">
+        {l.kind === "tennis" || l.kind === "fight" ? <MatchStage m={m} kind={l.kind} /> : null}
         {l.kind === "tennis" ? (
           <MatchFx kind="tennis" sig={`${m.away.sets.join(",")}|${m.home.sets.join(",")}|${m.state}|${m.point?.away ?? ""}-${m.point?.home ?? ""}`}>
             <MatchRow m={m} href={null} />

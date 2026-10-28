@@ -20,7 +20,7 @@ import { CrowdToggle, EmoteLayer, SoundToggle } from "@/components/Emotes";
 import { charsOn, setChars } from "@/components/PlayViz";
 import { MomentumMeter, NextScoreCall } from "@/components/GameExtras";
 import DriveFeed from "@/components/DriveFeed";
-import { CourtCrew, DiamondCrew, RunMeter } from "@/components/MiniCrew";
+import { CourtCrew, DiamondCrew, FieldCrew, PitchCrew, RinkCrew, RunMeter } from "@/components/MiniCrew";
 import { bigSwing, PitchMap, PlayPop, ShareFinal, ShotMap, Spotlight, SwingBanner, type Swing } from "@/components/GameGraphics";
 import { openGameChat, useGameChatUnread } from "@/components/GameChatDock";
 import { SweatPill } from "@/components/SweatMode";
@@ -640,12 +640,12 @@ function Surface({
   freshIds: string[];
   children?: React.ReactNode;
 }) {
-  if (league === "nfl" || league === "ncaaf") return <Field snap={snap} awayColor={awayColor} homeColor={homeColor}>{children}</Field>;
+  if (league === "nfl" || league === "ncaaf") return <Field snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds}>{children}</Field>;
   if (league === "nba" || league === "wnba" || league === "ncaam" || league === "ncaaw")
     return <Court snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds}>{children}</Court>;
   if (league === "nhl") return <Rink snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds}>{children}</Rink>;
   if (league === "mlb") return <Diamond snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds}>{children}</Diamond>;
-  return <Pitch snap={snap} awayColor={awayColor} homeColor={homeColor}>{children}</Pitch>;
+  return <Pitch snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds}>{children}</Pitch>;
 }
 
 /** The play being drawn, with your logged player marked when ESPN's text names them. */
@@ -686,7 +686,7 @@ function VizCaption({ league, snap, play, awayColor, homeColor }: { league: stri
   );
 }
 
-function Field({ snap, awayColor, homeColor, children }: { snap: LiveSnap; awayColor: string; homeColor: string; children?: React.ReactNode }) {
+function Field({ snap, awayColor, homeColor, freshIds, children }: { snap: LiveSnap; awayColor: string; homeColor: string; freshIds: string[]; children?: React.ReactNode }) {
   const sit = snap.situation;
   // With ESPN drives, trust only the posted situation; between snaps (after a score or kick) show no ball.
   const drive = snap.drives.length ? null : currentDrive(snap.plays);
@@ -780,6 +780,7 @@ function Field({ snap, awayColor, homeColor, children }: { snap: LiveSnap; awayC
       ) : (
         trail.length ? null : <text x="60" y="30" fontSize="4" textAnchor="middle" fill="rgba(255,255,255,0.6)">{label ? "Waiting on the next snap" : "No yard line posted yet"}</text>
       )}
+      <FieldCrew snap={snap} ball={ball ?? newest?.x2 ?? null} dir={(geom?.dir ?? (trailSide === "home" ? -1 : 1)) as 1 | -1} offense={ball !== null ? offense : trailColor} defense={ball !== null ? defense : trailDrive?.teamId === snap.homeId ? awayColor : homeColor} freshIds={freshIds} />
       {children}
     </svg>
   );
@@ -925,6 +926,7 @@ function Rink({
           </g>
         );
       })}
+      <RinkCrew snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} />
       {children}
     </svg>
   );
@@ -1179,7 +1181,7 @@ function TrackTile({ row }: { row: TrackRow }) {
 }
 
 /** Neon soccer pitch: halves in team colors, the last key moment named. */
-function Pitch({ snap, awayColor, homeColor, children }: { snap: LiveSnap; awayColor: string; homeColor: string; children?: React.ReactNode }) {
+function Pitch({ snap, awayColor, homeColor, freshIds, children }: { snap: LiveSnap; awayColor: string; homeColor: string; freshIds: string[]; children?: React.ReactNode }) {
   const last = [...snap.plays].reverse().find((p) => p.text);
   return (
     <svg viewBox="0 0 120 70" preserveAspectRatio="xMidYMax meet" aria-label="Pitch">
@@ -1202,6 +1204,7 @@ function Pitch({ snap, awayColor, homeColor, children }: { snap: LiveSnap; awayC
           {last.text.slice(0, 70)}
         </text>
       ) : null}
+      <PitchCrew snap={snap} awayColor={awayColor} homeColor={homeColor} freshIds={freshIds} />
       {children}
     </svg>
   );

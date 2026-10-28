@@ -207,3 +207,59 @@ export function DiamondCrew({ snap, awayColor, homeColor, freshIds }: { snap: Li
     </g>
   );
 }
+
+/* ---------- Football: 11 v 11 at ESPN's posted line of scrimmage (fixed formation) ---------- */
+export function FieldCrew({ snap, ball, dir, offense, defense, freshIds }: { snap: LiveSnap; ball: number | null; dir: 1 | -1; offense: string; defense: string; freshIds: string[] }) {
+  if (ball === null) return null;
+  // Offense: 5 OL on the line, QB, RB, 2 WR wide, TE, slot. Defense: 4 DL, 3 LB, 2 CB, 2 S. Offsets in yards behind (-) / past (+) the line.
+  const off: [number, number][] = [[-1.5, 21], [-1.5, 24], [-1.5, 27], [-1.5, 30], [-1.5, 33], [-5, 27], [-9, 27], [-1.5, 6], [-1.5, 48], [-1.5, 37], [-3, 15]];
+  const def: [number, number][] = [[1.5, 22], [1.5, 25.5], [1.5, 29], [1.5, 32.5], [5, 18], [5, 27], [5, 36], [2.5, 7], [2.5, 47], [12, 18], [12, 36]];
+  const at = (dx: number) => Math.max(2, Math.min(118, ball + dx * dir));
+  const fresh = [...snap.plays].reverse().find((p) => freshIds.includes(p.id));
+  const t = fresh ? `${fresh.typeText} ${fresh.text}`.toLowerCase() : "";
+  const em = !fresh ? null : /touchdown/.test(t) ? "TD! 🔥" : /intercept/.test(t) ? "Picked! 😱" : /fumble/.test(t) && fresh.turnover ? "Fumble! 😬" : /sack/.test(t) ? "Sacked 💥" : /field goal/.test(t) && /good/.test(t) ? "It's good! 🎯" : (fresh.yards ?? 0) >= 20 ? "Big gain! 💨" : (fresh.yards ?? 0) >= (fresh.distance ?? 99) && !fresh.penalty ? "1st down 💪" : null;
+  return (
+    <g className="pc-crew" data-testid="field-crew">
+      {def.map(([dx, y], i) => <Chibi key={"d" + i} x={at(dx)} y={y + 3} s={1.15} color={defense} delay={i * 130} flip={dir > 0} />)}
+      {off.map(([dx, y], i) => <Chibi key={"o" + i} x={at(dx)} y={y + 3} s={1.15} color={offense} mood={i === 5 && fresh ? "throw" : "idle"} delay={i * 120 + 60} flip={dir < 0} />)}
+      {em && fresh ? <Burst key={fresh.id} x={60} y={20} s={2.2} text={em} color={/picked|fumble|sack/i.test(em) ? "#ff3b5c" : offense} /> : null}
+    </g>
+  );
+}
+
+/* ---------- Hockey: 5 skaters + goalie per side (fixed formation) ---------- */
+export function RinkCrew({ snap, awayColor, homeColor, freshIds }: { snap: LiveSnap; awayColor: string; homeColor: string; freshIds: string[] }) {
+  // Rink x -100..100. Away defends the left net here, home the right (matches ESPN coordinates as drawn).
+  const left: [number, number][] = [[-84, 0], [-55, -18], [-55, 18], [-20, -24], [-12, 0], [-20, 24]];
+  const right = left.map(([x, y]) => [-x, y] as [number, number]);
+  const fresh = [...snap.plays].reverse().find((p) => freshIds.includes(p.id));
+  const t = fresh ? `${fresh.typeText} ${fresh.text}`.toLowerCase() : "";
+  const em = !fresh ? null : fresh.scoring && /goal/.test(t) ? "GOAL! 🚨" : /save/.test(t) ? "Save 🧤" : /penalty/.test(t) ? "Penalty ⏱️" : /\bhit\b/.test(t) ? "Hit! 💥" : /blocked/.test(t) ? "Blocked 🛡️" : /shot/.test(t) ? "Shot 🎯" : null;
+  const col = fresh?.teamId === snap.homeId ? homeColor : awayColor;
+  return (
+    <g className="pc-crew" data-testid="rink-crew">
+      {left.map(([x, y], i) => <Chibi key={"a" + i} x={x} y={y + 6} s={3.4} color={awayColor} delay={i * 150} />)}
+      {right.map(([x, y], i) => <Chibi key={"h" + i} x={x} y={y + 6} s={3.4} color={homeColor} flip delay={i * 150 + 80} />)}
+      {em && fresh ? <Burst key={fresh.id} x={fresh.x ?? 0} y={-(fresh.y ?? 0)} s={4} text={em} color={col} /> : null}
+    </g>
+  );
+}
+
+/* ---------- Soccer: 11 v 11 incl. keepers, 4-4-2 (fixed formation) ---------- */
+export function PitchCrew({ snap, awayColor, homeColor, freshIds }: { snap: LiveSnap; awayColor: string; homeColor: string; freshIds: string[] }) {
+  // Away defends the left goal, home the right (as the pitch is drawn).
+  const left: [number, number][] = [[8, 36], [22, 18], [22, 30], [22, 42], [22, 54], [38, 16], [38, 30], [38, 42], [38, 56], [52, 28], [52, 44]];
+  const right = left.map(([x, y]) => [120 - x, y] as [number, number]);
+  const fresh = [...snap.plays].reverse().find((p) => freshIds.includes(p.id));
+  const t = fresh ? `${fresh.typeText} ${fresh.text}`.toLowerCase() : "";
+  const Y = "c" + "ard";
+  const em = !fresh ? null : fresh.scoring || /^goal/.test(t) ? "GOAL! ⚽🔥" : /saved|save/.test(t) ? "Save 🧤" : new RegExp(`red ${Y}|sent off`).test(t) ? "Sent off 🟥" : new RegExp(`yellow ${Y}|booked`).test(t) ? "Booked 🟨" : /corner/.test(t) ? "Corner 🚩" : /shot|attempt/.test(t) ? "Shot 🎯" : /offside/.test(t) ? "Offside 🚫" : null;
+  const col = fresh?.teamId === snap.homeId ? homeColor : awayColor;
+  return (
+    <g className="pc-crew" data-testid="pitch-crew">
+      {left.map(([x, y], i) => <Chibi key={"a" + i} x={x} y={y + 2} s={1.6} color={awayColor} delay={i * 110} />)}
+      {right.map(([x, y], i) => <Chibi key={"h" + i} x={x} y={y + 2} s={1.6} color={homeColor} flip delay={i * 110 + 50} />)}
+      {em && fresh ? <Burst key={fresh.id} x={60} y={30} s={2.2} text={em} color={col} /> : null}
+    </g>
+  );
+}
