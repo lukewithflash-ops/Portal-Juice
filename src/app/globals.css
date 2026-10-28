@@ -579,7 +579,7 @@ html[data-team] .portal-bg::after {
 }
 @keyframes pj-heartbeat { 0%, 100% { opacity: 0.45; } 14% { opacity: 1; } 28% { opacity: 0.55; } 42% { opacity: 0.95; } 70% { opacity: 0.45; } }
 .clutch-tag {
-  position: absolute; bottom: 0.4rem; left: 50%; transform: translateX(-50%); z-index: 7; pointer-events: none;
+  position: absolute; top: 0.4rem; left: 50%; transform: translateX(-50%); z-index: 7; pointer-events: none;
   font-size: 10px; font-weight: 900; letter-spacing: 0.18em; text-transform: uppercase; color: #fecdd3;
   text-shadow: 0 0 8px #ff3b5c; animation: pj-heartbeat 1.2s ease-in-out infinite;
 }
@@ -1129,7 +1129,7 @@ html[data-pj-head="chrome"] .wordmark { background: linear-gradient(100deg, #fff
 
 /* Game chat dock */
 .gc-fab { background: linear-gradient(135deg, rgba(168,85,247,.85), rgba(34,211,238,.7)); box-shadow: 0 0 18px rgba(168,85,247,.55), inset 0 0 0 1px rgba(255,255,255,.18); }
-.gc-sheet { height: min(54dvh, 560px); background: linear-gradient(180deg, rgba(20,10,38,.97), #0b0716 40%); border: 1px solid rgba(168,85,247,.35); border-bottom: 0; border-radius: 20px 20px 0 0; box-shadow: 0 -10px 40px rgba(168,85,247,.25); animation: gc-up .22s ease-out; }
+.gc-sheet { height: min(46dvh, 440px); background: linear-gradient(180deg, rgba(20,10,38,.97), #0b0716 40%); border: 1px solid rgba(168,85,247,.35); border-bottom: 0; border-radius: 20px 20px 0 0; box-shadow: 0 -10px 40px rgba(168,85,247,.25); animation: gc-up .22s ease-out; }
 @media (min-width: 1024px) { .gc-sheet { border-bottom: 1px solid rgba(168,85,247,.35); border-radius: 20px; } }
 @keyframes gc-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 .gc-list { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }

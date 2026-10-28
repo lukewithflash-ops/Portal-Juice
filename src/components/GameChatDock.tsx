@@ -1,7 +1,7 @@
 "use client";
 
 import { dnbHeadsUp } from "@/lib/dnbStore";
-import { scroller, scrollTarget, scrollTop } from "@/lib/scroller";
+import { scroller } from "@/lib/scroller";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
@@ -99,15 +99,29 @@ export default function GameChatDock({ league, id, label }: { league: string; id
     };
   }, [load, open]);
 
-  // Keep the live score in view above the sheet: bring the scoreboard (or the title) up under the header.
+  // Lock the page where it is while chat is open (no jump), restore exactly on close. iOS WebView-safe.
   useEffect(() => {
     if (!open) return;
-    const el = document.querySelector(".tv-hero, .race-hero, h1");
-    if (!el) return;
     const sc = scroller();
-    const base = sc ? sc.getBoundingClientRect().top : parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--chrome-h")) || 100;
-    const y = el.getBoundingClientRect().top + scrollTop() - base - 6;
-    if (Math.abs(y - scrollTop()) > 8) scrollTarget().scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    const body = document.body;
+    if (sc) {
+      const y = sc.scrollTop;
+      const prev = sc.style.overflow;
+      sc.style.overflow = "hidden";
+      sc.style.touchAction = "none";
+      return () => {
+        sc.style.overflow = prev;
+        sc.style.touchAction = "";
+        sc.scrollTop = y;
+      };
+    }
+    const y = window.scrollY;
+    const keep = { position: body.style.position, top: body.style.top, width: body.style.width };
+    Object.assign(body.style, { position: "fixed", top: `-${y}px`, width: "100%" });
+    return () => {
+      Object.assign(body.style, keep);
+      window.scrollTo(0, y);
+    };
   }, [open]);
 
   useEffect(() => {
