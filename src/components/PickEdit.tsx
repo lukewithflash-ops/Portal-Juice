@@ -270,6 +270,8 @@ function EditDialog({ picks, onClose }: { picks: Pick[]; onClose: () => void }) 
           ...(o ? {} : { league: r.league, gameId: r.gameId }),
           status: changed ? "open" : (o?.status ?? "open"),
         } as Pick;
+        // A stat you typed beats the printed one: drop the slip text so the load-time re-read can't put the old stat back.
+        if (o && (o.market ?? "") !== r.market) delete p.marketRaw;
       }
       next.push({ ...p, date, book, slipId: sid });
     }

@@ -266,6 +266,8 @@ export default function SlipImport({ onBreakDown, compact = false, shared = null
         ? xs.map((x, j) => {
             if (j !== i) return x;
             const row = { ...x.row, ...patch };
+            // A stat you picked beats the printed one, so the saved leg keeps your choice.
+            if ("market" in patch && patch.market !== x.row.market) delete row.marketRaw;
             const needsMatch = "subject" in patch || "kind" in patch || !x.leg;
             if (needsMatch) return { ...x, row, dirty: true };
             const leg: LegInput = {
