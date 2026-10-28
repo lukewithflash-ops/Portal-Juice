@@ -60,32 +60,46 @@ function shotEmote(p: LivePlay): string {
   return "🔥 Bucket";
 }
 
-/** Basketball: every recent shot is a mini player at ESPN's spot; the newest one jumps and reacts. */
+// Half-court formation spots (ESPN feet, rim at 25,5.25). Illustrative, not tracking.
+const OFF: [number, number][] = [[25, 26], [8, 18], [42, 18], [6, 4], [44, 4]];
+const DEF: [number, number][] = [[25, 21], [12, 15], [38, 15], [14, 6], [36, 6]];
+
+/** Basketball: 10 on the floor, 5 per side. Offense = team of the newest play; the newest shooter stands at ESPN's real spot. Older shots are faint markers. */
 export function CourtCrew({ snap, awayColor, homeColor, freshIds }: { snap: LiveSnap; awayColor: string; homeColor: string; freshIds: string[] }) {
-  const shots = snap.plays.filter(isShot).slice(-14);
+  const shots = snap.plays.filter(isShot).slice(-24);
   const last = shots[shots.length - 1];
+  const lastPlay = [...snap.plays].reverse().find((p) => p.teamId);
+  const offHome = (lastPlay?.teamId ?? last?.teamId) === snap.homeId;
+  const offC = offHome ? homeColor : awayColor;
+  const defC = offHome ? awayColor : homeColor;
   const other = [...snap.plays].reverse().slice(0, 3).find((p) => /steal|block/i.test(p.text) && freshIds.includes(p.id));
+  const shooterNow = !!last && lastPlay === last;
+  const sx = last ? Math.max(1.5, Math.min(48.5, last.x as number)) : 0;
+  const sy = last ? Math.max(3.5, Math.min(31.5, last.y as number)) : 0;
+  // Shooter takes the nearest offensive spot.
+  let si = -1;
+  if (shooterNow) {
+    let best = Infinity;
+    OFF.forEach(([x, y], i) => { const d = (x - sx) ** 2 + (y - sy) ** 2; if (d < best) { best = d; si = i; } });
+  }
   return (
     <g className="pc-crew" data-testid="court-crew">
-      {shots.map((p, i) => {
+      {shots.filter((p) => p !== last || !shooterNow).map((p) => {
         const color = p.teamId === snap.homeId ? homeColor : awayColor;
-        const x = Math.max(1.5, Math.min(48.5, p.x as number));
-        const y = Math.max(3.5, Math.min(31.5, p.y as number));
-        const newest = p === last;
-        const s = newest ? 1.7 : 1.15;
-        return (
-          <g key={p.id} className={newest ? "pc-newest" : undefined}>
-            <Chibi x={x} y={y} s={s} color={color} mood={newest ? (p.scoring ? "jump" : "sad") : p.scoring ? "idle" : "sad"} dim={!newest && !p.scoring} delay={(i * 170) % 1400} flip={x > 25} />
-            {newest ? (
-              <>
-                <circle key={"ball" + p.id} className={"pc-ball " + (p.scoring ? "pc-in" : "pc-out")} r="0.55" fill="#f97316" stroke="#000" strokeWidth="0.1" style={{ ["--fx" as string]: `${x}px`, ["--fy" as string]: `${y - 3}px`, ["--tx" as string]: "25px", ["--ty" as string]: "5.25px" } as React.CSSProperties} />
-                {p.scoring ? <path className="pc-net" d="M24.3 5.6 L24.6 7.2 L25 6 L25.4 7.2 L25.7 5.6" stroke="#fff" strokeWidth="0.15" fill="none" /> : null}
-                <Burst x={x} y={y - 0.5} s={1} text={shotEmote(p)} color={color} />
-              </>
-            ) : null}
-          </g>
-        );
+        const x = Math.max(0.5, Math.min(49.5, p.x as number));
+        const y = Math.max(0.5, Math.min(31.5, p.y as number));
+        return p.scoring ? <circle key={p.id} cx={x} cy={y} r="0.45" fill={color} opacity="0.45" /> : <path key={p.id} d={`M${x - 0.35} ${y - 0.35} l0.7 0.7 m0 -0.7 l-0.7 0.7`} stroke={color} strokeWidth="0.18" opacity="0.4" />;
       })}
+      {DEF.map(([x, y], i) => <Chibi key={"d" + i} x={x} y={y} s={1.15} color={defC} delay={i * 210} flip={x > 25} />)}
+      {OFF.map(([x, y], i) => (i === si ? null : <Chibi key={"o" + i} x={x} y={y} s={1.15} color={offC} delay={i * 190 + 90} flip={x > 25} />))}
+      {shooterNow && last ? (
+        <g className="pc-newest" key={last.id}>
+          <Chibi x={sx} y={sy} s={1.6} color={offC} mood={last.scoring ? "jump" : "sad"} flip={sx > 25} />
+          <circle className={"pc-ball " + (last.scoring ? "pc-in" : "pc-out")} r="0.55" fill="#f97316" stroke="#000" strokeWidth="0.1" style={{ ["--fx" as string]: `${sx}px`, ["--fy" as string]: `${sy - 3}px`, ["--tx" as string]: "25px", ["--ty" as string]: "5.25px" } as React.CSSProperties} />
+          {last.scoring ? <path className="pc-net" d="M24.3 5.6 L24.6 7.2 L25 6 L25.4 7.2 L25.7 5.6" stroke="#fff" strokeWidth="0.15" fill="none" /> : null}
+          {freshIds.includes(last.id) ? <Burst x={sx} y={sy - 0.5} s={1} text={shotEmote(last)} color={offC} /> : null}
+        </g>
+      ) : null}
       {other ? <Burst x={25} y={20} s={1} text={/steal/i.test(other.text) ? "🫳 Picked" : "🚫 Rejected"} color={other.teamId === snap.homeId ? homeColor : awayColor} /> : null}
     </g>
   );
@@ -156,12 +170,13 @@ export function DiamondCrew({ snap, awayColor, homeColor, freshIds }: { snap: Li
   const em = fresh ? playEmote(fresh.text) : null;
   const hr = !!fresh && /homered|home run/i.test(fresh.text);
   const outs = bug.outs ?? 0;
-  const fielders: [number, number][] = [[38, 30], [50, 25], [70, 25], [82, 30], [30, 14], [60, 9], [90, 14], [88, 40], [32, 40]];
+  // 1B, 2B, SS, 3B, LF, CF, RF (+ pitcher and catcher below) = 9 fielders.
+  const fielders: [number, number][] = [[80, 36], [70, 27], [50, 27], [40, 36], [30, 14], [60, 9], [90, 14]];
   return (
     <g className="pc-crew" data-testid="diamond-crew">
-      {fielders.map(([x, y], i) => <Chibi key={"f" + i} x={x} y={y} s={1.4} color={fld} dim delay={i * 230} />)}
+      {fielders.map(([x, y], i) => <Chibi key={"f" + i} x={x} y={y} s={1.6} color={fld} delay={i * 230} />)}
       <Chibi x={60} y={43} s={1.9} color={fld} mood={lp ? "throw" : "idle"} />
-      <Chibi x={60} y={70} s={1.4} color={fld} dim />
+      <Chibi x={60} y={70} s={1.5} color={fld} />
       {bug.onFirst ? <Chibi x={84} y={45} s={1.7} color={bat} mood="run" delay={100} /> : null}
       {bug.onSecond ? <Chibi x={63} y={22} s={1.7} color={bat} mood="run" delay={300} /> : null}
       {bug.onThird ? <Chibi x={36} y={45} s={1.7} color={bat} mood="run" delay={500} /> : null}
