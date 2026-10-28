@@ -20,11 +20,11 @@ return 1`;
  */
 export async function POST(req: Request) {
   if (!agentAuthorized(req.headers.get("x-pj-owner-agent"))) return NextResponse.json({ error: "Owner agent only." }, { status: 403 });
-  const b = (await req.json().catch(() => ({}))) as { action?: string; email?: string; date?: string; subject?: string; id?: string; market?: string; line?: number; selection?: string };
-  const emails = ownerEmails();
-  const email = (b.email ?? emails[0] ?? "").toLowerCase();
-  if (!emails.includes(email)) return NextResponse.json({ error: "Not an owner email." }, { status: 403 });
-  const uid = (await redis(["GET", `pj:auth:email:${email}`])) as string | null;
+  const b = (await req.json().catch(() => ({}))) as { action?: string; date?: string; subject?: string; id?: string; market?: string; line?: number; selection?: string };
+  // The owner's account: OWNER_EMAILS when set, else the owner's confirmed handle (@richofftheball). Never a caller-chosen account.
+  const email = ownerEmails()[0];
+  let uid = email ? ((await redis(["GET", `pj:auth:email:${email}`])) as string | null) : null;
+  if (!uid) uid = (await redis(["GET", `pj:hdl:${(process.env.OWNER_HANDLE || "richofftheball").toLowerCase()}`])) as string | null;
   if (!uid) return NextResponse.json({ error: "Owner account not found." }, { status: 404 });
   const key = `pj:sync:${uid}`;
   for (let i = 0; i < 4; i++) {
