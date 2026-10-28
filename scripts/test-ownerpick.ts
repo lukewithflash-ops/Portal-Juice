@@ -11,4 +11,8 @@ assert.equal(typeof buildOwnerPick({ ...(g as object), price: { ...(g as { price
 assert.equal(typeof buildOwnerPick(g, "free", "ml", "LAL", "", "d"), "string");
 const r = ownerRecord([{ date: "3", result: "hit" }, { date: "2", result: "push" }, { date: "1", result: "hit" }, { date: "0", result: "miss" }, { date: "4", result: null }]);
 assert.deepEqual(r, { w: 2, l: 1, p: 1, rate: 66.7, streak: "W2" });
+import { agentAuthorized } from "../src/lib/ownerAgent";
+const sec = "x".repeat(40);
+assert.equal(agentAuthorized(sec, sec), true); assert.equal(agentAuthorized("y".repeat(40), sec), false);
+assert.equal(agentAuthorized(null, sec), false); assert.equal(agentAuthorized("short", "short"), false); assert.equal(agentAuthorized(sec, undefined), false);
 console.log("ownerpick ok");

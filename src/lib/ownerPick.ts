@@ -27,6 +27,8 @@ export type OwnerPick = {
   provider: string;
   note: string;
   postedAt: string;
+  /** "assistant for owner" when posted via the owner-agent secret path. */
+  postedBy?: string;
   result: "hit" | "miss" | "push" | null;
   final: string | null;
 };
