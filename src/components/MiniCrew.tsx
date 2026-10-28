@@ -6,6 +6,42 @@
  * Transform/opacity CSS only; reduced motion freezes everything.
  */
 import type { LivePlay, LiveSnap } from "@/lib/live";
+import { namedPlayer } from "@/lib/playViz";
+import { useGameLegList } from "@/components/YourPlayers";
+import { mentions } from "@/lib/yourPlayers";
+
+/** Last name only ("Jr." and similar dropped). */
+export function lastName(n: string | null | undefined): string | null {
+  if (!n) return null;
+  const parts = n.replace(/\s+(jr\.?|sr\.?|ii|iii|iv)$/i, "").trim().split(/\s+/);
+  const l = parts[parts.length - 1];
+  return l && l.length > 1 ? l.replace(/^[A-Z]\./, "") || l : null;
+}
+const nameById = (snap: LiveSnap, id: string | null | undefined) => {
+  if (!id) return null;
+  for (const b of snap.boxes) for (const p of b.players) if (p.id === id) return p.name;
+  return null;
+};
+
+/** Tiny neon name tag above a figure. fs = font size in the surface's own units. A player in one of your open
+ * logged legs (matched by ESPN's full name against the leg, the same match the bets dock uses) gets the gold glow and ⭐. */
+export function Tag({ x, y, fs, name, text, color, icon, hot }: { x: number; y: number; fs: number; name?: string | null; text?: string | null; color: string; icon?: string; hot?: boolean }) {
+  const legs = useGameLegList();
+  const shown = text ?? lastName(name);
+  if (!shown) return null;
+  const mine = !!name && legs.some((l) => mentions(name, l.name));
+  const c = mine ? "#f5c542" : color;
+  const label = (mine ? "⭐ " : "") + (icon ? icon + " " : "") + shown;
+  const w = label.length * fs * 0.62 + fs * 1.1;
+  return (
+    <g className={"pc-tag" + (mine ? " pc-mine" : "") + (mine && hot ? " pc-mine-hot" : "")} transform={`translate(${x} ${y})`} pointerEvents="none" data-testid="name-tag" data-mine={mine ? "1" : undefined}>
+      {mine ? <circle className="pc-mine-ring" cy={fs * 2.6} r={fs * 2.2} fill="none" stroke={c} strokeWidth={fs * 0.22} style={{ filter: `drop-shadow(0 0 ${fs * 0.8}px ${c})` }} /> : null}
+      <rect x={-w / 2} y={-fs * 1.15} width={w} height={fs * 1.45} rx={fs * 0.7} fill="rgba(11,6,24,0.88)" stroke={c} strokeWidth={fs * (mine ? 0.2 : 0.12)} style={{ filter: `drop-shadow(0 0 ${fs * (mine ? 0.7 : 0.35)}px ${c})` }} />
+      <text y={0} fontSize={fs} fontWeight="900" textAnchor="middle" fill={mine ? "#fde68a" : "#fff"} letterSpacing={fs * 0.03}>{label}</text>
+      {mine && hot ? <text className="pc-burst" y={-fs * 2.2} fontSize={fs * 1.3} fontWeight="900" textAnchor="middle" fill="#f5c542" style={{ paintOrder: "stroke", stroke: "rgba(0,0,0,0.85)", strokeWidth: fs * 0.3 }}>⭐ Your player!</text> : null}
+    </g>
+  );
+}
 
 export function Chibi({ x, y, s, color, mood = "idle", num, flip, dim, delay = 0 }: { x: number; y: number; s: number; color: string; mood?: "idle" | "jump" | "sad" | "hype" | "swing" | "throw" | "run"; num?: string | null; flip?: boolean; dim?: boolean; delay?: number }) {
   return (
@@ -95,6 +131,7 @@ export function CourtCrew({ snap, awayColor, homeColor, freshIds }: { snap: Live
       {shooterNow && last ? (
         <g className="pc-newest" key={last.id}>
           <Chibi x={sx} y={sy} s={1.6} color={offC} mood={last.scoring ? "jump" : "sad"} flip={sx > 25} />
+          <Tag x={sx} y={Math.max(2, sy - 6)} fs={1.7} name={namedPlayer(last.text)} hot={freshIds.includes(last.id)} color={offC} />
           <circle className={"pc-ball " + (last.scoring ? "pc-in" : "pc-out")} r="0.55" fill="#f97316" stroke="#000" strokeWidth="0.1" style={{ ["--fx" as string]: `${sx}px`, ["--fy" as string]: `${sy - 3}px`, ["--tx" as string]: "25px", ["--ty" as string]: "5.25px" } as React.CSSProperties} />
           {last.scoring ? <path className="pc-net" d="M24.3 5.6 L24.6 7.2 L25 6 L25.4 7.2 L25.7 5.6" stroke="#fff" strokeWidth="0.15" fill="none" /> : null}
           {freshIds.includes(last.id) ? <Burst x={sx} y={sy - 0.5} s={1} text={shotEmote(last)} color={offC} /> : null}
@@ -170,6 +207,12 @@ export function DiamondCrew({ snap, awayColor, homeColor, freshIds }: { snap: Li
   const em = fresh ? playEmote(fresh.text) : null;
   const hr = !!fresh && /homered|home run/i.test(fresh.text);
   const outs = bug.outs ?? 0;
+  // Names only from ESPN: the situation's batter id, else ESPN's "X pitches to Y" at-bat line; pitcher from that line or the posted arm.
+  const vs = !ab?.final ? ab?.text?.match(/^(.+?) pitches to (.+?)\.?$/) : null;
+  const batterName = nameById(snap, bug.batterId) ?? vs?.[2] ?? null;
+  const fieldId = bug.half === "bottom" ? snap.awayId : snap.homeId;
+  const arm = (snap.arms ?? []).filter((a) => a.teamId === fieldId).slice(-1)[0];
+  const pitcherName = vs?.[1] ?? arm?.name ?? null;
   // 1B, 2B, SS, 3B, LF, CF, RF (+ pitcher and catcher below) = 9 fielders.
   const fielders: [number, number][] = [[80, 36], [70, 27], [50, 27], [40, 36], [30, 14], [60, 9], [90, 14]];
   return (
@@ -181,6 +224,11 @@ export function DiamondCrew({ snap, awayColor, homeColor, freshIds }: { snap: Li
       {bug.onSecond ? <Chibi x={63} y={22} s={1.7} color={bat} mood="run" delay={300} /> : null}
       {bug.onThird ? <Chibi x={36} y={45} s={1.7} color={bat} mood="run" delay={500} /> : null}
       <Chibi x={lefty ? 66 : 54} y={65} s={1.9} color={bat} mood="swing" flip={lefty} />
+      <Tag x={lefty ? 66 : 54} y={55.5} fs={3.2} name={batterName} color={bat} icon="🏏" />
+      <Tag x={60} y={34} fs={3.2} name={pitcherName} color={fld} icon="⚾" />
+      {bug.onFirst ? <Tag x={84} y={36} fs={2.9} name={nameById(snap, bug.baseIds?.[0])} color={bat} /> : null}
+      {bug.onSecond ? <Tag x={63} y={13} fs={2.9} name={nameById(snap, bug.baseIds?.[1])} color={bat} /> : null}
+      {bug.onThird ? <Tag x={36} y={36} fs={2.9} name={nameById(snap, bug.baseIds?.[2])} color={bat} /> : null}
       {lp ? (
         <g key={lp.id}>
           <circle className="pc-pitch" r="0.9" fill="#fff" stroke="#000" strokeWidth="0.15" />
@@ -217,11 +265,16 @@ export function FieldCrew({ snap, ball, dir, offense, defense, freshIds }: { sna
   const at = (dx: number) => Math.max(2, Math.min(118, ball + dx * dir));
   const fresh = [...snap.plays].reverse().find((p) => freshIds.includes(p.id));
   const t = fresh ? `${fresh.typeText} ${fresh.text}`.toLowerCase() : "";
+  // Who ESPN's latest play names first: the passer on a pass (QB spot), the carrier on a run (RB spot).
+  const lp = [...snap.plays].reverse().find((p) => namedPlayer(p.text));
+  const lpT = lp ? lp.text.toLowerCase() : "";
+  const lead = lp && /pass|sacked|scramble/.test(lpT) ? { i: 5, name: namedPlayer(lp.text) } : lp && /(left|right) (end|tackle|guard)|up the middle|rush|run/.test(lpT) ? { i: 6, name: namedPlayer(lp.text) } : null;
   const em = !fresh ? null : /touchdown/.test(t) ? "TD! 🔥" : /intercept/.test(t) ? "Picked! 😱" : /fumble/.test(t) && fresh.turnover ? "Fumble! 😬" : /sack/.test(t) ? "Sacked 💥" : /field goal/.test(t) && /good/.test(t) ? "It's good! 🎯" : (fresh.yards ?? 0) >= 20 ? "Big gain! 💨" : (fresh.yards ?? 0) >= (fresh.distance ?? 99) && !fresh.penalty ? "1st down 💪" : null;
   return (
     <g className="pc-crew" data-testid="field-crew">
       {def.map(([dx, y], i) => <Chibi key={"d" + i} x={at(dx)} y={y + 3} s={1.15} color={defense} delay={i * 130} flip={dir > 0} />)}
       {off.map(([dx, y], i) => <Chibi key={"o" + i} x={at(dx)} y={y + 3} s={1.15} color={offense} mood={i === 5 && fresh ? "throw" : "idle"} delay={i * 120 + 60} flip={dir < 0} />)}
+      {lead ? <Tag x={at(off[lead.i][0])} y={off[lead.i][1] - 2} fs={3.2} name={lead.name} hot={freshIds.includes(lp!.id)} color={offense} icon={lead.i === 5 ? "🏈" : undefined} /> : null}
       {em && fresh ? <Burst key={fresh.id} x={60} y={20} s={2.2} text={em} color={/picked|fumble|sack/i.test(em) ? "#ff3b5c" : offense} /> : null}
     </g>
   );
@@ -234,12 +287,16 @@ export function RinkCrew({ snap, awayColor, homeColor, freshIds }: { snap: LiveS
   const right = left.map(([x, y]) => [-x, y] as [number, number]);
   const fresh = [...snap.plays].reverse().find((p) => freshIds.includes(p.id));
   const t = fresh ? `${fresh.typeText} ${fresh.text}`.toLowerCase() : "";
+  const hp = [...snap.plays].reverse().find((p) => p.x !== null && p.y !== null && namedPlayer(p.text));
+  const keeper = hp ? (hp.text.match(/saved by ([A-Z][\w'’.-]+(?: [A-Z][\w'’.-]+)*)/)?.[1] ?? null) : null;
   const em = !fresh ? null : fresh.scoring && /goal/.test(t) ? "GOAL! 🚨" : /save/.test(t) ? "Save 🧤" : /penalty/.test(t) ? "Penalty ⏱️" : /\bhit\b/.test(t) ? "Hit! 💥" : /blocked/.test(t) ? "Blocked 🛡️" : /shot/.test(t) ? "Shot 🎯" : null;
   const col = fresh?.teamId === snap.homeId ? homeColor : awayColor;
   return (
     <g className="pc-crew" data-testid="rink-crew">
       {left.map(([x, y], i) => <Chibi key={"a" + i} x={x} y={y + 6} s={3.4} color={awayColor} delay={i * 150} />)}
       {right.map(([x, y], i) => <Chibi key={"h" + i} x={x} y={y + 6} s={3.4} color={homeColor} flip delay={i * 150 + 80} />)}
+      {hp && hp.x !== null && hp.y !== null ? <Tag x={hp.x} y={Math.max(-36, -hp.y - 10)} fs={6.8} name={namedPlayer(hp.text)} hot={freshIds.includes(hp.id)} color={hp.teamId === snap.homeId ? homeColor : awayColor} /> : null}
+      {hp && hp.x !== null && keeper ? <Tag x={hp.x >= 0 ? 84 : -84} y={-6} fs={6.8} name={keeper} hot={freshIds.includes(hp.id)} color={hp.teamId === snap.homeId ? awayColor : homeColor} icon="🧤" /> : null}
       {em && fresh ? <Burst key={fresh.id} x={fresh.x ?? 0} y={-(fresh.y ?? 0)} s={4} text={em} color={col} /> : null}
     </g>
   );
@@ -253,12 +310,16 @@ export function PitchCrew({ snap, awayColor, homeColor, freshIds }: { snap: Live
   const fresh = [...snap.plays].reverse().find((p) => freshIds.includes(p.id));
   const t = fresh ? `${fresh.typeText} ${fresh.text}`.toLowerCase() : "";
   const Y = "c" + "ard";
+  // Latest shot or goal: ESPN writes "Attempt saved. Mohamed Salah (Liverpool) right footed shot…". Tag sits on that side's striker.
+  const sp = [...snap.plays].reverse().find((p) => p.teamId && (p.scoring || /goal|shot|attempt|saved/i.test(p.typeText + " " + p.text)));
+  const spName = sp ? (sp.text.match(/(?:^|[.!]\s+)([A-Z][\p{L}'’.-]+(?:\s[A-Z\p{Lu}][\p{L}'’.-]+)*)\s\(/u)?.[1] ?? namedPlayer(sp.text)) : null;
   const em = !fresh ? null : fresh.scoring || /^goal/.test(t) ? "GOAL! ⚽🔥" : /saved|save/.test(t) ? "Save 🧤" : new RegExp(`red ${Y}|sent off`).test(t) ? "Sent off 🟥" : new RegExp(`yellow ${Y}|booked`).test(t) ? "Booked 🟨" : /corner/.test(t) ? "Corner 🚩" : /shot|attempt/.test(t) ? "Shot 🎯" : /offside/.test(t) ? "Offside 🚫" : null;
   const col = fresh?.teamId === snap.homeId ? homeColor : awayColor;
   return (
     <g className="pc-crew" data-testid="pitch-crew">
       {left.map(([x, y], i) => <Chibi key={"a" + i} x={x} y={y + 2} s={1.6} color={awayColor} delay={i * 110} />)}
       {right.map(([x, y], i) => <Chibi key={"h" + i} x={x} y={y + 2} s={1.6} color={homeColor} flip delay={i * 110 + 50} />)}
+      {sp && spName ? <Tag x={sp.teamId === snap.homeId ? 68 : 52} y={sp.teamId === snap.homeId ? 37 : 23} fs={3.2} name={spName} hot={freshIds.includes(sp.id)} color={sp.teamId === snap.homeId ? homeColor : awayColor} icon={/goal/i.test(sp.typeText) || sp.scoring ? "⚽" : undefined} /> : null}
       {em && fresh ? <Burst key={fresh.id} x={60} y={30} s={2.2} text={em} color={col} /> : null}
     </g>
   );

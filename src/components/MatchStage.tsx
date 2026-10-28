@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { Match } from "@/lib/sports";
-import { Burst, Chibi } from "@/components/MiniCrew";
+import { Burst, Chibi, Tag, lastName } from "@/components/MiniCrew";
 
 const col = (c: string | null | undefined, d: string) => (c && /^#?[0-9a-f]{6}$/i.test(c) ? (c.startsWith("#") ? c : "#" + c) : d);
 
@@ -78,6 +78,23 @@ export default function MatchStage({ m, kind }: { m: Match; kind: "tennis" | "fi
           {(doubles ? [[96, 26], [90, 46]] : [[98, 38]]).map(([x, y], i) => (
             <Chibi key={"h" + i} x={kind === "fight" ? 74 : x} y={kind === "fight" ? 42 : y} s={kind === "fight" ? 4 : 3.2} color={h} flip mood={winner === "home" ? "hype" : winner === "away" ? "sad" : m.home.serving && i === 0 ? "swing" : "idle"} delay={i * 200 + 100} />
           ))}
+          {kind === "fight" ? (
+            <>
+              <Tag x={46} y={22} fs={3.2} name={m.away.name} color={a} />
+              <Tag x={74} y={22} fs={3.2} name={m.home.name} color={h} />
+            </>
+          ) : doubles ? null : (
+            <>
+              <Tag x={22} y={20} fs={3.2} name={m.away.name} color={a} icon={m.away.serving ? "🎾" : undefined} />
+              <Tag x={98} y={20} fs={3.2} name={m.home.name} color={h} icon={m.home.serving ? "🎾" : undefined} />
+            </>
+          )}
+          {doubles ? (
+            <>
+              <Tag x={30} y={14} fs={3} text={m.away.name.split("/").map((n) => lastName(n.trim())).join(" / ")} color={a} icon={m.away.serving ? "🎾" : undefined} />
+              <Tag x={90} y={14} fs={3} text={m.home.name.split("/").map((n) => lastName(n.trim())).join(" / ")} color={h} icon={m.home.serving ? "🎾" : undefined} />
+            </>
+          ) : null}
           {fx ? <Burst key={fx.n} x={60} y={36} s={3} text={fx.text} color="#f5c542" /> : null}
         </g>
         <text x="4" y="69" fontSize="3.4" fontWeight="900" fill={a}>{m.away.short}</text>

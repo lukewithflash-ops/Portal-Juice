@@ -142,6 +142,8 @@ export type LiveBug = {
   /** Baseball: ESPN athlete ids at the plate and on base, when the situation names them. */
   batterId?: string | null;
   runnerIds?: string[];
+  /** Baseball: runner id on 1st, 2nd, 3rd (null = empty or unnamed). */
+  baseIds?: (string | null)[];
 };
 
 /** Reads a summary or scoreboard `situation` plus the status detail ("Top 5th"). */
@@ -166,6 +168,7 @@ export function readBug(sitRaw: unknown, detail: string | null): LiveBug | null 
     awayTimeouts: num(sit.awayTimeouts),
     batterId: personId(sit.batter),
     runnerIds: [sit.onFirst, sit.onSecond, sit.onThird].map(personId).filter((x): x is string => !!x),
+    baseIds: [sit.onFirst, sit.onSecond, sit.onThird].map((v) => (v && typeof v === "object" ? personId(v) : null)),
   };
   const any = bug.balls !== null || bug.outs !== null || bug.homeTimeouts !== null || bug.onFirst || bug.onSecond || bug.onThird || half;
   return any ? bug : null;
