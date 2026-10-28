@@ -11,6 +11,9 @@ assert.equal(typeof buildOwnerPick({ ...(g as object), price: { ...(g as { price
 assert.equal(typeof buildOwnerPick(g, "free", "ml", "LAL", "", "d"), "string");
 const r = ownerRecord([{ date: "3", result: "hit" }, { date: "2", result: "push" }, { date: "1", result: "hit" }, { date: "0", result: "miss" }, { date: "4", result: null }]);
 assert.deepEqual(r, { w: 2, l: 1, p: 1, rate: 66.7, streak: "W2" });
+const past = { ...(g as object), start: new Date(Date.now() - 60000).toISOString() } as never;
+assert.equal(buildOwnerPick(past, "free", "ml", "NYK", "", "d"), "That game has started.");
+assert.equal(buildOwnerPick(g, "free", "ml", "NYK", "", "d", new Date("2099-01-01T00:00:00Z")), "That game has started.");
 import { agentAuthorized } from "../src/lib/ownerAgent";
 const sec = "x".repeat(40);
 assert.equal(agentAuthorized(sec, sec), true); assert.equal(agentAuthorized("y".repeat(40), sec), false);

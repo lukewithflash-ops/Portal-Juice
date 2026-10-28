@@ -46,6 +46,8 @@ export function isDraftKings(provider: string | null | undefined) {
 export function buildOwnerPick(g: Game, slot: OwnerSlot, market: OwnerMarket, side: string, note: string, date: string, now = new Date()): OwnerPick | string {
   const p = g.price;
   if (g.state !== "pre") return "That game has started.";
+  const st = Date.parse(g.start);
+  if (!Number.isFinite(st) || now.getTime() >= st) return "That game has started.";
   if (!p || !isDraftKings(p.provider)) return "No DraftKings number for this game yet.";
   const home = side === g.home.abbr, away = side === g.away.abbr;
   let line: number | null = null, odds: string | null = null;
