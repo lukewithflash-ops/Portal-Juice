@@ -1282,3 +1282,23 @@ body { min-height: 0; }
 .pc-mine-hot .pc-mine-ring{animation:pcMineHot .5s ease-out 4}
 @keyframes pcMineHot{0%{transform:scale(.6);opacity:1}100%{transform:scale(1.8);opacity:0}}
 @media (prefers-reduced-motion:reduce){.pc-mine-ring{animation:none!important}}
+
+/* Box score */
+.box-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; border-radius: 10px; border: 1px solid rgba(168,85,247,0.25); background: rgba(10,6,24,0.55); }
+.box-table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.box-table th { position: sticky; top: 0; padding: 6px 8px; font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; color: #c4b5fd; text-align: right; background: rgba(24,12,48,0.98); border-bottom: 1px solid rgba(168,85,247,0.35); white-space: nowrap; }
+.box-table td { padding: 5px 8px; text-align: right; color: #e4e4e7; white-space: nowrap; border-top: 1px solid rgba(255,255,255,0.05); }
+.box-table .box-name { position: sticky; left: 0; z-index: 1; text-align: left; background: #120a26; box-shadow: 6px 0 10px -6px rgba(168,85,247,0.6); max-width: 9.5rem; overflow: hidden; text-overflow: ellipsis; }
+.box-table th.box-name { z-index: 2; background: #1a0f36; }
+.box-table .box-name + th, .box-table .box-name + td { padding-left: 14px; }
+.box-table tbody tr:nth-child(even) td { background-color: rgba(255,255,255,0.02); }
+.box-table tbody tr:nth-child(even) td.box-name { background: #160d2e; }
+.box-table tr.box-mine td { background: rgba(245,197,66,0.12); color: #fde68a; }
+.box-table tr.box-mine td.box-name { background: #2a1f0e; box-shadow: inset 3px 0 0 #f5c542, 6px 0 14px -6px #f5c542; }
+.box-table tr.box-total td { font-weight: 900; color: #fff; border-top: 1px solid rgba(168,85,247,0.4); background: rgba(168,85,247,0.08); }
+.box-table tr.box-total td.box-name { background: #1d1138; }
+.box-live { color: #4ade80; text-shadow: 0 0 8px #4ade80; animation: box-pulse 1.6s ease-in-out infinite; }
+@keyframes box-pulse { 50% { opacity: .45; } }
+.box-skel { height: 140px; border-radius: 10px; background: linear-gradient(90deg, rgba(168,85,247,.08), rgba(168,85,247,.2), rgba(168,85,247,.08)); background-size: 200% 100%; animation: box-shim 1.2s linear infinite; }
+@keyframes box-shim { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .box-live, .box-skel { animation: none; } }

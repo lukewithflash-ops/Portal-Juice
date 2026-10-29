@@ -2,6 +2,7 @@
 import { scroller, scrollTarget } from "@/lib/scroller";
 import { isCountdown, isSoccerLeague, stopReason } from "@/lib/liveClock";
 import Lineups from "@/components/Lineups";
+import BoxScore from "@/components/BoxScore";
 import BreakPanel from "@/components/BreakPanel";
 import { stageColors } from "@/lib/stageColors";
 import { driveTrail, fieldGeom, spotX, type FieldSide, type TrailSeg } from "@/lib/fieldGeom";
@@ -403,6 +404,7 @@ export default function GameLive({
           )}
           </div>
           <Lineups league={league} gameId={id} snap={snap} />
+          <BoxScore league={league} id={id} live={snap?.state === "in"} />
         </div>
         <div className={tab === "play" ? "max-lg:hidden" : ""}>
           <Tracker top={top} rest={rest} state={snap?.state ?? "pre"} />

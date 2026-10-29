@@ -8,6 +8,7 @@ import MatchStage from "@/components/MatchStage";
 import GameLive from "@/components/GameLive";
 import GameChatDock from "@/components/GameChatDock";
 import AutoRefresh from "@/components/AutoRefresh";
+import BoxScore from "@/components/BoxScore";
 import { sportLeague } from "@/lib/sports";
 import { getMatch } from "@/lib/sportsFetch";
 import { isRacing, raceHref } from "@/lib/racing";
@@ -64,6 +65,7 @@ export default async function MatchPage({ params }: { params: Promise<Params> })
         ) : (
           <MatchRow m={m} href={null} />
         )}
+        {l.kind === "tennis" || l.kind === "fight" ? <BoxScore league={league} id={id} live={m.state === "in"} /> : null}
         {stats.length ? (
           <section className="foil-tile mt-4 p-4">
             <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-200/80">{m.state === "pre" ? "Season stats" : "Match stats"}</h2>
