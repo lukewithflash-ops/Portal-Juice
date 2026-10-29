@@ -16,7 +16,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ league: string
     const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${path}/summary?event=${id}`, { next: { revalidate: 8 } });
     if (!r.ok) throw new Error(String(r.status));
     const box = parseBoxScore(await r.json(), path);
-    return NextResponse.json(box ?? { state: "pre", teams: [], teamStats: [] }, { headers: { "Cache-Control": "public, s-maxage=8, stale-while-revalidate=20" } });
+    return NextResponse.json(box ?? { state: "pre", teams: [], teamStats: [] }, { headers: { "Cache-Control": "public, max-age=5, s-maxage=10, stale-while-revalidate=30", "CDN-Cache-Control": "public, s-maxage=10, stale-while-revalidate=30", "Vercel-CDN-Cache-Control": "public, s-maxage=10, stale-while-revalidate=30" } });
   } catch {
     return NextResponse.json({ error: "ESPN box score unavailable." }, { status: 502, headers: { "Cache-Control": "no-store" } });
   }

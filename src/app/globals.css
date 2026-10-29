@@ -1302,3 +1302,4 @@ body { min-height: 0; }
 .box-skel { height: 140px; border-radius: 10px; background: linear-gradient(90deg, rgba(168,85,247,.08), rgba(168,85,247,.2), rgba(168,85,247,.08)); background-size: 200% 100%; animation: box-shim 1.2s linear infinite; }
 @keyframes box-shim { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .box-live, .box-skel { animation: none; } }
+.box-score { content-visibility: auto; contain-intrinsic-size: auto 900px; }

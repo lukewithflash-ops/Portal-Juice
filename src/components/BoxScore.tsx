@@ -1,36 +1,74 @@
 "use client";
 /** ESPN-style full box score, Portal themed. Every number is ESPN's; no box from ESPN shows a clean empty state. */
-import { useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { BoxScore as Box, BoxGroup } from "@/lib/boxScore";
 import { useYourPlayers } from "@/components/YourPlayers";
 import { mentions } from "@/lib/yourPlayers";
 
-export default function BoxScore({ league, id, live }: { league: string; id: string; live?: boolean }) {
+export default memo(BoxScore);
+
+function BoxScore({ league, id, live }: { league: string; id: string; live?: boolean }) {
   const [box, setBox] = useState<Box | null>(null);
   const [err, setErr] = useState(false);
   const [side, setSide] = useState(0);
   const [view, setView] = useState<"players" | "team">("players");
   const { names } = useYourPlayers();
+  const nameKey = names.join("|");
+  const ref = useRef<HTMLElement>(null);
+  const last = useRef("");
   const isLive = box ? box.state === "in" : !!live;
 
   useEffect(() => {
     let stop = false;
-    let t: ReturnType<typeof setTimeout>;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    let seen = true;
+    let wanted = false;
+    let state = "";
+    const due = () => (state === "in" ? 12000 : state === "pre" ? 60000 : 0);
+    const later = (ms: number) => {
+      clearTimeout(t);
+      t = ms ? setTimeout(tick, ms) : undefined;
+    };
+    // Off screen or app in the background: wait, then pull fresh the moment it's back in view.
+    const tick = () => {
+      if (stop) return;
+      if (!seen || document.hidden) {
+        wanted = true;
+        return;
+      }
+      load();
+    };
+    const wake = () => {
+      if (wanted && seen && !document.hidden) {
+        wanted = false;
+        load();
+      }
+    };
+    const io = typeof IntersectionObserver === "function" && ref.current
+      ? new IntersectionObserver((e) => {
+          seen = e.some((x) => x.isIntersecting);
+          wake();
+        }, { rootMargin: "400px 0px" })
+      : null;
+    if (io && ref.current) io.observe(ref.current);
+    document.addEventListener("visibilitychange", wake);
     const load = async () => {
       try {
-        const r = await fetch(`/api/box/${league}/${id}`, { cache: "no-store" });
+        const r = await fetch(`/api/box/${league}/${id}`);
         if (!r.ok) throw new Error();
-        const b = (await r.json()) as Box;
-        if (!stop) {
+        const text = await r.text();
+        const b = JSON.parse(text) as Box;
+        state = b.state;
+        if (!stop && text !== last.current) {
+          last.current = text;
           setBox(b);
-          setErr(false);
         }
-        if (!stop && b.state === "in") t = setTimeout(load, document.hidden ? 30000 : 12000);
-        else if (!stop && b.state === "pre") t = setTimeout(load, 60000);
+        if (!stop) setErr(false);
+        if (!stop) later(due());
       } catch {
         if (!stop) {
           setErr(true);
-          t = setTimeout(load, 20000);
+          later(20000);
         }
       }
     };
@@ -38,15 +76,18 @@ export default function BoxScore({ league, id, live }: { league: string; id: str
     return () => {
       stop = true;
       clearTimeout(t);
+      io?.disconnect();
+      document.removeEventListener("visibilitychange", wake);
     };
   }, [league, id]);
 
   const team = box?.teams[side] ?? null;
   const has = !!box && (box.teams.length > 0 || box.teamStats.length > 0);
-  const mine = (n: string) => names.some((x) => mentions(n, x) || mentions(x, n));
+  // Stable across live-feed renders so memoized tables skip work unless the box or your players change.
+  const mine = useCallback((n: string) => (nameKey ? nameKey.split("|").some((x) => mentions(n, x) || mentions(x, n)) : false), [nameKey]);
 
   return (
-    <section className="foil-tile box-score mt-4 p-3" aria-label="Box score" data-testid="box-score">
+    <section ref={ref} className="foil-tile box-score mt-4 p-3" aria-label="Box score" data-testid="box-score">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-purple-200/80">
           Box score {isLive ? <span className="box-live ml-1">● Live</span> : box?.state === "post" ? <span className="ml-1 text-zinc-500">· Final</span> : null}
@@ -90,7 +131,7 @@ export default function BoxScore({ league, id, live }: { league: string; id: str
   );
 }
 
-function Group({ g, color, mine }: { g: BoxGroup; color: string; mine: (n: string) => boolean }) {
+const Group = memo(function Group({ g, color, mine }: { g: BoxGroup; color: string; mine: (n: string) => boolean }) {
   return (
     <div className="mt-3">
       <p className="mb-1 text-[10px] font-black uppercase tracking-[0.18em]" style={{ color }}>{g.title}</p>
@@ -126,7 +167,7 @@ function Group({ g, color, mine }: { g: BoxGroup; color: string; mine: (n: strin
       </div>
     </div>
   );
-}
+});
 
 function TeamTable({ box }: { box: Box }) {
   const [a, h] = [box.teams[0]?.abbr ?? "Away", box.teams[1]?.abbr ?? "Home"];
